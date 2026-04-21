@@ -40,7 +40,7 @@ function Btn({
         "rounded-lg border px-3 py-1 text-xs transition",
         "border-black/10 bg-white/70 hover:bg-white dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60",
         active ? "ring-2 ring-black/10 dark:ring-white/10" : "",
-        disabled ? "opacity-50 cursor-not-allowed" : ""
+        disabled ? "cursor-not-allowed opacity-50" : ""
       ].join(" ")}
     >
       {children}
@@ -108,7 +108,7 @@ export default function RichTextEditor({
     const next = value || "";
 
     if (current !== next) {
-    editor.commands.setContent(next, { emitUpdate: false });
+      editor.commands.setContent(next, { emitUpdate: false });
     }
   }, [editor, value]);
 
@@ -125,12 +125,7 @@ export default function RichTextEditor({
       return;
     }
 
-    editor
-      .chain()
-      .focus()
-      .extendMarkRange("link")
-      .setLink({ href: url })
-      .run();
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
   const unsetLink = React.useCallback(() => {
@@ -242,11 +237,7 @@ export default function RichTextEditor({
 
         <div className="mx-1 h-6 w-px bg-black/10 dark:bg-white/10" />
 
-        <Btn
-          title="Add link"
-          active={editor?.isActive("link")}
-          onClick={setLink}
-        >
+        <Btn title="Add link" active={editor?.isActive("link")} onClick={setLink}>
           Link
         </Btn>
 
