@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Cairo, Roboto_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 
 import { locales, type Locale } from "@/i18n";
 
@@ -75,6 +76,7 @@ export default async function LocaleLayout({
             <Footer locale={locale} />
           </NextIntlClientProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
