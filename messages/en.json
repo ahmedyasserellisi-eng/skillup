@@ -1,0 +1,106 @@
+{
+  "nav": {
+    "programs": "Programs",
+    "events": "Events",
+    "sectors": "Sectors",
+    "highlights": "Awards",
+    "join": "Join Us",
+    "contact": "Contact"
+  },
+  "home": {
+    "badge": "SkillUp Team",
+    "headline": "From watching... to taking on real roles",
+    "sub": "A youth team focused on empowering Egyptian youth through practical learning that simulates real work environments and helps them build skills closer to the job market.",
+    "ctaPrimary": "Contact Us",
+    "ctaSecondary": "View Programs",
+    "sections": {
+      "sectorsTitle": "Sectors",
+      "sectorsDesc": "Each sector has a clear role and defined responsibilities, creating a more organized and practical team experience.",
+      "sectorsCta": "View All Sectors",
+      "programsTitle": "Programs & Training",
+      "programsDesc": "Practical programs designed to help young people learn by doing, with organized content that can be presented clearly on the website.",
+      "programsCta": "View Programs",
+      "eventsTitle": "Events",
+      "eventsDesc": "Online and offline events appear here in an organized way once they are added through the admin dashboard.",
+      "eventsCta": "View Events",
+      "youtubeTitle": "SkillUp on YouTube",
+      "youtubeDesc": "We are building practical and training-focused content, and program-related videos will be displayed directly on the website in a structured way.",
+      "youtubeCta": "Open Channel",
+      "quickContactTitle": "Quick Contact",
+      "quickContactDesc": "For inquiries, partnerships, or collaboration opportunities, send us a message and we will get back to you as soon as possible.",
+      "quickContactCtaPrimary": "Contact Us",
+      "quickContactCtaSecondary": "Apply to Join",
+      "officialEmail": "Official email: skillupyouth.eg@gmail.com"
+    },
+    "highlights": {
+      "h1Title": "Work-simulated experience",
+      "h1Sub": "Practical learning closer to reality",
+      "h2Title": "Cross-sector collaboration",
+      "h2Sub": "An integrated team experience",
+      "h3Title": "A space for growth and participation",
+      "h3Sub": "A supportive youth environment"
+    }
+  },
+  "programs": {
+    "title": "Programs & Training",
+    "desc": "This page presents SkillUp programs and training tracks, helping visitors explore the practical learning experiences and content available.",
+    "cardTitle": "Training Program",
+    "cardDesc": "A short description of the program will appear here once it is added and managed through the admin dashboard.",
+    "cardNote": "Programs can be connected to visual content and displayed in a clear, organized way on the website.",
+    "actions": {
+      "viewDetails": "View Details",
+      "watchPlaylist": "Watch Videos"
+    }
+  },
+  "events": {
+    "title": "Events",
+    "desc": "This page showcases SkillUp events and activities, whether online or offline, in a clear and regularly updated format.",
+    "comingTitle": "Coming Soon",
+    "comingDesc": "The first event will appear here once it is added and published from the admin dashboard.",
+    "filters": {
+      "all": "All",
+      "online": "Online",
+      "offline": "Offline"
+    }
+  },
+  "contact": {
+    "title": "Contact Us",
+    "desc": "We would be glad to hear from you, and we will get back to you as soon as possible.",
+    "name": "Name",
+    "email": "Email",
+    "message": "Your Message",
+    "send": "Send",
+    "sending": "Sending...",
+    "success": "Your message has been sent successfully. Thank you for reaching out.",
+    "note": "Messages will be sent to: skillupyouth.eg@gmail.com"
+  },
+  "join": {
+    "title": "Join SkillUp",
+    "desc": "Fill in your details and the SkillUp team will review your application and contact you when needed.",
+    "submit": "Submit Application",
+    "success": "Your application has been submitted successfully. We will contact you soon.",
+    "fields": {
+      "fullName": "Full Name",
+      "email": "Email",
+      "phone": "Phone Number",
+      "city": "City",
+      "sector": "Preferred Sector",
+      "message": "Why do you want to join?"
+    }
+  },
+  "sectors": {
+    "title": "Our Sectors",
+    "desc": "Sectors are the framework that organizes roles inside SkillUp, helping distribute responsibilities and create a more realistic work-like experience.",
+    "details": {
+      "role": "Core Role",
+      "responsibilities": "Responsibilities",
+      "boundaries": "Organizational Boundaries",
+      "benefits": "Member Benefits"
+    },
+    "cta": {
+      "viewDetails": "Sector Details",
+      "joinFromSector": "Join This Sector",
+      "back": "Back to Sectors"
+    }
+  }
+}
