@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { AlertTriangle, CheckCircle2, Mail, Send } from "lucide-react";
 
 type ContactCategory = "general" | "partnership" | "volunteering" | "media";
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function ContactForm({ locale }: { locale: "ar" | "en" }) {
   const isAr = locale === "ar";
@@ -112,7 +116,7 @@ export default function ContactForm({ locale }: { locale: "ar" | "en" }) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     setErrorMsg("");
