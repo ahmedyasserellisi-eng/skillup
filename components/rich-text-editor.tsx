@@ -108,7 +108,7 @@ export default function RichTextEditor({
     const next = value || "";
 
     if (current !== next) {
-      editor.commands.setContent(next, false);
+    editor.commands.setContent(next, { emitUpdate: false });
     }
   }, [editor, value]);
 
