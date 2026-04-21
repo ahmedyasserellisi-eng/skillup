@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import Navbar from "@/components/navbar";
 import Footer from "@/components/footer";
 import { PageTransition } from "@/components/motion";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -75,6 +76,7 @@ export default async function LocaleLayout({
             <Footer locale={locale} />
           </NextIntlClientProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
