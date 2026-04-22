@@ -62,15 +62,14 @@ export default async function LocaleLayout({
           "flex min-h-screen flex-col font-sans antialiased"
         ].join(" ")}
       >
-        {/* 🔥 FIX: Prevent dark mode on first load */}
+        {/* 🔥 سكريبت يمنع الوضع الداكن عند أول تحميل */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var stored = localStorage.getItem('theme');
-                  var theme = stored || 'light';
-                  if (theme === 'dark') {
+                  var saved = localStorage.getItem('theme');
+                  if (saved === 'dark') {
                     document.documentElement.classList.add('dark');
                   } else {
                     document.documentElement.classList.remove('dark');
@@ -81,12 +80,8 @@ export default async function LocaleLayout({
           }}
         />
 
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
+        {/* ❗ ThemeProvider بدون أي props */}
+        <ThemeProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <Navbar locale={locale} />
 
