@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { useParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,41 +13,58 @@ const ALLOWED = new Set([
 ]);
 
 export default function AdminLoginPage() {
+  const params = useParams<{ locale?: string }>();
+  const locale = params?.locale === "en" ? "en" : "ar";
+  const isAr = locale === "ar";
+
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function onSendLink() {
+  async function onSendLink(e?: FormEvent<HTMLFormElement>) {
+    e?.preventDefault();
+
     setStatus("");
     const clean = email.trim().toLowerCase();
 
     if (!clean) {
-      setStatus("اكتب البريد الإلكتروني أولًا.");
+      setStatus(isAr ? "اكتب البريد الإلكتروني أولًا." : "Please enter your email first.");
       return;
     }
 
     if (!ALLOWED.has(clean)) {
-      setStatus("هذا البريد غير مخوّل للدخول.");
+      setStatus(isAr ? "هذا البريد غير مخوّل للدخول." : "This email is not authorized.");
       return;
     }
 
     try {
       setLoading(true);
 
+      const redirectTo = `${window.location.origin}/${locale}/admin`;
+
       const { error } = await supabaseBrowser.auth.signInWithOtp({
         email: clean,
         options: {
-          emailRedirectTo: `${window.location.origin}/ar/admin`
+          emailRedirectTo: redirectTo
         }
       });
 
       if (error) {
         setStatus(error.message);
       } else {
-        setStatus("تم إرسال رابط الدخول إلى بريدك. افتح الإيميل واضغط على الرابط.");
+        setStatus(
+          isAr
+            ? "تم إرسال رابط الدخول إلى بريدك الإلكتروني. افتح الرسالة واضغط على الرابط."
+            : "A magic login link has been sent to your email. Open the message and click the link."
+        );
       }
     } catch (err: any) {
-      setStatus(err?.message || "حدث خطأ أثناء إرسال رابط الدخول.");
+      setStatus(
+        err?.message ||
+          (isAr
+            ? "حدث خطأ أثناء إرسال رابط الدخول."
+            : "An error occurred while sending the login link.")
+      );
     } finally {
       setLoading(false);
     }
@@ -54,24 +72,38 @@ export default function AdminLoginPage() {
 
   return (
     <div className="mx-auto max-w-md py-16">
-      <Card className="rounded-3xl">
+      <Card className="rounded-3xl border-black/10 bg-white/80 shadow-sm dark:border-white/10 dark:bg-zinc-950/50">
         <CardHeader>
-          <CardTitle>Admin Login</CardTitle>
+          <CardTitle>{isAr ? "تسجيل دخول الإدارة" : "Admin Login"}</CardTitle>
         </CardHeader>
 
-        <CardContent className="grid gap-3">
-          <Input
-            type="email"
-            placeholder="name@email.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+        <CardContent>
+          <form className="grid gap-3" onSubmit={onSendLink}>
+            <Input
+              type="email"
+              placeholder="name@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              dir="ltr"
+            />
 
-          <Button onClick={onSendLink} disabled={loading}>
-            {loading ? "Sending..." : "Send magic link"}
-          </Button>
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading
+                ? isAr
+                  ? "جارٍ الإرسال..."
+                  : "Sending..."
+                : isAr
+                  ? "إرسال رابط الدخول"
+                  : "Send magic link"}
+            </Button>
 
-          {status ? <p className="text-sm opacity-80">{status}</p> : null}
+            {status ? (
+              <p className="text-sm leading-6 opacity-80">
+                {status}
+              </p>
+            ) : null}
+          </form>
         </CardContent>
       </Card>
     </div>
