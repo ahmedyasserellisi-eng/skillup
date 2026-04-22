@@ -62,7 +62,31 @@ export default async function LocaleLayout({
           "flex min-h-screen flex-col font-sans antialiased"
         ].join(" ")}
       >
-        <ThemeProvider>
+        {/* 🔥 FIX: Prevent dark mode on first load */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('theme');
+                  var theme = stored || 'light';
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `
+          }}
+        />
+
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
           <NextIntlClientProvider locale={locale} messages={messages}>
             <Navbar locale={locale} />
 
