@@ -140,7 +140,7 @@ export default async function HighlightsPage({
       <div className="grid gap-4">
         <div className={cx(glass(), "p-8 text-center")}>
           <div className="text-xl font-semibold text-zinc-900 dark:text-white">
-            {isAr ? "تكريمات الشهر" : "Monthly Highlights"}
+            {isAr ? "الافضل لشهر" : "Monthly Highlights"}
           </div>
 
           <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
