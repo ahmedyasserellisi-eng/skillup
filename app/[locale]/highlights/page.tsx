@@ -211,7 +211,7 @@ export default async function HighlightsPage({
         <div className="grid gap-4">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-white/70 px-3 py-1 text-xs font-medium text-zinc-700 backdrop-blur dark:border-white/10 dark:bg-zinc-950/40 dark:text-zinc-300">
             <span className="h-1.5 w-1.5 rounded-full bg-zinc-900 dark:bg-white" />
-            {isAr ? "تكريمات الفريق" : "Team Highlights"}
+            {isAr ? "افضل الاعضاء" : "Team Highlights"}
           </div>
 
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
