@@ -99,8 +99,8 @@ export async function generateMetadata({
     title: `${locale === "ar" ? "الافضل علي مدار الشهر" : "Monthly Highlights"} | SkillUp`,
     description:
       locale === "ar"
-        ? "عرض تكريمات الشهر: أفضل قطاع وأفضل أعضاء في كل قطاع."
-        : "Monthly highlights: best sector and top members per sector."
+        ? "عرض الافضل خلال الشهر: أفضل قطاع وأفضل أعضاء في كل قطاع."
+      : "Monthly highlights: best sector and top members per sector."
   };
 }
 
