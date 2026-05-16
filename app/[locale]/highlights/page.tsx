@@ -62,7 +62,7 @@ function formatMonth(locale: "ar" | "en", val?: string | null) {
 function getHighlightsTitle(locale: "ar" | "en", monthText?: string) {
   if (monthText) {
     return locale === "ar"
-      ? `تكريمات ${monthText}`
+      ? `الافضل لشهر ${monthText}`
       : `Monthly Highlights — ${monthText}`;
   }
 
