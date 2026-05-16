@@ -96,7 +96,7 @@ export async function generateMetadata({
   if (!isLocale(locale)) notFound();
 
   return {
-    title: `${locale === "ar" ? "تكريمات الشهر" : "Monthly Highlights"} | SkillUp`,
+    title: `${locale === "ar" ? "الافضل علي مدار الشهر" : "Monthly Highlights"} | SkillUp`,
     description:
       locale === "ar"
         ? "عرض تكريمات الشهر: أفضل قطاع وأفضل أعضاء في كل قطاع."
