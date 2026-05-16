@@ -66,7 +66,7 @@ function getHighlightsTitle(locale: "ar" | "en", monthText?: string) {
       : `Monthly Highlights — ${monthText}`;
   }
 
-  return locale === "ar" ? "تكريمات الشهر" : "Monthly Highlights";
+  return locale === "ar" ? "الافضل لشهر" : "Monthly Highlights";
 }
 
 function glass() {
