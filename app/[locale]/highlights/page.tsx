@@ -1,4 +1,4 @@
-export const revalidate = 0;
+export const revalidate = 60;
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { locales, type Locale } from "@/i18n";
