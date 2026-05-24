@@ -39,8 +39,10 @@ type JoinRequest = {
   linkedin: string | null;
   portfolio: string | null;
   message: string | null;
-  admin_status: string | null;
-  admin_notes: string | null;
+  status: string | null;       // متوافق مع قاعدة البيانات
+  admin_status: string | null; // متوافق مع قاعدة البيانات للأدمن
+  admin_notes: string | null;  // متوافق مع قاعدة البيانات للملاحظات
+  consent: boolean | null;     // حقل الموافقة على الشروط
   created_at: string;
 };
 
@@ -128,7 +130,7 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
 
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
   const [city, setCity] = useState<string>("all");
   const [fromDate, setFromDate] = useState("");
@@ -192,7 +194,7 @@ export default function AdminJoinRequestsPage() {
     const s = q.trim().toLowerCase();
 
     return rows.filter((r) => {
-      if (status !== "all" && getStatusValue(r.admin_status) !== status) return false;
+      if (statusFilter !== "all" && getStatusValue(r.admin_status) !== statusFilter) return false;
       if (sector !== "all" && r.sector_key !== sector) return false;
       if (city !== "all" && normalizeCity(r.city) !== city) return false;
 
@@ -222,7 +224,7 @@ export default function AdminJoinRequestsPage() {
         (r.education ?? "").toLowerCase().includes(s)
       );
     });
-  }, [rows, q, status, sector, city, fromDate, toDate]);
+  }, [rows, q, statusFilter, sector, city, fromDate, toDate]);
 
   const stats = useMemo(() => {
     return {
@@ -264,7 +266,7 @@ export default function AdminJoinRequestsPage() {
     } else {
       setOpen(false);
       await load();
-      setMessage("✅ تم تحديث الطلب والملاحظات بنجاح.");
+      setMessage("✅ تم تحديث الطلب والملاحظات بنجاح في قاعدة البيانات.");
     }
 
     setSaving(false);
@@ -290,7 +292,7 @@ export default function AdminJoinRequestsPage() {
       setMessage(`❌ ${error.message}`);
     } else {
       await load();
-      setMessage(`✅ تم تحديث حالة المتقدم (${row.full_name}) بنجاح.`);
+      setMessage(`✅ تم تحديث حالة المتقدم (${row.full_name}) إلى ${STATUS_LABEL[newStatus]}.`);
     }
 
     setActionLoadingId(null);
@@ -299,7 +301,7 @@ export default function AdminJoinRequestsPage() {
   async function remove(id: string, name?: string) {
     setMessage("");
 
-    const ok = confirm(`هل تريد حذف هذا الطلب نهائياً؟\n\n${name || "طلب بدون اسم"}`);
+    const ok = confirm(`هل تريد حذف هذا الطلب نهائياً من الـ Supabase؟\n\n${name || "طلب بدون اسم"}`);
     if (!ok) return;
 
     const session = await requireAllowedSession();
@@ -316,7 +318,7 @@ export default function AdminJoinRequestsPage() {
       setMessage(`❌ ${error.message}`);
     } else {
       await load();
-      setMessage("✅ تم حذف الطلب بنجاح.");
+      setMessage("✅ تم حذف الطلب نهائياً من قاعدة البيانات.");
     }
 
     setActionLoadingId(null);
@@ -331,7 +333,6 @@ export default function AdminJoinRequestsPage() {
 
       const XLSX = await import("xlsx");
 
-      // 1. هيكلة البيانات لتكون جاهزة ومعربة بالكامل
       const data = filtered.map((r, index) => ({
         "م": index + 1,
         "الاسم الكامل": cleanCell(r.full_name),
@@ -350,39 +351,33 @@ export default function AdminJoinRequestsPage() {
         "رابط لينكدإن": cleanCell(r.linkedin),
         "معرض الأعمال": cleanCell(r.portfolio),
         "رسالة المتقدم": cleanCell(r.message),
-        "حالة الطلب": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
-        "ملاحظات التقييم": cleanCell(r.admin_notes),
+        "حالة التقييم (Admin)": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
+        "ملاحظات الأدمن": cleanCell(r.admin_notes),
+        "الموافقة على الشروط": r.consent ? "نعم" : "لا",
         "تاريخ التقديم": formatDateTime(r.created_at)
       }));
 
-      // 2. إنشاء ورقة العمل (Worksheet)
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
 
-      // 3. تفعيل خيار العرض من اليمين إلى اليسار وإظهار خطوط الشبكة بشكل دائم داخل ملف الإكسيل
       if (!ws["!views"]) ws["!views"] = [];
       ws["!views"].push({ RTL: true, showGridLines: true });
 
-      // 4. ضبط ذكي وعريض لحجم الأعمدة والـ Auto-fit التلقائي بناءً على النصوص لتجنب التداخل
       const objectKeys = Object.keys(data[0]);
       ws["!cols"] = objectKeys.map((key) => {
-        // حساب أقصى طول لنص موجود في هذا العمود عبر خلايا البيانات والـ header نفسه
         const maxLength = data.reduce((max, row) => {
           const val = row[key as keyof typeof row]?.toString() || "";
           return Math.max(max, val.length);
         }, key.length);
-
-        // وضع حد أدنى مريح ومناسب لطول الأعمدة باللغة العربية
         return { wch: Math.min(Math.max(maxLength + 4, 12), 45) };
       });
 
-      // 5. بناء ملف الإكسيل وحفظه
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "طلبات الانضمام المفلترة");
+      XLSX.utils.book_append_sheet(wb, ws, "طلبات الانضمام");
 
       const date = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `طلبات-انضمام-SkillUp-${date}.xlsx`);
 
-      setMessage("✅ تم تصدير ملف Excel من اليمين إلى اليسار بنجاح وبشكل منسق.");
+      setMessage("✅ تم تصدير ملف Excel بنجاح.");
     } catch (e: any) {
       setMessage(`❌ ${e?.message || "حدث خطأ أثناء التصدير."}`);
     }
@@ -390,7 +385,7 @@ export default function AdminJoinRequestsPage() {
 
   function resetFilters() {
     setQ("");
-    setStatus("all");
+    setStatusFilter("all");
     setSector("all");
     setCity("all");
     setFromDate("");
@@ -404,9 +399,9 @@ export default function AdminJoinRequestsPage() {
       {/* الهيدر */}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">طلبات الانضمام لـ SkillUp</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">لوحة تحكم طلبات الانضمام</h1>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            لوحة مراجعة وفرز طلبات المتقدمين الجدد وإدارة قطاعات الـ MEAL والموارد البشرية.
+            مزامنة كاملة وقراءة مباشرة من جدول <code className="bg-zinc-100 px-1 py-0.5 rounded text-red-600 font-mono text-xs">public.join_requests</code>.
           </p>
         </div>
 
@@ -420,7 +415,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* شاشة الإحصائيات المصغرة */}
+      {/* العدادات الإحصائية */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
         {[
           { label: "إجمالي الطلبات", val: stats.total, color: "text-zinc-900 dark:text-white" },
@@ -449,8 +444,8 @@ export default function AdminJoinRequestsPage() {
           />
 
           <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200"
           >
             <option value="all">كل الحالات</option>
@@ -507,7 +502,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       ) : null}
 
-      {/* جدول البيانات */}
+      {/* الجدول الرئيسي */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 overflow-x-auto">
         <Table>
           <TableHeader className="bg-zinc-50 dark:bg-zinc-950">
@@ -515,7 +510,7 @@ export default function AdminJoinRequestsPage() {
               <TableHead className="text-right">المتقدم</TableHead>
               <TableHead className="text-right">القطاع المطلوب</TableHead>
               <TableHead className="text-right">المدينة</TableHead>
-              <TableHead className="text-right">الحالة</TableHead>
+              <TableHead className="text-right">الحالة الإدارية</TableHead>
               <TableHead className="text-right">الهاتف</TableHead>
               <TableHead className="text-right">تاريخ تقديم الطلب</TableHead>
               <TableHead className="text-center w-[360px]">الإجراءات السريعة</TableHead>
@@ -527,14 +522,14 @@ export default function AdminJoinRequestsPage() {
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell colSpan={7} className="py-6 text-center opacity-50">
-                    جاري تحميل الطلبات والمزامنة مع قاعدة البيانات...
+                    جاري سحب ومزامنة البيانات من الـ Supabase...
                   </TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="py-10 text-center font-medium text-zinc-500">
-                  لا توجد طلبات مطابقة للفلاتر أو نص البحث الحالي.
+                  لا توجد طلبات مطابقة للبحث.
                 </TableCell>
               </TableRow>
             ) : (
@@ -561,6 +556,7 @@ export default function AdminJoinRequestsPage() {
 
                   <TableCell>
                     <div className="flex items-center justify-center gap-1.5">
+                      
                       {/* مودال التفاصيل الكاملة */}
                       <Dialog open={open && selected?.id === r.id} onOpenChange={(isOpen) => {
                         setOpen(isOpen);
@@ -574,11 +570,12 @@ export default function AdminJoinRequestsPage() {
 
                         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" dir="rtl">
                           <DialogHeader className="text-right border-b pb-3">
-                            <DialogTitle className="text-xl font-bold text-zinc-950">تفاصيل استمارة الانضمام</DialogTitle>
+                            <DialogTitle className="text-xl font-bold text-zinc-950">تفاصيل استمارة الانضمام الكاملة</DialogTitle>
                           </DialogHeader>
 
                           {selected ? (
                             <div className="flex-1 overflow-y-auto my-4 space-y-4 pe-1">
+                              
                               {/* الكارت الأساسي */}
                               <div className="rounded-xl border bg-zinc-50/50 p-4 dark:bg-zinc-950/20">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -592,61 +589,62 @@ export default function AdminJoinRequestsPage() {
                                 <div className="mt-4 grid gap-x-4 gap-y-2.5 text-xs sm:grid-cols-2">
                                   <div><strong>رقم الهاتف:</strong> <span className="select-all font-mono">{selected.phone ?? "—"}</span></div>
                                   <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
-                                  <div><strong>السن الحالي:</strong> {selected.age ? `${selected.age} عام` : "—"}</div>
+                                  <div><strong>السن:</strong> {selected.age ? `${selected.age} عام` : "—"}</div>
                                   <div><strong>المستوى التعليمي:</strong> {selected.education ?? "—"}</div>
                                   <div><strong>الجامعة / الكلية:</strong> {selected.university ?? "—"}</div>
                                   <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
-                                  <div><strong>القطاع الهيكلي المستهدف:</strong> <span className="font-semibold text-blue-600">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
-                                  <div><strong>الدور أو العنوان المفضل:</strong> {selected.preferred_role ?? "—"}</div>
-                                  <div><strong>عدد ساعات التفرغ المتوقعة:</strong> {selected.availability ?? "—"}</div>
-                                  <div><strong>تاريخ ملء الاستمارة:</strong> {formatDateTime(selected.created_at)}</div>
+                                  <div><strong>القطاع المستهدف:</strong> <span className="font-semibold text-blue-600">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
+                                  <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
+                                  <div><strong>ساعات التفرغ:</strong> {selected.availability ?? "—"}</div>
+                                  <div><strong>تاريخ التقديم:</strong> {formatDateTime(selected.created_at)}</div>
+                                  <div><strong>الموافقة على الشروط والموثوقية:</strong> {selected.consent ? "✅ نعم، وافق" : "❌ لا"}</div>
                                 </div>
                               </div>
 
-                              {/* قسم الروابط والملاحظات */}
+                              {/* الروابط والملاحظات */}
                               <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
-                                  <label className="text-xs font-bold text-zinc-700">روابط المتقدم الشخصية</label>
-                                  <div className="rounded-xl border p-3 text-xs space-y-2 bg-white">
+                                  <label className="text-xs font-bold text-zinc-700">روابط المتقدم</label>
+                                  <div className="rounded-xl border p-3 text-xs space-y-2 bg-white shadow-sm">
                                     <div>
-                                      <strong>لينكد إن: </strong>
+                                      <strong>حساب LinkedIn: </strong>
                                       {selected.linkedin ? (
-                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الحساب الشخصي</a>
+                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الرابط</a>
                                       ) : "—"}
                                     </div>
                                     <div>
                                       <strong>معرض الأعمال (Portfolio): </strong>
                                       {selected.portfolio ? (
-                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.portfolio}>تصفح المعرض</a>
+                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.portfolio}>فتح الرابط</a>
                                       ) : "—"}
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="space-y-2">
-                                  <label className="text-xs font-bold text-zinc-700">ملاحظات التقييم والمراجعة الداخليين</label>
+                                  <label className="text-xs font-bold text-zinc-700">ملاحظات التقييم والمراجعة (الأدمن)</label>
                                   <textarea
                                     className="w-full min-h-[100px] rounded-xl border bg-white p-2.5 text-xs outline-none focus:ring-1 focus:ring-zinc-400"
                                     value={notes}
                                     onChange={(e) => setNotes(e.target.value)}
-                                    placeholder="اكتب هنا ملاحظات المقابلة، التقييم الأولي، أو أسباب القبول والرفض..."
+                                    placeholder="اكتب هنا ملاحظات المقابلة أو التقييم الداخلي..."
                                   />
                                 </div>
                               </div>
 
-                              {/* المهارات والخبرات */}
+                              {/* الحقول النصية الطويلة */}
                               <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-700">المهارات والقدرات التقنية</label>
+                                <label className="text-xs font-bold text-zinc-700">المهارات والقدرات التقنية واللغوية</label>
                                 <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.skills || "—"}</div>
                               </div>
 
                               <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-700">الخبرات والأنشطة السابقة</label>
+                                <label className="text-xs font-bold text-zinc-700">الخبرات والأنشطة السابقة والأعمال التطوعية</label>
                                 <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.experience || "—"}</div>
                               </div>
 
                               <div className="space-y-2">
-                                <label className="text-xs font-bold text-zinc-700">لماذا تريد الانضمام إلى المبادرة؟</label>
+                                <label className="text-xs font-bold text-zinc-700">رسالة الانضمام (لماذا يريد الالتحاق بـ SkillUp؟)</label>
                                 <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.message || "—"}</div>
                               </div>
                             </div>
@@ -669,11 +667,11 @@ export default function AdminJoinRequestsPage() {
                         </DialogContent>
                       </Dialog>
 
-                      {/* أزرار الإجراءات السريعة في الجدول */}
+                      {/* أزرار سريعة داخل الجدول */}
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-xs h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                        className="text-xs h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                         onClick={() => quickUpdateStatus(r, "in_review")}
                         disabled={isBusy(r.id)}
                       >
@@ -683,7 +681,7 @@ export default function AdminJoinRequestsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-xs h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                        className="text-xs h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                         onClick={() => quickUpdateStatus(r, "contacted")}
                         disabled={isBusy(r.id)}
                       >
@@ -692,7 +690,7 @@ export default function AdminJoinRequestsPage() {
 
                       <Button
                         size="sm"
-                        className="text-xs h-8 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200/50"
+                        className="text-xs h-8 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50"
                         onClick={() => quickUpdateStatus(r, "accepted")}
                         disabled={isBusy(r.id)}
                       >
@@ -717,9 +715,9 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      {/* الفوتر */}
+      {/* الرابط الاسترشادي تحت */}
       <div className="text-xs text-zinc-400 text-left select-none mt-2">
-        رابط تسجيل دخول المسؤولين الاسترشادي:{" "}
+        لوحة تحكم مسؤولي قطاع المتابعة والتقييم:{" "}
         <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
           /ar/admin/login
         </code>
