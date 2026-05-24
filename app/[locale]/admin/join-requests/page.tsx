@@ -196,7 +196,6 @@ export default function AdminJoinRequestsPage() {
       if (sector !== "all" && r.sector_key !== sector) return false;
       if (city !== "all" && normalizeCity(r.city) !== city) return false;
 
-      // ضبط مقارنة التاريخ لتجنب مشاكل فارق التوقيت العشوائي
       if (fromDate || toDate) {
         const createdDateObj = r.created_at ? new Date(r.created_at) : null;
         if (createdDateObj) {
@@ -332,6 +331,7 @@ export default function AdminJoinRequestsPage() {
 
       const XLSX = await import("xlsx");
 
+      // 1. هيكلة البيانات لتكون جاهزة ومعربة بالكامل
       const data = filtered.map((r, index) => ({
         "م": index + 1,
         "الاسم الكامل": cleanCell(r.full_name),
@@ -342,35 +342,47 @@ export default function AdminJoinRequestsPage() {
         "التعليم": cleanCell(r.education),
         "الجامعة": cleanCell(r.university),
         "سنة التخرج": cleanCell(r.graduation_year),
-        "القطاع": SECTOR_LABEL[r.sector_key] ?? r.sector_key,
+        "الالتحاق بالقطاع": SECTOR_LABEL[r.sector_key] ?? r.sector_key,
         "الدور المفضل": cleanCell(r.preferred_role),
-        "التفرغ": cleanCell(r.availability),
+        "التفرغ (ساعات)": cleanCell(r.availability),
         "المهارات": cleanCell(r.skills),
-        "الخبرات": cleanCell(r.experience),
-        "لينكدإن": cleanCell(r.linkedin),
-        "البورتفوليو": cleanCell(r.portfolio),
+        "الخبرات والأنشطة": cleanCell(r.experience),
+        "رابط لينكدإن": cleanCell(r.linkedin),
+        "معرض الأعمال": cleanCell(r.portfolio),
         "رسالة المتقدم": cleanCell(r.message),
-        "الحالة": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
-        "ملاحظات الإدارة": cleanCell(r.admin_notes),
-        "تاريخ الطلب": formatDateTime(r.created_at)
+        "حالة الطلب": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
+        "ملاحظات التقييم": cleanCell(r.admin_notes),
+        "تاريخ التقديم": formatDateTime(r.created_at)
       }));
 
+      // 2. إنشاء ورقة العمل (Worksheet)
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
 
-      ws["!cols"] = [
-        { wch: 6 }, { wch: 28 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
-        { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 22 },
-        { wch: 18 }, { wch: 28 }, { wch: 35 }, { wch: 28 }, { wch: 28 },
-        { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 35 }, { wch: 22 }
-      ];
+      // 3. تفعيل خيار العرض من اليمين إلى اليسار وإظهار خطوط الشبكة بشكل دائم داخل ملف الإكسيل
+      if (!ws["!views"]) ws["!views"] = [];
+      ws["!views"].push({ RTL: true, showGridLines: true });
 
+      // 4. ضبط ذكي وعريض لحجم الأعمدة والـ Auto-fit التلقائي بناءً على النصوص لتجنب التداخل
+      const objectKeys = Object.keys(data[0]);
+      ws["!cols"] = objectKeys.map((key) => {
+        // حساب أقصى طول لنص موجود في هذا العمود عبر خلايا البيانات والـ header نفسه
+        const maxLength = data.reduce((max, row) => {
+          const val = row[key as keyof typeof row]?.toString() || "";
+          return Math.max(max, val.length);
+        }, key.length);
+
+        // وضع حد أدنى مريح ومناسب لطول الأعمدة باللغة العربية
+        return { wch: Math.min(Math.max(maxLength + 4, 12), 45) };
+      });
+
+      // 5. بناء ملف الإكسيل وحفظه
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "طلبات الانضمام");
+      XLSX.utils.book_append_sheet(wb, ws, "طلبات الانضمام المفلترة");
 
       const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `طلبات-الانضمام-${date}.xlsx`);
+      XLSX.writeFile(wb, `طلبات-انضمام-SkillUp-${date}.xlsx`);
 
-      setMessage("✅ تم تصدير ملف Excel بنجاح.");
+      setMessage("✅ تم تصدير ملف Excel من اليمين إلى اليسار بنجاح وبشكل منسق.");
     } catch (e: any) {
       setMessage(`❌ ${e?.message || "حدث خطأ أثناء التصدير."}`);
     }
