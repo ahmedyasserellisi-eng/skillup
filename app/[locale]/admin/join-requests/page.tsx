@@ -52,10 +52,10 @@ const ALLOWED = new Set([
 const SECTOR_LABEL: Record<string, string> = {
   hrm: "إدارة الموارد البشرية",
   meal: "المتابعة والتقييم والتعلّم",
-  media: "الميديا",
+  media: "الميديا والديجيتال ميديا",
   logistics: "التنظيم واللوجستيات",
-  sustain: "الاستدامة",
-  training: "التدريب",
+  sustain: "الاستدامة والتنمية المستدامة",
+  training: "التدريب والتطوير",
   culture: "الثقافة"
 };
 
@@ -73,12 +73,18 @@ function getStatusValue(v?: string | null) {
 
 function getStatusBadge(status?: string | null) {
   const v = getStatusValue(status);
-
-  if (v === "accepted") return <Badge variant="secondary">مقبول</Badge>;
-  if (v === "rejected") return <Badge variant="destructive">مرفوض</Badge>;
-  if (v === "contacted") return <Badge variant="outline">تم التواصل</Badge>;
-  if (v === "in_review") return <Badge variant="outline">قيد المراجعة</Badge>;
-  return <Badge variant="outline">جديد</Badge>;
+  switch (v) {
+    case "accepted":
+      return <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none">مقبول</Badge>;
+    case "rejected":
+      return <Badge variant="destructive">مرفوض</Badge>;
+    case "contacted":
+      return <Badge variant="secondary" className="bg-blue-500 hover:bg-blue-600 text-white border-none">تم التواصل</Badge>;
+    case "in_review":
+      return <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/5">قيد المراجعة</Badge>;
+    default:
+      return <Badge variant="outline" className="border-zinc-400 text-zinc-600 bg-zinc-100">جديد</Badge>;
+  }
 }
 
 function formatDateTime(value: string) {
@@ -190,30 +196,32 @@ export default function AdminJoinRequestsPage() {
       if (sector !== "all" && r.sector_key !== sector) return false;
       if (city !== "all" && normalizeCity(r.city) !== city) return false;
 
-      const createdDate = r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : "";
-
-      if (fromDate && createdDate < fromDate) return false;
-      if (toDate && createdDate > toDate) return false;
+      // ضبط مقارنة التاريخ لتجنب مشاكل فارق التوقيت العشوائي
+      if (fromDate || toDate) {
+        const createdDateObj = r.created_at ? new Date(r.created_at) : null;
+        if (createdDateObj) {
+          const tzOffset = createdDateObj.getTimezoneOffset() * 60000;
+          const localDate = new Date(createdDateObj.getTime() - tzOffset).toISOString().slice(0, 10);
+          
+          if (fromDate && localDate < fromDate) return false;
+          if (toDate && localDate > toDate) return false;
+        } else {
+          return false;
+        }
+      }
 
       if (!s) return true;
 
-      const hay = [
-        r.full_name,
-        r.email,
-        r.phone ?? "",
-        r.city ?? "",
-        r.sector_key,
-        r.skills ?? "",
-        r.experience ?? "",
-        r.message ?? "",
-        r.preferred_role ?? "",
-        r.university ?? "",
-        r.education ?? ""
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return hay.includes(s);
+      return (
+        (r.full_name?.toLowerCase() ?? "").includes(s) ||
+        (r.email?.toLowerCase() ?? "").includes(s) ||
+        (r.phone ?? "").includes(s) ||
+        (r.city ?? "").toLowerCase().includes(s) ||
+        (r.skills ?? "").toLowerCase().includes(s) ||
+        (r.experience ?? "").toLowerCase().includes(s) ||
+        (r.university ?? "").toLowerCase().includes(s) ||
+        (r.education ?? "").toLowerCase().includes(s)
+      );
     });
   }, [rows, q, status, sector, city, fromDate, toDate]);
 
@@ -257,7 +265,7 @@ export default function AdminJoinRequestsPage() {
     } else {
       setOpen(false);
       await load();
-      setMessage("✅ تم تحديث الطلب بنجاح.");
+      setMessage("✅ تم تحديث الطلب والملاحظات بنجاح.");
     }
 
     setSaving(false);
@@ -283,7 +291,7 @@ export default function AdminJoinRequestsPage() {
       setMessage(`❌ ${error.message}`);
     } else {
       await load();
-      setMessage("✅ تم تحديث الحالة بنجاح.");
+      setMessage(`✅ تم تحديث حالة المتقدم (${row.full_name}) بنجاح.`);
     }
 
     setActionLoadingId(null);
@@ -292,7 +300,7 @@ export default function AdminJoinRequestsPage() {
   async function remove(id: string, name?: string) {
     setMessage("");
 
-    const ok = confirm(`هل تريد حذف هذا الطلب؟\n\n${name || "طلب بدون اسم"}`);
+    const ok = confirm(`هل تريد حذف هذا الطلب نهائياً؟\n\n${name || "طلب بدون اسم"}`);
     if (!ok) return;
 
     const session = await requireAllowedSession();
@@ -350,26 +358,10 @@ export default function AdminJoinRequestsPage() {
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
 
       ws["!cols"] = [
-        { wch: 6 },
-        { wch: 28 },
-        { wch: 30 },
-        { wch: 18 },
-        { wch: 16 },
-        { wch: 8 },
-        { wch: 18 },
-        { wch: 24 },
-        { wch: 14 },
-        { wch: 22 },
-        { wch: 18 },
-        { wch: 28 },
-        { wch: 35 },
-        { wch: 28 },
-        { wch: 28 },
-        { wch: 28 },
-        { wch: 40 },
-        { wch: 16 },
-        { wch: 35 },
-        { wch: 22 }
+        { wch: 6 }, { wch: 28 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
+        { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 22 },
+        { wch: 18 }, { wch: 28 }, { wch: 35 }, { wch: 28 }, { wch: 28 },
+        { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 35 }, { wch: 22 }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -396,75 +388,58 @@ export default function AdminJoinRequestsPage() {
   const isBusy = (id: string) => actionLoadingId === id;
 
   return (
-    <div className="grid gap-5" dir="rtl">
+    <div className="grid gap-5 p-2 sm:p-4" dir="rtl">
+      {/* الهيدر */}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">طلبات الانضمام</h1>
-          <p className="text-sm opacity-75">
-            لوحة متابعة وفرز ومراجعة الطلبات بشكل أقرب لإدارة الموارد البشرية.
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">طلبات الانضمام لـ SkillUp</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            لوحة مراجعة وفرز طلبات المتقدمين الجدد وإدارة قطاعات الـ MEAL والموارد البشرية.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => load()} disabled={loading}>
-            تحديث
+          <Button variant="outline" onClick={() => load()} disabled={loading}>
+            تحديث البيانات
           </Button>
-          <Button onClick={exportExcel} disabled={loading || filtered.length === 0}>
+          <Button onClick={exportExcel} disabled={loading || filtered.length === 0} className="bg-emerald-600 text-white hover:bg-emerald-700">
             تصدير Excel
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">إجمالي الطلبات</div>
-          <div className="mt-2 text-2xl font-bold">{stats.total}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">المعروض الآن</div>
-          <div className="mt-2 text-2xl font-bold">{stats.filtered}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">جديد</div>
-          <div className="mt-2 text-2xl font-bold">{stats.newCount}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">قيد المراجعة</div>
-          <div className="mt-2 text-2xl font-bold">{stats.reviewCount}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">تم التواصل</div>
-          <div className="mt-2 text-2xl font-bold">{stats.contactedCount}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">مقبول</div>
-          <div className="mt-2 text-2xl font-bold">{stats.accepted}</div>
-        </div>
-
-        <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-          <div className="text-xs opacity-70">مرفوض</div>
-          <div className="mt-2 text-2xl font-bold">{stats.rejected}</div>
-        </div>
+      {/* شاشة الإحصائيات المصغرة */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+        {[
+          { label: "إجمالي الطلبات", val: stats.total, color: "text-zinc-900 dark:text-white" },
+          { label: "المعروض بالفلتر", val: stats.filtered, color: "text-blue-600" },
+          { label: "جديد", val: stats.newCount, color: "text-zinc-500" },
+          { label: "قيد المراجعة", val: stats.reviewCount, color: "text-amber-500" },
+          { label: "تم التواصل", val: stats.contactedCount, color: "text-sky-500" },
+          { label: "مقبول", val: stats.accepted, color: "text-emerald-500" },
+          { label: "مرفوض", val: stats.rejected, color: "text-red-500" }
+        ].map((item, idx) => (
+          <div key={idx} className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{item.label}</div>
+            <div className={`mt-1 text-xl font-bold ${item.color}`}>{item.val}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
+      {/* الفلاتر والبحث */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="grid gap-3 lg:grid-cols-6">
           <Input
-            placeholder="ابحث بالاسم أو الإيميل أو المهارات أو الجامعة..."
+            placeholder="ابحث بالاسم، الإيميل، المهارات أو الجامعة..."
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="lg:col-span-2"
+            className="lg:col-span-2 h-10"
           />
 
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200"
           >
             <option value="all">كل الحالات</option>
             <option value="new">جديد</option>
@@ -477,262 +452,235 @@ export default function AdminJoinRequestsPage() {
           <select
             value={sector}
             onChange={(e) => setSector(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200"
           >
             <option value="all">كل القطاعات</option>
             {Object.entries(SECTOR_LABEL).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
+              <option key={key} value={key}>{label}</option>
             ))}
           </select>
 
           <select
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="h-10 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200"
           >
             <option value="all">كل المدن</option>
             {cityOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
 
-          <Button variant="secondary" onClick={resetFilters}>
+          <Button variant="ghost" onClick={resetFilters} className="text-zinc-500 hover:text-zinc-900 border border-zinc-200 h-10">
             تصفير الفلاتر
           </Button>
         </div>
 
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <div className="grid gap-1">
-            <label className="text-xs opacity-70">من تاريخ</label>
-            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            <label className="text-xs font-medium text-zinc-500">من تاريخ الطلب</label>
+            <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9" />
           </div>
-
           <div className="grid gap-1">
-            <label className="text-xs opacity-70">إلى تاريخ</label>
-            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            <label className="text-xs font-medium text-zinc-500">إلى تاريخ الطلب</label>
+            <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9" />
           </div>
         </div>
       </div>
 
+      {/* رسائل التنبيه والنجاح */}
       {message ? (
-        <div className={`rounded-2xl border p-4 text-sm ${messageClass(message)}`}>
+        <div className={`rounded-xl border p-4 text-sm font-medium ${messageClass(message)}`}>
           {message}
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-black/10 dark:border-white/10">
+      {/* جدول البيانات */}
+      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 overflow-x-auto">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-zinc-50 dark:bg-zinc-950">
             <TableRow>
-              <TableHead>المتقدم</TableHead>
-              <TableHead>القطاع</TableHead>
-              <TableHead>المدينة</TableHead>
-              <TableHead>الحالة</TableHead>
-              <TableHead>الهاتف</TableHead>
-              <TableHead>تاريخ الطلب</TableHead>
-              <TableHead className="w-[430px]">الإجراءات</TableHead>
+              <TableHead className="text-right">المتقدم</TableHead>
+              <TableHead className="text-right">القطاع المطلوب</TableHead>
+              <TableHead className="text-right">المدينة</TableHead>
+              <TableHead className="text-right">الحالة</TableHead>
+              <TableHead className="text-right">الهاتف</TableHead>
+              <TableHead className="text-right">تاريخ تقديم الطلب</TableHead>
+              <TableHead className="text-center w-[360px]">الإجراءات السريعة</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              Array.from({ length: 6 }).map((_, i) => (
+              Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   <TableCell colSpan={7} className="py-6 text-center opacity-50">
-                    جاري تحميل الطلبات...
+                    جاري تحميل الطلبات والمزامنة مع قاعدة البيانات...
                   </TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center opacity-70">
-                  لا توجد طلبات مطابقة للفلاتر الحالية.
+                <TableCell colSpan={7} className="py-10 text-center font-medium text-zinc-500">
+                  لا توجد طلبات مطابقة للفلاتر أو نص البحث الحالي.
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-950/30">
                   <TableCell>
-                    <div className="font-medium">{r.full_name}</div>
-                    <div className="text-xs opacity-70">{r.email}</div>
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">{r.full_name}</div>
+                    <div className="text-xs text-zinc-500 select-all">{r.email}</div>
                   </TableCell>
 
-                  <TableCell>{SECTOR_LABEL[r.sector_key] ?? r.sector_key}</TableCell>
+                  <TableCell className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {SECTOR_LABEL[r.sector_key] ?? r.sector_key}
+                  </TableCell>
 
-                  <TableCell className="text-sm opacity-80">{r.city ?? "—"}</TableCell>
+                  <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">{r.city ?? "—"}</TableCell>
 
                   <TableCell>{getStatusBadge(r.admin_status)}</TableCell>
 
-                  <TableCell className="text-xs opacity-80">{r.phone ?? "—"}</TableCell>
+                  <TableCell className="text-xs font-mono text-zinc-600 dark:text-zinc-400 select-all">{r.phone ?? "—"}</TableCell>
 
-                  <TableCell className="text-xs opacity-75">
+                  <TableCell className="text-xs text-zinc-500">
                     {formatDateTime(r.created_at)}
                   </TableCell>
 
                   <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Dialog open={open && selected?.id === r.id} onOpenChange={setOpen}>
+                    <div className="flex items-center justify-center gap-1.5">
+                      {/* مودال التفاصيل الكاملة */}
+                      <Dialog open={open && selected?.id === r.id} onOpenChange={(isOpen) => {
+                        setOpen(isOpen);
+                        if(!isOpen) setSelected(null);
+                      }}>
                         <DialogTrigger asChild>
-                          <Button variant="secondary" onClick={() => openDetails(r)}>
-                            عرض التفاصيل
+                          <Button size="sm" variant="outline" onClick={() => openDetails(r)} className="text-xs h-8">
+                            التفاصيل والملاحظات
                           </Button>
                         </DialogTrigger>
 
-                        <DialogContent className="sm:max-w-4xl">
-                          <DialogHeader>
-                            <DialogTitle>تفاصيل طلب الانضمام</DialogTitle>
+                        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" dir="rtl">
+                          <DialogHeader className="text-right border-b pb-3">
+                            <DialogTitle className="text-xl font-bold text-zinc-950">تفاصيل استمارة الانضمام</DialogTitle>
                           </DialogHeader>
 
                           {selected ? (
-                            <div className="max-h-[75vh] overflow-y-auto pe-2">
-                              <div className="grid gap-4 text-sm">
-                                <div className="rounded-2xl border border-black/10 p-4 dark:border-white/10">
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex-1 overflow-y-auto my-4 space-y-4 pe-1">
+                              {/* الكارت الأساسي */}
+                              <div className="rounded-xl border bg-zinc-50/50 p-4 dark:bg-zinc-950/20">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div>
+                                    <div className="text-lg font-bold text-zinc-900">{selected.full_name}</div>
+                                    <div className="text-xs text-zinc-500">{selected.email}</div>
+                                  </div>
+                                  <div>{getStatusBadge(selected.admin_status)}</div>
+                                </div>
+
+                                <div className="mt-4 grid gap-x-4 gap-y-2.5 text-xs sm:grid-cols-2">
+                                  <div><strong>رقم الهاتف:</strong> <span className="select-all font-mono">{selected.phone ?? "—"}</span></div>
+                                  <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
+                                  <div><strong>السن الحالي:</strong> {selected.age ? `${selected.age} عام` : "—"}</div>
+                                  <div><strong>المستوى التعليمي:</strong> {selected.education ?? "—"}</div>
+                                  <div><strong>الجامعة / الكلية:</strong> {selected.university ?? "—"}</div>
+                                  <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
+                                  <div><strong>القطاع الهيكلي المستهدف:</strong> <span className="font-semibold text-blue-600">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
+                                  <div><strong>الدور أو العنوان المفضل:</strong> {selected.preferred_role ?? "—"}</div>
+                                  <div><strong>عدد ساعات التفرغ المتوقعة:</strong> {selected.availability ?? "—"}</div>
+                                  <div><strong>تاريخ ملء الاستمارة:</strong> {formatDateTime(selected.created_at)}</div>
+                                </div>
+                              </div>
+
+                              {/* قسم الروابط والملاحظات */}
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <label className="text-xs font-bold text-zinc-700">روابط المتقدم الشخصية</label>
+                                  <div className="rounded-xl border p-3 text-xs space-y-2 bg-white">
                                     <div>
-                                      <div className="text-lg font-semibold">{selected.full_name}</div>
-                                      <div className="text-xs opacity-70">{selected.email}</div>
+                                      <strong>لينكد إن: </strong>
+                                      {selected.linkedin ? (
+                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الحساب الشخصي</a>
+                                      ) : "—"}
                                     </div>
-                                    <div>{getStatusBadge(selected.admin_status)}</div>
-                                  </div>
-
-                                  <div className="mt-4 grid gap-2 text-xs opacity-85 sm:grid-cols-2">
-                                    <div><strong>رقم الهاتف:</strong> {selected.phone ?? "—"}</div>
-                                    <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
-                                    <div><strong>السن:</strong> {selected.age ?? "—"}</div>
-                                    <div><strong>التعليم:</strong> {selected.education ?? "—"}</div>
-                                    <div><strong>الجامعة:</strong> {selected.university ?? "—"}</div>
-                                    <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
-                                    <div><strong>القطاع:</strong> {SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</div>
-                                    <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
-                                    <div><strong>التفرغ:</strong> {selected.availability ?? "—"}</div>
-                                    <div><strong>تاريخ الطلب:</strong> {formatDateTime(selected.created_at)}</div>
-                                  </div>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-2">
-                                  <div className="grid gap-2">
-                                    <div className="text-xs font-semibold opacity-80">الروابط</div>
-                                    <div className="rounded-2xl border border-black/10 p-3 text-xs dark:border-white/10">
-                                      <div className="grid gap-2">
-                                        <div>
-                                          <strong>لينكدإن: </strong>
-                                          {selected.linkedin ? (
-                                            <a
-                                              className="underline"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              href={selected.linkedin}
-                                            >
-                                              فتح الرابط
-                                            </a>
-                                          ) : (
-                                            "—"
-                                          )}
-                                        </div>
-
-                                        <div>
-                                          <strong>البورتفوليو: </strong>
-                                          {selected.portfolio ? (
-                                            <a
-                                              className="underline"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              href={selected.portfolio}
-                                            >
-                                              فتح الرابط
-                                            </a>
-                                          ) : (
-                                            "—"
-                                          )}
-                                        </div>
-                                      </div>
+                                    <div>
+                                      <strong>معرض الأعمال (Portfolio): </strong>
+                                      {selected.portfolio ? (
+                                        <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noreferrer" href={selected.portfolio}>تصفح المعرض</a>
+                                      ) : "—"}
                                     </div>
                                   </div>
-
-                                  <div className="grid gap-2">
-                                    <div className="text-xs font-semibold opacity-80">ملاحظات الإدارة</div>
-                                    <textarea
-                                      className="min-h-[130px] rounded-2xl border border-black/10 bg-white/70 p-3 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
-                                      value={notes}
-                                      onChange={(e) => setNotes(e.target.value)}
-                                      placeholder="اكتب ملاحظات داخلية هنا..."
-                                    />
-                                  </div>
                                 </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">المهارات</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.skills || "—"}
-                                  </div>
+                                <div className="space-y-2">
+                                  <label className="text-xs font-bold text-zinc-700">ملاحظات التقييم والمراجعة الداخليين</label>
+                                  <textarea
+                                    className="w-full min-h-[100px] rounded-xl border bg-white p-2.5 text-xs outline-none focus:ring-1 focus:ring-zinc-400"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="اكتب هنا ملاحظات المقابلة، التقييم الأولي، أو أسباب القبول والرفض..."
+                                  />
                                 </div>
+                              </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">الخبرات</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.experience || "—"}
-                                  </div>
-                                </div>
+                              {/* المهارات والخبرات */}
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-700">المهارات والقدرات التقنية</label>
+                                <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.skills || "—"}</div>
+                              </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">رسالة المتقدم</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.message || "—"}
-                                  </div>
-                                </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-700">الخبرات والأنشطة السابقة</label>
+                                <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.experience || "—"}</div>
+                              </div>
 
-                                <div className="flex flex-wrap gap-2 pt-2">
-                                  <Button disabled={saving} onClick={() => updateStatus("in_review")}>
-                                    نقل إلى قيد المراجعة
-                                  </Button>
-
-                                  <Button
-                                    disabled={saving}
-                                    variant="secondary"
-                                    onClick={() => updateStatus("contacted")}
-                                  >
-                                    تعليم كـ تم التواصل
-                                  </Button>
-
-                                  <Button disabled={saving} onClick={() => updateStatus("accepted")}>
-                                    قبول الطلب
-                                  </Button>
-
-                                  <Button
-                                    disabled={saving}
-                                    variant="destructive"
-                                    onClick={() => updateStatus("rejected")}
-                                  >
-                                    رفض الطلب
-                                  </Button>
-                                </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-zinc-700">لماذا تريد الانضمام إلى المبادرة؟</label>
+                                <div className="rounded-xl border p-3 text-xs text-zinc-700 bg-zinc-50/30 whitespace-pre-wrap leading-relaxed">{selected.message || "—"}</div>
                               </div>
                             </div>
                           ) : null}
+
+                          <div className="flex flex-wrap gap-2 pt-3 border-t justify-end bg-white">
+                            <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")} className="text-xs border-amber-500 text-amber-600 bg-amber-500/5">
+                              مراجعة
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("contacted")} className="text-xs border-blue-500 text-blue-600 bg-blue-50/5">
+                              تم التواصل
+                            </Button>
+                            <Button size="sm" disabled={saving} onClick={() => updateStatus("accepted")} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
+                              قبول المتقدم
+                            </Button>
+                            <Button size="sm" disabled={saving} variant="destructive" onClick={() => updateStatus("rejected")} className="text-xs">
+                              رفض الطلب
+                            </Button>
+                          </div>
                         </DialogContent>
                       </Dialog>
 
+                      {/* أزرار الإجراءات السريعة في الجدول */}
                       <Button
-                        variant="secondary"
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
                         onClick={() => quickUpdateStatus(r, "in_review")}
                         disabled={isBusy(r.id)}
                       >
-                        قيد المراجعة
+                        راجع
                       </Button>
 
                       <Button
-                        variant="secondary"
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
                         onClick={() => quickUpdateStatus(r, "contacted")}
                         disabled={isBusy(r.id)}
                       >
-                        تم التواصل
+                        تواصل
                       </Button>
 
                       <Button
+                        size="sm"
+                        className="text-xs h-8 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200/50"
                         onClick={() => quickUpdateStatus(r, "accepted")}
                         disabled={isBusy(r.id)}
                       >
@@ -740,7 +688,9 @@ export default function AdminJoinRequestsPage() {
                       </Button>
 
                       <Button
-                        variant="destructive"
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-8 text-zinc-400 hover:text-red-600 hover:bg-red-50"
                         onClick={() => remove(r.id, r.full_name)}
                         disabled={isBusy(r.id)}
                       >
@@ -755,9 +705,10 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      <div className="text-xs opacity-60">
-        تسجيل الدخول من{" "}
-        <code className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+      {/* الفوتر */}
+      <div className="text-xs text-zinc-400 text-left select-none mt-2">
+        رابط تسجيل دخول المسؤولين الاسترشادي:{" "}
+        <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
           /ar/admin/login
         </code>
       </div>
