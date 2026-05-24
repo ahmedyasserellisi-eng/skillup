@@ -12,7 +12,7 @@ type FormState = {
   full_name: string;
   email: string;
   phone: string;
-  city: string;
+  city: string; // سنبقي على الاسم كما هو لتجنب كسر الـ API وقاعدة البيانات
   age: string;
   education: string;
   university: string;
@@ -27,6 +27,37 @@ type FormState = {
   message: string;
   consent: boolean;
 };
+
+// مصفوفة المحافظات المصرية باللغتين
+const EGYPT_GOVERNORATES = [
+  { ar: "القاهرة", en: "Cairo" },
+  { ar: "الجيزة", en: "Giza" },
+  { ar: "الإسكندرية", en: "Alexandria" },
+  { ar: "الدقهلية", en: "Dakahlia" },
+  { ar: "البحر الأحمر", en: "Red Sea" },
+  { ar: "البحيرة", en: "Beheira" },
+  { ar: "الفيوم", en: "Fayoum" },
+  { ar: "الغربية", en: "Gharbia" },
+  { ar: "الإسماعيلية", en: "Ismailia" },
+  { ar: "المنوفية", en: "Monufia" },
+  { ar: "المنيا", en: "Minya" },
+  { ar: "القليوبية", en: "Qalyubia" },
+  { ar: "الوادي الجديد", en: "New Valley" },
+  { ar: "السويس", en: "Suez" },
+  { ar: "الشرقية", en: "Sharqia" },
+  { ar: "أسوان", en: "Aswan" },
+  { ar: "أسيوط", en: "Asyut" },
+  { ar: "بني سويف", en: "Beni Suef" },
+  { ar: "بورسعيد", en: "Port Said" },
+  { ar: "دمياط", en: "Damietta" },
+  { ar: "جنوب سيناء", en: "South Sinai" },
+  { ar: "كفر الشيخ", en: "Kafr El Sheikh" },
+  { ar: "مطروح", en: "Matrouh" },
+  { ar: "الأقصر", en: "Luxor" },
+  { ar: "قنا", en: "Qena" },
+  { ar: "شمال سيناء", en: "North Sinai" },
+  { ar: "سوهاج", en: "Sohag" }
+];
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -58,7 +89,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       name: "الاسم الكامل",
       email: "البريد الإلكتروني",
       phone: "رقم الهاتف",
-      city: "المدينة",
+      city: "المحافظة",
       age: "العمر",
       education: "الحالة التعليمية",
       university: "الجامعة / المعهد",
@@ -76,18 +107,17 @@ export default function JoinForm({ locale, presetSector }: Props) {
       sending: "جارٍ إرسال الطلب...",
       ok: "تم إرسال طلبك بنجاح. سيقوم الفريق بمراجعته والتواصل معك قريبًا.",
       warnTitle: "تم حفظ الطلب مع ملاحظة",
-      warn:
-        "تم حفظ الطلب، لكن تعذر إرسال الإشعار البريدي التلقائي. سيقوم الفريق بمتابعة الطلب يدويًا.",
+      warn: "تم حفظ الطلب، لكن تعذر إرسال الإشعار البريدي التلقائي. سيقوم الفريق بمتابعة الطلب يدويًا.",
       errRequired: "من فضلك أكمل الحقول المطلوبة ووافق على الإقرار.",
       errEmail: "من فضلك أدخل بريدًا إلكترونيًا صحيحًا.",
       errAge: "من فضلك أدخل عمرًا صحيحًا.",
       errGraduation: "من فضلك أدخل سنة تخرج صحيحة.",
       noteRequired: "الحقول المعلّمة بعلامة * مطلوبة.",
+      selectGovernorate: "اختر المحافظة",
       placeholders: {
         name: "اكتب اسمك الكامل",
         email: "example@email.com",
         phone: "01xxxxxxxxx",
-        city: "مثال: الزقازيق",
         age: "مثال: 22",
         university: "اسم الجامعة أو المعهد",
         graduation: "مثال: 2027",
@@ -118,7 +148,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       name: "Full Name",
       email: "Email Address",
       phone: "Phone Number",
-      city: "City",
+      city: "Governorate",
       age: "Age",
       education: "Education Status",
       university: "University / Institute",
@@ -136,18 +166,17 @@ export default function JoinForm({ locale, presetSector }: Props) {
       sending: "Submitting...",
       ok: "Your application has been submitted successfully. The team will review it and contact you soon.",
       warnTitle: "Application saved with a note",
-      warn:
-        "Your application was saved, but the automatic email notification could not be sent. The team can still review your application manually.",
+      warn: "Your application was saved, but the automatic email notification could not be sent. The team can still review your application manually.",
       errRequired: "Please complete all required fields and accept the consent statement.",
       errEmail: "Please enter a valid email address.",
       errAge: "Please enter a valid age.",
       errGraduation: "Please enter a valid graduation year.",
       noteRequired: "Fields marked with * are required.",
+      selectGovernorate: "Select Governorate",
       placeholders: {
         name: "Enter your full name",
         email: "example@email.com",
         phone: "+20...",
-        city: "Example: Zagazig",
         age: "Example: 22",
         university: "University or institute name",
         graduation: "Example: 2027",
@@ -157,8 +186,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         experience: "Write any previous experience, activities, or participation",
         linkedin: "https://linkedin.com/in/...",
         portfolio: "https://...",
-        message:
-          "Tell us about yourself, why you want to join, and how you think you can add value to the team"
+        message: "Tell us about yourself, why you want to join, and how you think you can add value to the team"
       },
       educationOptions: {
         student: "Student",
@@ -407,14 +435,20 @@ export default function JoinForm({ locale, presetSector }: Props) {
               <label htmlFor="city" className={labelClass}>
                 {t.city}
               </label>
-              <input
+              <select
                 id="city"
                 className={inputClass}
-                placeholder={t.placeholders.city}
                 value={form.city}
                 onChange={(e) => updateField("city", e.target.value)}
-                autoComplete="address-level2"
-              />
+                autoComplete="address-level1"
+              >
+                <option value="">{t.selectGovernorate}</option>
+                {EGYPT_GOVERNORATES.map((gov) => (
+                  <option key={gov.en} value={gov.en}>
+                    {isAr ? gov.ar : gov.en}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
