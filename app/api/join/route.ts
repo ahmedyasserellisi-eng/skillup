@@ -69,7 +69,16 @@ export async function POST(req: Request) {
     const message = safeStr(body.message);
     const consent = Boolean(body.consent);
 
-    if (!full_name || !email || !sector_key || !message || !consent) {
+    // التحقق من الحقول الإلزامية الجديدة للتأكد من أمان الإرسال في الخلفية (Backend Validation)
+    if (
+      !full_name || !email || !sector_key || !message || !consent ||
+      !safeStr(body.national_id) || !safeStr(body.phone) || !safeStr(body.city) ||
+      !safeStr(body.member_status) || !safeStr(body.leadership_interest) ||
+      !safeStr(body.education) || !safeStr(body.grade) || !safeStr(body.university) ||
+      !safeStr(body.faculty) || !safeStr(body.department) || !safeStr(body.profile_picture_url) ||
+      !safeStr(body.preferred_role) || !safeStr(body.availability) || !safeStr(body.heard_about_us) ||
+      !safeStr(body.skills) || !safeStr(body.experience)
+    ) {
       return NextResponse.json(
         { ok: false, error: "Missing required fields or consent not accepted" },
         { status: 400 }
@@ -122,22 +131,34 @@ export async function POST(req: Request) {
       }
     });
 
+    // بناء الـ Payload الكامل ليتضمن الـ 11 حقل الجداد والمحدثين بالكامل لتخزينهم في السوبابيز
     const payload = {
       full_name,
       email,
       phone: nullableStr(body.phone),
+      national_id: nullableStr(body.national_id), // جديد
       city: nullableStr(body.city),
       age,
+      member_status: nullableStr(body.member_status), // جديد
+      leadership_interest: nullableStr(body.leadership_interest), // جديد
       education: nullableStr(body.education),
+      grade: nullableStr(body.grade), // جديد
       university: nullableStr(body.university),
+      faculty: nullableStr(body.faculty), // جديد
+      department: nullableStr(body.department), // جديد
+      postgrad_info: nullableStr(body.postgrad_info), // جديد
       graduation_year,
+      profile_picture_url: nullableStr(body.profile_picture_url), // جديد
       sector_key,
       preferred_role: nullableStr(body.preferred_role),
       availability: nullableStr(body.availability),
+      heard_about_us: nullableStr(body.heard_about_us), // جديد
       skills: nullableStr(body.skills),
       experience: nullableStr(body.experience),
       linkedin: nullableStr(body.linkedin),
+      facebook: nullableStr(body.facebook), // جديد
       portfolio: nullableStr(body.portfolio),
+      resume_url: nullableStr(body.resume_url), // جديد
       message,
       consent,
       admin_status: "new"
@@ -166,30 +187,46 @@ export async function POST(req: Request) {
 
     const resend = new Resend(resendKey);
 
+    // تضمين كافة الحقول الجديدة داخل قالب الإيميل المُرسل لإدارة المبادرة
     const htmlToTeam = `
       <div style="font-family:Arial,sans-serif;line-height:1.7;color:#111827;">
         <h2 style="margin:0 0 16px;">New Join Request — SkillUp</h2>
 
         <table style="border-collapse:collapse;width:100%;margin-bottom:16px;">
-          ${renderField("Full name", full_name)}
+          ${renderField("Full Name", full_name)}
+          ${renderField("National ID", payload.national_id)}
           ${renderField("Email", email)}
-          ${renderField("Sector key", sector_key)}
           ${renderField("Phone", payload.phone)}
           ${renderField("City", payload.city)}
           ${renderField("Age", payload.age)}
-          ${renderField("Education", payload.education)}
-          ${renderField("University", payload.university)}
-          ${renderField("Graduation year", payload.graduation_year)}
-          ${renderField("Preferred role", payload.preferred_role)}
+          ${renderField("Membership Status", payload.member_status)}
+          ${renderField("Leadership Interest", payload.leadership_interest)}
+          ${renderField("Education Status", payload.education)}
+          ${renderField("Academic Grade", payload.grade)}
+          ${renderField("University / Institute", payload.university)}
+          ${renderField("Faculty", payload.faculty)}
+          ${renderField("Department", payload.department)}
+          ${renderField("Postgraduate Info", payload.postgrad_info)}
+          ${renderField("Graduation Year", payload.graduation_year)}
+          ${renderField("Profile Picture URL", payload.profile_picture_url)}
+          ${renderField("Target Sector", sector_key)}
+          ${renderField("Preferred Role", payload.preferred_role)}
           ${renderField("Availability", payload.availability)}
-          ${renderField("Skills", payload.skills)}
-          ${renderField("Experience", payload.experience)}
+          ${renderField("How did they hear about us", payload.heard_about_us)}
+          ${renderField("Core Skills", payload.skills)}
           ${renderField("LinkedIn", payload.linkedin)}
+          ${renderField("Facebook", payload.facebook)}
           ${renderField("Portfolio", payload.portfolio)}
+          ${renderField("Resume (Drive Link)", payload.resume_url)}
         </table>
 
         <div style="margin-top:16px;">
-          <div style="font-weight:700;margin-bottom:8px;">Why do they want to join?</div>
+          <div style="font-weight:700;margin-bottom:8px;">Experience / Previous Activities:</div>
+          <div style="white-space:pre-wrap;border:1px solid #e5e7eb;background:#fafafa;padding:12px;border-radius:10px;margin-bottom:16px;">
+            ${escapeHtml(payload.experience)}
+          </div>
+
+          <div style="font-weight:700;margin-bottom:8px;">Why do they want to join SkillUp?</div>
           <div style="white-space:pre-wrap;border:1px solid #e5e7eb;background:#fafafa;padding:12px;border-radius:10px;">
             ${escapeHtml(message)}
           </div>
