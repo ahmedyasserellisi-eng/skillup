@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+// إعداد حماية الـ Rate Limiting اختيارياً لعدم تعطيل السيرفر إذا لم تكن المفاتيح جاهزة في الـ .env
+let ratelimit: Ratelimit | null = null;
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+  try {
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+    ratelimit = new Ratelimit({
+      redis: redis,
+      limiter: Ratelimit.fixedWindow(3, "5 m"), // السماح بـ 3 طلبات فقط كل 5 دقائق لكل IP
+      analytics: true,
+    });
+  } catch (e) {
+    console.error("Rate limiting failed to initialize, skipping safely:", e);
+  }
+}
 
 function safeStr(value: unknown) {
   return String(value ?? "").trim();
@@ -54,6 +74,18 @@ function renderField(label: string, value: unknown) {
 
 export async function POST(req: Request) {
   try {
+    // 1. حماية الـ Rate Limiting لمنع الـ Flooding
+    if (ratelimit) {
+      const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
+      const { success } = await ratelimit.limit(ip);
+      if (!success) {
+        return NextResponse.json(
+          { ok: false, error: "Too many requests. Please try again after 5 minutes." },
+          { status: 429 }
+        );
+      }
+    }
+
     const body = await req.json().catch(() => null);
 
     if (!body || typeof body !== "object") {
@@ -63,17 +95,23 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2. حماية الـ Honeypot ضد البوتات المبرمجة سبام
+    if (body.website || body.hidden_honey) {
+      return NextResponse.json({ ok: true, message: "Spam filtered successfully." });
+    }
+
     const full_name = safeStr(body.full_name);
     const email = safeStr(body.email);
     const sector_key = safeStr(body.sector_key);
     const message = safeStr(body.message);
     const consent = Boolean(body.consent);
+    const phone = safeStr(body.phone);
     const national_id = safeStr(body.national_id);
 
-    // 1. التحقق من الحقول الإلزامية الـ 21 (مع استثناء الحقول الـ 5 الاختيارية)
+    // 3. التحقق من الحقول الإلزامية في الخلفية (مع استثناء الحقول الـ 5 الاختيارية)
     if (
       !full_name || !email || !sector_key || !message || !consent ||
-      !national_id || !safeStr(body.phone) || !safeStr(body.city) ||
+      !national_id || !phone || !safeStr(body.city) ||
       !safeStr(body.member_status) || !safeStr(body.leadership_interest) ||
       !safeStr(body.education) || !safeStr(body.grade) || !safeStr(body.university) ||
       !safeStr(body.faculty) || !safeStr(body.department) || !safeStr(body.profile_picture_url) ||
@@ -86,7 +124,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2. التحقق من صيغة البريد الإلكتروني
+    // 4. التحقق من البريد الإلكتروني
     if (!isValidEmail(email)) {
       return NextResponse.json(
         { ok: false, error: "Invalid email address" },
@@ -94,7 +132,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. التحقق من صحة الرقم القومي (14 رقم بالضبط) مطابقاً للفرونت إند
+    // 5. التحقق الصارم من التليفون المصري
+    if (!/^01[0125]\d{8}$/.test(phone)) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid Egyptian phone number format" },
+        { status: 400 }
+      );
+    }
+
+    // 6. التحقق الصارم من الرقم القومي (14 رقم بالضبط)
     if (!/^\d{14}$/.test(national_id)) {
       return NextResponse.json(
         { ok: false, error: "Invalid National ID (must be exactly 14 digits)" },
@@ -102,7 +148,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. التحقق من مدى العمر (بين 15 و 70 سنة) مطابقاً للفرونت إند
+    // 7. التحقق من السن التوافقي للفرونت إند (بين 15 و 70 سنة)
     const age = toNullableInt(body.age);
     if (age === null || age < 15 || age > 70) {
       return NextResponse.json(
@@ -111,7 +157,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5. التحقق من سنة التخرج (بين 1950 و 2100)
+    // 8. التحقق من سنة التخرج
     const graduation_year = toNullableInt(body.graduation_year);
     if (graduation_year === null || graduation_year < 1950 || graduation_year > 2100) {
       return NextResponse.json(
@@ -120,6 +166,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 9. التحقق من متغيرات البيئة لقاعدة البيانات
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -139,7 +186,28 @@ export async function POST(req: Request) {
       }
     });
 
-    // بناء الـ Payload بالكامل متضمناً الـ 26 حقل بالتسميات الموحدة والجديدة
+    // 10. فحص ومنع التسجيل المكرر بالبريد الإلكتروني أو الرقم القومي
+    const { data: existingRequest, error: checkError } = await supabase
+      .from("join_requests")
+      .select("id")
+      .or(`email.eq.${email},national_id.eq.${national_id}`)
+      .maybeSingle();
+
+    if (checkError) {
+      return NextResponse.json(
+        { ok: false, error: "Database verification failed: " + checkError.message },
+        { status: 500 }
+      );
+    }
+
+    if (existingRequest) {
+      return NextResponse.json(
+        { ok: false, error: "duplicate_entry" },
+        { status: 400 }
+      );
+    }
+
+    // 11. بناء كتل الـ Payload الكامل لـ 26 حقل بالتسميات الموحدة والآمنة للتخزين
     const payload = {
       full_name,
       email,
@@ -172,6 +240,7 @@ export async function POST(req: Request) {
       admin_status: "new"
     };
 
+    // 12. إدراج الطلب داخل جدول سوبابيز
     const { error: dbError } = await supabase.from("join_requests").insert(payload);
 
     if (dbError) {
@@ -181,6 +250,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 13. إرسال الإشعارات عبر Resend
     const resendKey = process.env.RESEND_API_KEY;
     const toEmail = process.env.CONTACT_TO_EMAIL || "skillupyouth.eg@gmail.com";
     const fromEmail =
@@ -195,7 +265,7 @@ export async function POST(req: Request) {
 
     const resend = new Resend(resendKey);
 
-    // قالب الإيميل المُرسل لإدارة المبادرة متضمناً كافة البيانات والروابط الجديدة
+    // قالب البريد الإلكتروني الكامل والتفصيلي لإدارة المبادرة
     const htmlToTeam = `
       <div style="font-family:Arial,sans-serif;line-height:1.7;color:#111827;">
         <h2 style="margin:0 0 16px;">New Join Request — SkillUp</h2>
@@ -257,6 +327,7 @@ export async function POST(req: Request) {
       });
     }
 
+    // قالب الرد التلقائي الآمن للمتقدم لمنع أي كسر برميجي بالرموز الخاصة
     const applicantHtml = `
       <div style="font-family:Arial,sans-serif;line-height:1.7;color:#111827;">
         <h2 style="margin:0 0 16px;">SkillUp — Application Received</h2>
