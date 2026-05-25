@@ -68,11 +68,12 @@ export async function POST(req: Request) {
     const sector_key = safeStr(body.sector_key);
     const message = safeStr(body.message);
     const consent = Boolean(body.consent);
+    const national_id = safeStr(body.national_id);
 
-    // التحقق من الحقول الإلزامية الجديدة للتأكد من أمان الإرسال في الخلفية (Backend Validation)
+    // 1. التحقق من الحقول الإلزامية الـ 21 (مع استثناء الحقول الـ 5 الاختيارية)
     if (
       !full_name || !email || !sector_key || !message || !consent ||
-      !safeStr(body.national_id) || !safeStr(body.phone) || !safeStr(body.city) ||
+      !national_id || !safeStr(body.phone) || !safeStr(body.city) ||
       !safeStr(body.member_status) || !safeStr(body.leadership_interest) ||
       !safeStr(body.education) || !safeStr(body.grade) || !safeStr(body.university) ||
       !safeStr(body.faculty) || !safeStr(body.department) || !safeStr(body.profile_picture_url) ||
@@ -85,6 +86,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // 2. التحقق من صيغة البريد الإلكتروني
     if (!isValidEmail(email)) {
       return NextResponse.json(
         { ok: false, error: "Invalid email address" },
@@ -92,20 +94,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const age = toNullableInt(body.age);
-    const graduation_year = toNullableInt(body.graduation_year);
-
-    if (safeStr(body.age) && (age === null || age < 10 || age > 80)) {
+    // 3. التحقق من صحة الرقم القومي (14 رقم بالضبط) مطابقاً للفرونت إند
+    if (!/^\d{14}$/.test(national_id)) {
       return NextResponse.json(
-        { ok: false, error: "Invalid age value" },
+        { ok: false, error: "Invalid National ID (must be exactly 14 digits)" },
         { status: 400 }
       );
     }
 
-    if (
-      safeStr(body.graduation_year) &&
-      (graduation_year === null || graduation_year < 1950 || graduation_year > 2100)
-    ) {
+    // 4. التحقق من مدى العمر (بين 15 و 70 سنة) مطابقاً للفرونت إند
+    const age = toNullableInt(body.age);
+    if (age === null || age < 15 || age > 70) {
+      return NextResponse.json(
+        { ok: false, error: "Invalid age value (must be between 15 and 70)" },
+        { status: 400 }
+      );
+    }
+
+    // 5. التحقق من سنة التخرج (بين 1950 و 2100)
+    const graduation_year = toNullableInt(body.graduation_year);
+    if (graduation_year === null || graduation_year < 1950 || graduation_year > 2100) {
       return NextResponse.json(
         { ok: false, error: "Invalid graduation year value" },
         { status: 400 }
@@ -131,34 +139,34 @@ export async function POST(req: Request) {
       }
     });
 
-    // بناء الـ Payload الكامل ليتضمن الـ 11 حقل الجداد والمحدثين بالكامل لتخزينهم في السوبابيز
+    // بناء الـ Payload بالكامل متضمناً الـ 26 حقل بالتسميات الموحدة والجديدة
     const payload = {
       full_name,
       email,
       phone: nullableStr(body.phone),
-      national_id: nullableStr(body.national_id), // جديد
+      national_id: nullableStr(body.national_id),
       city: nullableStr(body.city),
       age,
-      member_status: nullableStr(body.member_status), // جديد
-      leadership_interest: nullableStr(body.leadership_interest), // جديد
+      member_status: nullableStr(body.member_status),
+      leadership_interest: nullableStr(body.leadership_interest),
       education: nullableStr(body.education),
-      grade: nullableStr(body.grade), // جديد
+      grade: nullableStr(body.grade),
       university: nullableStr(body.university),
-      faculty: nullableStr(body.faculty), // جديد
-      department: nullableStr(body.department), // جديد
-      postgrad_info: nullableStr(body.postgrad_info), // جديد
+      faculty: nullableStr(body.faculty),
+      department: nullableStr(body.department),
+      postgrad_info: nullableStr(body.postgrad_info), // اختياري
       graduation_year,
-      profile_picture_url: nullableStr(body.profile_picture_url), // جديد
+      profile_picture_url: nullableStr(body.profile_picture_url),
       sector_key,
       preferred_role: nullableStr(body.preferred_role),
       availability: nullableStr(body.availability),
-      heard_about_us: nullableStr(body.heard_about_us), // جديد
+      heard_about_us: nullableStr(body.heard_about_us),
       skills: nullableStr(body.skills),
       experience: nullableStr(body.experience),
-      linkedin: nullableStr(body.linkedin),
-      facebook: nullableStr(body.facebook), // جديد
-      portfolio: nullableStr(body.portfolio),
-      resume_url: nullableStr(body.resume_url), // جديد
+      linkedin: nullableStr(body.linkedin), // اختياري
+      facebook: nullableStr(body.facebook), // اختياري
+      portfolio: nullableStr(body.portfolio), // اختياري
+      resume_url: nullableStr(body.resume_url), // اختياري
       message,
       consent,
       admin_status: "new"
@@ -187,7 +195,7 @@ export async function POST(req: Request) {
 
     const resend = new Resend(resendKey);
 
-    // تضمين كافة الحقول الجديدة داخل قالب الإيميل المُرسل لإدارة المبادرة
+    // قالب الإيميل المُرسل لإدارة المبادرة متضمناً كافة البيانات والروابط الجديدة
     const htmlToTeam = `
       <div style="font-family:Arial,sans-serif;line-height:1.7;color:#111827;">
         <h2 style="margin:0 0 16px;">New Join Request — SkillUp</h2>
