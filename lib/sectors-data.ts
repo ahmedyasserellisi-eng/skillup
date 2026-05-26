@@ -40,15 +40,15 @@ export const SECTORS: Sector[] = [
     boundaries_ar:
       "لا يتدخل في تقييم الجودة الفنية لمهام القطاعات الأخرى، بل يقيم الالتزام والأداء العام.",
     boundaries_en:
-      "Does not judge technical quality of other sectors’ work—focuses on commitment and general performance.",
+      "Does not judge technical quality of other sectors' work—focuses on commitment and general performance.",
     benefits_ar: "ممارسة فعلية لعمليات المقابلات الشخصية، التقييم، واستخدام أنظمة الـ HR.",
     benefits_en: "Hands-on practice in interviews, evaluation, and HR operations."
   },
   {
     slug: "meal",
     short: "MEAL",
-    name_ar: "المتابعة والتقييم والتعلم",
-    name_en: "Monitoring, Evaluation & Learning",
+    name_ar: "التخطيط الاستراتيجي",
+    name_en: "Strategic Planning",
     note_ar: "الرقابة الاستراتيجية، قياس الأداء، واستخلاص الدروس المستفادة.",
     note_en: "Strategic oversight, performance measurement, and learning.",
     role_ar: "ضمان تحقيق المبادرة لأهدافها الاستراتيجية عبر بناء مؤشرات قياس (KPIs) دقيقة.",
@@ -103,7 +103,7 @@ export const SECTORS: Sector[] = [
   {
     slug: "logistics",
     short: "OPS",
-    name_ar: "التنظيم والعمليات",
+    name_ar: "التنظيم واللوجستيات",
     name_en: "Logistics & Operations",
     note_ar: "الجندي المجهول خلف الكواليس لإدارة الفعاليات والموارد.",
     note_en: "Behind-the-scenes execution and operations.",
@@ -129,8 +129,8 @@ export const SECTORS: Sector[] = [
   {
     slug: "sustainable-development",
     short: "SD",
-    name_ar: "التنمية المستدامة والشراكات",
-    name_en: "Sustainability & Partnerships",
+    name_ar: "التنمية المستدامة",
+    name_en: "Sustainable Development",
     note_ar: "بناء الشراكات، الرعايات، والتوافق مع رؤية مصر 2030.",
     note_en: "Partnerships, sponsorships, and sustainability alignment.",
     role_ar: "تأمين الموارد الاستراتيجية والمالية للمبادرة وتوسيع شبكة علاقاتها.",
@@ -157,8 +157,8 @@ export const SECTORS: Sector[] = [
   {
     slug: "training-development",
     short: "T&D",
-    name_ar: "التدريب والتطوير",
-    name_en: "Training & Development",
+    name_ar: "التدريب والتطوير المهني",
+    name_en: "Training & Professional Development",
     note_ar: "القلب النابض للمبادرة؛ تصميم المحتوى وتأهيل المدربين.",
     note_en: "Core value: training design and delivery.",
     role_ar: "تقديم القيمة الأساسية عبر برامج تدريبية عالية الجودة.",
@@ -175,15 +175,15 @@ export const SECTORS: Sector[] = [
       "Deliver workshops",
       "Training ROI measurement"
     ],
-    boundaries_ar: "يصمم المادة العلمية، بينما يتولى الـ MEAL قياس الأثر، واللوجستيات إدارة القاعة.",
-    boundaries_en: "Designs content; MEAL measures impact; Logistics runs the venue.",
+    boundaries_ar: "يصمم المادة العلمية، بينما يتولى قطاع التخطيط قياس الأثر، واللوجستيات إدارة القاعة.",
+    boundaries_en: "Designs content; Strategic Planning measures impact; Logistics runs the venue.",
     benefits_ar: "مهارات العرض والتقديم وتصميم المواد التعليمية باحترافية.",
     benefits_en: "Presentation skills and professional learning material design."
   },
   {
     slug: "culture-entertainment",
     short: "C&E",
-    name_ar: "الثقافة والترفيه",
+    name_ar: "الترفيه والثقافة",
     name_en: "Culture & Entertainment",
     note_ar: "تعزيز الولاء، الصحة النفسية، والروابط بين أعضاء المبادرة.",
     note_en: "Belonging, wellbeing, and internal community.",
