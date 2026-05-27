@@ -138,7 +138,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       prev: "السابق",
       stepOf: "خطوة {step} من 4",
       sending: "جاري إرسال البيانات...",
-      ok: "تم تسجيل البيانات بنجاح واننا هنتواصل معاك قريباً.",
+      ok: "تم تسجيل البيانات بنجاح وهنتواصل معاك قريباً.",
       anotherResponse: "إرسال رد آخر (فورم جديد)",
       errRequired: "برجاء استكمال جميع الحقول الإجبارية المعلّمة بنجمة (*).",
       errEmail: "يرجى إدخال بريد إلكتروني صحيح بشكل سليم.",
@@ -433,7 +433,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           
           <p className="mt-3 text-sm leading-7 text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
             {isAr 
-              ? "تم استلام معلوماتك بالكامل في قاعدة البيانات، وسيقوم مسؤول قطاع المتابعة والتقييم بفرز طلبك." 
+              ? "تم استلام معلوماتك بالكامل في قاعدة البيانات، وسنقوم بالتواصل معك قريبا." 
               : "Your data has been successfully securely stored. Our MEAL team will review it shortly."}
           </p>
           
