@@ -96,7 +96,7 @@ function getSafeSectorKey(value: string) {
 
 export default function JoinForm({ locale, presetSector }: Props) {
   const isAr = locale === "ar";
-
+  
   const t = useMemo(() => {
     const ar = {
       title: "انضم إلى فريق SkillUp",
@@ -273,7 +273,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       return;
     }
 
-    // التحقق الصارم من استكمال كافة الحقول الـ 21 الإجبارية (مع استثناء الـ 5 حقول الاختيارية)
+    // التحقق الصارم من استكمال كافة الحقول الـ 22 الإجبارية (مع استثناء الـ 5 حقول الاختيارية)
     if (
       !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
       !form.national_id.trim() || !form.city || !form.age.trim() ||
@@ -357,13 +357,13 @@ export default function JoinForm({ locale, presetSector }: Props) {
         member_status: "", leadership_interest: "", education: "", grade: "",
         university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
         profile_picture_url: "", sector_key: form.sector_key,
-        preferred_role: "", availability: "", heard_about_us: "", skills: "", experience: "",
-        linkedin: "", facebook: "", portfolio: "", resume_url: "", message: "", consent: false,
-        website: "", hidden_honey: ""
+        preferred_role: "", availability: "", heard_about_us: "", skills: "", 
+        experience: "", linkedin: "", facebook: "", portfolio: "", resume_url: "", 
+        message: "", consent: false, website: "", hidden_honey: ""
       });
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : "An error occurred.");
-    } finaly {
+    } finally {
       setLoading(false);
     }
   }
