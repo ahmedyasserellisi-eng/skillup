@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -90,7 +89,7 @@ function getStatusValue(v?: string | null) {
 function getStatusBadge(status?: string | null) {
   const v = getStatusValue(status);
   if (v === "accepted") {
-    return <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/20 gap-1"><UserCheck className="w-3.h-3" /> مقبول</Badge>;
+    return <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/20 gap-1"><UserCheck className="w-3 h-3" /> مقبول</Badge>;
   }
   if (v === "rejected") {
     return <Badge className="bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-400 border border-rose-500/20 gap-1"><XCircle className="w-3 h-3" /> مرفوض</Badge>;
@@ -141,7 +140,6 @@ export default function AdminJoinRequestsPage() {
 
   const [rows, setRows] = useState<JoinRequest[]>([]);
   const [message, setMessage] = useState("");
-
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
@@ -316,7 +314,6 @@ export default function AdminJoinRequestsPage() {
 
   async function remove(id: string, name?: string) {
     setMessage("");
-
     const ok = confirm(`هل تريد حذف هذا الطلب؟\n\n${name || "طلب بدون اسم"}`);
     if (!ok) return;
 
@@ -351,7 +348,6 @@ export default function AdminJoinRequestsPage() {
       }
 
       const XLSX = await import("xlsx");
-
       const data = filtered.map((r, index) => ({
         "م": index + 1,
         "الاسم الكامل": cleanCell(r.full_name),
@@ -362,34 +358,31 @@ export default function AdminJoinRequestsPage() {
         "التعليم": EDUCATION_LABEL[r.education ?? ""] ?? cleanCell(r.education),
         "الجامعة": cleanCell(r.university),
         "سنة التخرج": cleanCell(r.graduation_year),
-        "القطاع": SECTOR_LABEL[r.sector_key] ?? r.sector_key,
+        "القطاع المستهدف": SECTOR_LABEL[r.sector_key] ?? r.sector_key,
         "الدور المفضل": cleanCell(r.preferred_role),
-        "التفرغ": cleanCell(r.availability),
-        "المهارات": cleanCell(r.skills),
-        "الخبرات": cleanCell(r.experience),
-        "لينكدإن": cleanCell(r.linkedin),
-        "البورتفوليو": cleanCell(r.portfolio),
+        "التفرغ الأسبوعي": cleanCell(r.availability),
+        "المهارات والقدرات": cleanCell(r.skills),
+        "الخبرات والأنشطة": cleanCell(r.experience),
+        "حساب لينكد إن": cleanCell(r.linkedin),
+        "رابط معرض الأعمال (Portfolio)": cleanCell(r.portfolio),
         "رسالة المتقدم": cleanCell(r.message),
-        "الحالة": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
+        "حالة الطلب": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
         "ملاحظات الإدارة": cleanCell(r.admin_notes),
-        "تاريخ الطلب": formatDateTime(r.created_at)
+        "تاريخ التقديم": formatDateTime(r.created_at)
       }));
 
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
-
       ws["!cols"] = [
         { wch: 6 }, { wch: 28 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
         { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 28 },
         { wch: 18 }, { wch: 28 }, { wch: 35 }, { wch: 28 }, { wch: 28 },
         { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 35 }, { wch: 22 }
       ];
-
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "طلبات الانضمام");
 
       const date = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `طلبات-الانضمام-${date}.xlsx`);
-
       setMessage("✅ تم تصدير ملف Excel بنجاح.");
     } catch (e: any) {
       setMessage(`❌ ${e?.message || "حدث خطأ أثناء التصدير."}`);
@@ -556,12 +549,12 @@ export default function AdminJoinRequestsPage() {
         <Table>
           <TableHeader className="bg-zinc-50/70 dark:bg-zinc-900/50">
             <TableRow>
-              <TableHead className="text-right font-semibold">المتقدم</TableHead>
-              <TableHead className="text-right font-semibold">القطاع</TableHead>
+              <TableHead className="text-right font-semibold">الاسم الكامل</TableHead>
+              <TableHead className="text-right font-semibold">القطاع المستهدف</TableHead>
               <TableHead className="text-right font-semibold">المدينة</TableHead>
-              <TableHead className="text-right font-semibold">الحالة</TableHead>
-              <TableHead className="text-right font-semibold">الهاتف</TableHead>
-              <TableHead className="text-right font-semibold">تاريخ الطلب</TableHead>
+              <TableHead className="text-right font-semibold">حالة الطلب</TableHead>
+              <TableHead className="text-right font-semibold">رقم الهاتف</TableHead>
+              <TableHead className="text-right font-semibold">تاريخ التقديم</TableHead>
               <TableHead className="text-center font-semibold w-[220px]">الإجراءات السريعة</TableHead>
             </TableRow>
           </TableHeader>
@@ -613,121 +606,11 @@ export default function AdminJoinRequestsPage() {
 
                   <TableCell className="py-2">
                     <div className="flex items-center justify-center gap-1.5">
-                      {/* عرض التفاصيل مودال */}
-                      <Dialog open={open && selected?.id === r.id} onOpenChange={setOpen}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="gap-1 text-xs h-8 px-2.5 shadow-sm" onClick={() => openDetails(r)}>
-                            <Eye className="w-3.5 h-3.5" />
-                            التفاصيل
-                          </Button>
-                        </DialogTrigger>
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-8 px-2.5 shadow-sm" onClick={() => openDetails(r)}>
+                        <Eye className="w-3.5 h-3.5" />
+                        التفاصيل
+                      </Button>
 
-                        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-6 rounded-xl" dir="rtl">
-                          <DialogHeader className="border-b pb-3">
-                            <DialogTitle className="text-xl font-bold">تفاصيل طلب الانضمام الكاملة</DialogTitle>
-                          </DialogHeader>
-
-                          {selected ? (
-                            <div className="flex-1 overflow-y-auto py-4 space-y-5 pe-1 text-zinc-800 dark:text-zinc-200">
-                              {/* Basic Info Box */}
-                              <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                <div className="sm:col-span-2 lg:col-span-3 border-b pb-2 mb-1 flex items-center justify-between">
-                                  <div>
-                                    <div className="text-base font-bold text-zinc-900 dark:text-zinc-50">{selected.full_name}</div>
-                                    <div className="text-xs text-zinc-500 mt-0.5">{selected.email}</div>
-                                  </div>
-                                  <div>{getStatusBadge(selected.admin_status)}</div>
-                                </div>
-                                <div><strong>رقم الهاتف:</strong> <span className="font-mono">{selected.phone ?? "—"}</span></div>
-                                <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
-                                <div><strong>السن:</strong> {selected.age ?? "—"} مخرجات</div>
-                                <div><strong>التعليم:</strong> {EDUCATION_LABEL[selected.education ?? ""] ?? selected.education ?? "—"}</div>
-                                <div><strong>الجامعة:</strong> {selected.university ?? "—"}</div>
-                                <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
-                                <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t text-sm grid gap-2 sm:grid-cols-2">
-                                  <div><strong>القطاع المستهدف:</strong> <span className="font-semibold text-sky-600 dark:text-sky-400">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
-                                  <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
-                                  <div><strong>التفرغ الإسبوعي:</strong> {selected.availability ?? "—"}</div>
-                                  <div><strong>تاريخ الإرسال:</strong> {formatDateTime(selected.created_at)}</div>
-                                </div>
-                              </div>
-
-                              {/* Portfolio Links and Admin Notes Grid */}
-                              <div className="grid gap-4 md:grid-cols-2">
-                                <div className="flex flex-col gap-2">
-                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">روابط المتقدم الخارجية</span>
-                                  <div className="flex-1 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 text-sm shadow-sm">
-                                    <div className="flex items-center justify-between border-b pb-2">
-                                      <span>رابط لينكد إن:</span>
-                                      {selected.linkedin ? (
-                                        <a className="text-sky-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الحساب الرسمي ↗</a>
-                                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
-                                    </div>
-                                    <div className="flex items-center justify-between pt-1">
-                                      <span>رابط معرض الأعمال (Portfolio):</span>
-                                      {selected.portfolio ? (
-                                        <a className="text-emerald-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.portfolio}>تصفح معرض الأعمال ↗</a>
-                                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col gap-2">
-                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">ملاحظات وتقييم الإدارة (داخلي)</span>
-                                  <textarea
-                                    className="w-full min-h-[100px] flex-1 rounded-xl border border-zinc-200 bg-white p-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 shadow-sm focus:border-zinc-400"
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    placeholder="اكتب التقييم الداخلي أو ملاحظات المقابلة هنا..."
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Skills & Experience Details */}
-                              <div className="grid gap-4 md:grid-cols-2">
-                                <div className="grid gap-1.5">
-                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">المهارات والقدرات</span>
-                                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
-                                    {selected.skills || "لم يتم إدخال مهارات محددة."}
-                                  </div>
-                                </div>
-
-                                <div className="grid gap-1.5">
-                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">الخبرات السابقة والأنشطة</span>
-                                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
-                                    {selected.experience || "لم يتم إدخال خبرات سابقة."}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="grid gap-1.5">
-                                <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">رسالة المتقدم للإدارة</span>
-                                <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[120px] overflow-y-auto">
-                                  {selected.message || "لا توجد رسالة مرفقة من المتقدم."}
-                                </div>
-                              </div>
-
-                              {/* Actions inside dialog */}
-                              <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
-                                <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")}>
-                                  نقل لقيد المراجعة
-                                </Button>
-                                <Button size="sm" variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20" disabled={saving} onClick={() => updateStatus("contacted")}>
-                                  تم التواصل
-                                </Button>
-                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving} onClick={() => updateStatus("accepted")}>
-                                  قبول المتقدم
-                                </Button>
-                                <Button size="sm" variant="destructive" disabled={saving} onClick={() => updateStatus("rejected")}>
-                                  رفض الطلب
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </DialogContent>
-                      </Dialog>
-
-                      {/* قائمة اختيارات سريعة مدمجة للحالة بدل زحمة الأزرار */}
                       <select
                         value={getStatusValue(r.admin_status)}
                         disabled={isBusy(r.id)}
@@ -741,7 +624,6 @@ export default function AdminJoinRequestsPage() {
                         <option value="rejected">مرفوض</option>
                       </select>
 
-                      {/* زر الحذف الأيقوني الأنيق */}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -759,6 +641,113 @@ export default function AdminJoinRequestsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Shared Single Dialog Component (Outside the Loop for High Performance) */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-6 rounded-xl" dir="rtl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-xl font-bold">تفاصيل طلب الانضمام الكاملة</DialogTitle>
+          </DialogHeader>
+
+          {selected ? (
+            <div className="flex-1 overflow-y-auto py-4 space-y-5 pe-1 text-zinc-800 dark:text-zinc-200">
+              {/* Basic Info Box */}
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="sm:col-span-2 lg:col-span-3 border-b pb-2 mb-1 flex items-center justify-between">
+                  <div>
+                    <div className="text-base font-bold text-zinc-900 dark:text-zinc-50">{selected.full_name}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">{selected.email}</div>
+                  </div>
+                  <div>{getStatusBadge(selected.admin_status)}</div>
+                </div>
+                <div><strong>رقم الهاتف:</strong> <span className="font-mono">{selected.phone ?? "—"}</span></div>
+                <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
+                <div><strong>السن:</strong> {selected.age ?? "—"} سنة</div>
+                <div><strong>التعليم:</strong> {EDUCATION_LABEL[selected.education ?? ""] ?? selected.education ?? "—"}</div>
+                <div><strong>الجامعة:</strong> {selected.university ?? "—"}</div>
+                <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
+                <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t text-sm grid gap-2 sm:grid-cols-2">
+                  <div><strong>القطاع المستهدف:</strong> <span className="font-semibold text-sky-600 dark:text-sky-400">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
+                  <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
+                  <div><strong>التفرغ الأسبوعي:</strong> {selected.availability ?? "—"}</div>
+                  <div><strong>تاريخ التقديم:</strong> {formatDateTime(selected.created_at)}</div>
+                </div>
+              </div>
+
+              {/* Portfolio Links and Admin Notes Grid */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">روابط المتقدم الخارجية</span>
+                  <div className="flex-1 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 text-sm shadow-sm">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span>حساب لينكد إن:</span>
+                      {selected.linkedin ? (
+                        <a className="text-sky-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الحساب الرسمي ↗</a>
+                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span>رابط معرض الأعمال (Portfolio):</span>
+                      {selected.portfolio ? (
+                        <a className="text-emerald-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.portfolio}>تصفح معرض الأعمال ↗</a>
+                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">ملاحظات وتقييم الإدارة (داخلي)</span>
+                  <textarea
+                    className="w-full min-h-[100px] flex-1 rounded-xl border border-zinc-200 bg-white p-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 shadow-sm focus:border-zinc-400"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="اكتب التقييم الداخلي أو ملاحظات المقابلة هنا..."
+                  />
+                </div>
+              </div>
+
+              {/* Skills & Experience Details */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-1.5">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">المهارات والقدرات</span>
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
+                    {selected.skills || "لم يتم إدخال مهارات محددة."}
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">الخبرات والأنشطة</span>
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
+                    {selected.experience || "لم يتم إدخال خبرات سابقة."}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-1.5">
+                <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">رسالة المتقدم</span>
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[120px] overflow-y-auto">
+                  {selected.message || "لا توجد رسالة مرفقة من المتقدم."}
+                </div>
+              </div>
+
+              {/* Actions inside dialog */}
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+                <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")}>
+                  نقل لقيد المراجعة
+                </Button>
+                <Button size="sm" variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20" disabled={saving} onClick={() => updateStatus("contacted")}>
+                  تم التواصل
+                </Button>
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving} onClick={() => updateStatus("accepted")}>
+                  قبول المتقدم
+                </Button>
+                <Button size="sm" variant="destructive" disabled={saving} onClick={() => updateStatus("rejected")}>
+                  رفض الطلب
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {/* Footer Info */}
       <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-2 flex items-center gap-1">
