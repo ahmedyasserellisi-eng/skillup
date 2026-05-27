@@ -63,7 +63,7 @@ const EGYPT_GOVERNORATES = [
   { ar: "المنوفية", en: "Monufia" }, 
   { ar: "المنيا", en: "Minya" }, 
   { ar: "القليوبية", en: "Qalyubia" },
-  { id: 13, ar: "الوادي الجديد", en: "New Valley" }, 
+  { ar: "الوادي الجديد", en: "New Valley" }, 
   { ar: "السويس", en: "Suez" }, 
   { ar: "الشرقية", en: "Sharqia" },
   { ar: "أسوان", en: "Aswan" }, 
@@ -95,8 +95,6 @@ function getSafeSectorKey(value: string) {
 
 export default function JoinForm({ locale, presetSector }: Props) {
   const isAr = locale === "ar";
-  
-  // حالة التحكم في رقم الخطوة الحالية من 1 إلى 4
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   const t = useMemo(() => {
@@ -270,10 +268,8 @@ export default function JoinForm({ locale, presetSector }: Props) {
     if (done) setDone(false);
   }
 
-  // دالة التحقق الذكي من صحة بيانات الخطوة الحالية قبل الانتقال للخطوة التالية
   function validateCurrentStep(): boolean {
     setErrorMsg("");
-    
     if (currentStep === 1) {
       if (
         !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
@@ -339,13 +335,11 @@ export default function JoinForm({ locale, presetSector }: Props) {
     event.preventDefault();
     setErrorMsg("");
     setDone(false);
-
     if (form.website || form.hidden_honey) {
       setDone(true);
       return;
     }
 
-    // تأكيد التحقق الأخير من الخطوة الرابعة والنهائية
     if (!form.message.trim() || !form.consent) {
       setErrorMsg(t.errRequired);
       return;
@@ -381,7 +375,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
           message: form.message.trim()
         })
       });
-
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
@@ -396,7 +389,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       }
 
       setDone(true);
-      setCurrentStep(1); // إرجاع الواجهة للخطوة الأولى بنجاح
+      setCurrentStep(1);
       
       setForm({
         full_name: "", email: "", phone: "", national_id: "", city: "", age: "",
