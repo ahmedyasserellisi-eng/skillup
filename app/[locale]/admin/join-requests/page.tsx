@@ -21,6 +21,20 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { SECTORS } from "@/lib/sectors-data";
+import { 
+  Search, 
+  RefreshCw, 
+  Download, 
+  SlidersHorizontal, 
+  Eye, 
+  Trash2, 
+  CheckCircle, 
+  Clock, 
+  UserCheck, 
+  XCircle,
+  HelpCircle,
+  Calendar
+} from "lucide-react";
 
 type JoinRequest = {
   id: string;
@@ -50,7 +64,6 @@ const ALLOWED = new Set([
   "ahmedyasserellisi@gmail.com"
 ]);
 
-// ✅ مبني ديناميكياً من sectors-data — متوافق 100%
 const SECTOR_LABEL: Record<string, string> = Object.fromEntries(
   SECTORS.map((s) => [s.slug, s.name_ar])
 );
@@ -76,11 +89,19 @@ function getStatusValue(v?: string | null) {
 
 function getStatusBadge(status?: string | null) {
   const v = getStatusValue(status);
-  if (v === "accepted") return <Badge variant="secondary">مقبول</Badge>;
-  if (v === "rejected") return <Badge variant="destructive">مرفوض</Badge>;
-  if (v === "contacted") return <Badge variant="outline">تم التواصل</Badge>;
-  if (v === "in_review") return <Badge variant="outline">قيد المراجعة</Badge>;
-  return <Badge variant="outline">جديد</Badge>;
+  if (v === "accepted") {
+    return <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-500/20 gap-1"><UserCheck className="w-3.h-3" /> مقبول</Badge>;
+  }
+  if (v === "rejected") {
+    return <Badge className="bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-400 border border-rose-500/20 gap-1"><XCircle className="w-3 h-3" /> مرفوض</Badge>;
+  }
+  if (v === "contacted") {
+    return <Badge className="bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 border border-amber-500/20 gap-1"><CheckCircle className="w-3 h-3" /> تم التواصل</Badge>;
+  }
+  if (v === "in_review") {
+    return <Badge className="bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-400 border border-blue-500/20 gap-1"><Clock className="w-3 h-3" /> قيد المراجعة</Badge>;
+  }
+  return <Badge className="bg-zinc-500/10 text-zinc-700 hover:bg-zinc-500/20 dark:text-zinc-400 border border-zinc-500/20 gap-1"><HelpCircle className="w-3 h-3" /> جديد</Badge>;
 }
 
 function formatDateTime(value: string) {
@@ -264,7 +285,6 @@ export default function AdminJoinRequestsPage() {
     setSaving(false);
   }
 
-  // ✅ إصلاح: admin_notes بتتبعت مع كل تغيير في الحالة
   async function quickUpdateStatus(row: JoinRequest, newStatus: string) {
     setActionLoadingId(row.id);
     setMessage("");
@@ -339,11 +359,9 @@ export default function AdminJoinRequestsPage() {
         "رقم الهاتف": cleanCell(r.phone),
         "المدينة": cleanCell(r.city),
         "السن": cleanCell(r.age),
-        // ✅ يعرض الاسم العربي بدل الـ slug
         "التعليم": EDUCATION_LABEL[r.education ?? ""] ?? cleanCell(r.education),
         "الجامعة": cleanCell(r.university),
         "سنة التخرج": cleanCell(r.graduation_year),
-        // ✅ يعرض اسم القطاع الصح
         "القطاع": SECTOR_LABEL[r.sector_key] ?? r.sector_key,
         "الدور المفضل": cleanCell(r.preferred_role),
         "التفرغ": cleanCell(r.availability),
@@ -360,26 +378,10 @@ export default function AdminJoinRequestsPage() {
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
 
       ws["!cols"] = [
-        { wch: 6 },
-        { wch: 28 },
-        { wch: 30 },
-        { wch: 18 },
-        { wch: 16 },
-        { wch: 8 },
-        { wch: 18 },
-        { wch: 24 },
-        { wch: 14 },
-        { wch: 28 },
-        { wch: 18 },
-        { wch: 28 },
-        { wch: 35 },
-        { wch: 28 },
-        { wch: 28 },
-        { wch: 28 },
-        { wch: 40 },
-        { wch: 16 },
-        { wch: 35 },
-        { wch: 22 }
+        { wch: 6 }, { wch: 28 }, { wch: 30 }, { wch: 18 }, { wch: 16 },
+        { wch: 8 }, { wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 28 },
+        { wch: 18 }, { wch: 28 }, { wch: 35 }, { wch: 28 }, { wch: 28 },
+        { wch: 28 }, { wch: 40 }, { wch: 16 }, { wch: 35 }, { wch: 22 }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -406,60 +408,71 @@ export default function AdminJoinRequestsPage() {
   const isBusy = (id: string) => actionLoadingId === id;
 
   return (
-    <div className="grid gap-5" dir="rtl">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+    <div className="grid gap-6 p-4 md:p-6" dir="rtl">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-5">
         <div>
-          <h1 className="text-2xl font-semibold">طلبات الانضمام</h1>
-          <p className="text-sm opacity-75">
-            لوحة متابعة وفرز ومراجعة الطلبات بشكل أقرب لإدارة الموارد البشرية.
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">طلبات الانضمام</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            لوحة متابعة وفرز ومراجعة الطلبات بشكل متطور لإدارة الموارد البشرية.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => load()} disabled={loading}>
+        <div className="flex items-center gap-2.5 self-start md:self-auto">
+          <Button variant="outline" className="gap-2" onClick={() => load()} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             تحديث
           </Button>
-          <Button onClick={exportExcel} disabled={loading || filtered.length === 0}>
+          <Button className="gap-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-50 dark:hover:bg-zinc-200 dark:text-zinc-900" onClick={exportExcel} disabled={loading || filtered.length === 0}>
+            <Download className="w-4 h-4" />
             تصدير Excel
           </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+      {/* Stats Dashboard */}
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {[
-          { label: "إجمالي الطلبات", value: stats.total },
-          { label: "المعروض الآن", value: stats.filtered },
-          { label: "جديد", value: stats.newCount },
-          { label: "قيد المراجعة", value: stats.reviewCount },
-          { label: "تم التواصل", value: stats.contactedCount },
-          { label: "مقبول", value: stats.accepted },
-          { label: "مرفوض", value: stats.rejected }
+          { label: "إجمالي الطلبات", value: stats.total, color: "border-l-zinc-500" },
+          { label: "المعروض الآن", value: stats.filtered, color: "border-l-sky-500" },
+          { label: "جديد", value: stats.newCount, color: "border-l-purple-500" },
+          { label: "قيد المراجعة", value: stats.reviewCount, color: "border-l-blue-500" },
+          { label: "تم التواصل", value: stats.contactedCount, color: "border-l-amber-500" },
+          { label: "مقبول", value: stats.accepted, color: "border-l-emerald-500" },
+          { label: "مرفوض", value: stats.rejected, color: "border-l-rose-500" }
         ].map((s) => (
           <div
             key={s.label}
-            className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40"
+            className={`rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 border-l-4 ${s.color}`}
           >
-            <div className="text-xs opacity-70">{s.label}</div>
-            <div className="mt-2 text-2xl font-bold">{s.value}</div>
+            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{s.label}</div>
+            <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{s.value}</div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-        <div className="grid gap-3 lg:grid-cols-6">
-          <Input
-            placeholder="ابحث بالاسم أو الإيميل أو المهارات أو الجامعة..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="lg:col-span-2"
-          />
+      {/* Filters Accordion/Box */}
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50 shadow-sm backdrop-blur-sm">
+        <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>أدوات الفرز والتصفية المتقدمة</span>
+        </div>
+        
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+          <div className="relative lg:col-span-2">
+            <Search className="absolute right-3 top-2.5 h-4 w-4 text-zinc-400" />
+            <Input
+              placeholder="ابحث بالاسم، الإيميل، المهارات..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pr-9 rounded-lg bg-white dark:bg-zinc-950"
+            />
+          </div>
 
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="w-full h-10 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none shadow-sm dark:border-zinc-800 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-zinc-400"
           >
             <option value="all">كل الحالات</option>
             <option value="new">جديد</option>
@@ -469,11 +482,10 @@ export default function AdminJoinRequestsPage() {
             <option value="rejected">مرفوض</option>
           </select>
 
-          {/* ✅ القطاعات من SECTORS مباشرة — متوافقة 100% */}
           <select
             value={sector}
             onChange={(e) => setSector(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="w-full h-10 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none shadow-sm dark:border-zinc-800 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-zinc-400"
           >
             <option value="all">كل القطاعات</option>
             {SECTORS.map((s) => (
@@ -486,7 +498,7 @@ export default function AdminJoinRequestsPage() {
           <select
             value={city}
             onChange={(e) => setCity(e.target.value)}
-            className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
+            className="w-full h-10 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none shadow-sm dark:border-zinc-800 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 focus:border-zinc-400"
           >
             <option value="all">كل المدن</option>
             {cityOptions.map((c) => (
@@ -496,291 +508,248 @@ export default function AdminJoinRequestsPage() {
             ))}
           </select>
 
-          <Button variant="secondary" onClick={resetFilters}>
+          <Button variant="outline" className="w-full rounded-lg" onClick={resetFilters}>
             تصفير الفلاتر
           </Button>
         </div>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="grid gap-1">
-            <label className="text-xs opacity-70">من تاريخ</label>
+        <div className="mt-4 pt-4 border-t border-zinc-200/60 dark:border-zinc-800/60 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> من تاريخ التقديم
+            </label>
             <Input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
+              className="rounded-lg bg-white dark:bg-zinc-950"
             />
           </div>
-          <div className="grid gap-1">
-            <label className="text-xs opacity-70">إلى تاريخ</label>
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> إلى تاريخ التقديم
+            </label>
             <Input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
+              className="rounded-lg bg-white dark:bg-zinc-950"
             />
           </div>
         </div>
       </div>
 
       {message ? (
-        <div className={`rounded-2xl border p-4 text-sm ${messageClass(message)}`}>
+        <div className={`rounded-xl border p-4 text-sm font-medium shadow-sm transition-all ${messageClass(message)}`}>
           {message}
         </div>
       ) : null}
 
-      {/* ⚠️ تنبيه لو الطلبات وصلت الحد */}
       {rows.length >= 500 && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-300">
-          ⚠️ يتم عرض أول 500 طلب فقط. استخدم الفلاتر لتضييق النتائج.
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 text-sm text-amber-800 dark:text-amber-300 font-medium flex items-center gap-2 shadow-sm">
+          ⚠️ تنبيه: يتم عرض أول 500 طلب فقط لتسريع التصفح. يرجى تضييق نطاق البحث بالفلاتر إذا لم تجد طلباً معيناً.
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-2xl border border-black/10 dark:border-white/10">
+      {/* Main Table View */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-sm overflow-hidden">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-zinc-50/70 dark:bg-zinc-900/50">
             <TableRow>
-              <TableHead>المتقدم</TableHead>
-              <TableHead>القطاع</TableHead>
-              <TableHead>المدينة</TableHead>
-              <TableHead>الحالة</TableHead>
-              <TableHead>الهاتف</TableHead>
-              <TableHead>تاريخ الطلب</TableHead>
-              <TableHead className="w-[430px]">الإجراءات</TableHead>
+              <TableHead className="text-right font-semibold">المتقدم</TableHead>
+              <TableHead className="text-right font-semibold">القطاع</TableHead>
+              <TableHead className="text-right font-semibold">المدينة</TableHead>
+              <TableHead className="text-right font-semibold">الحالة</TableHead>
+              <TableHead className="text-right font-semibold">الهاتف</TableHead>
+              <TableHead className="text-right font-semibold">تاريخ الطلب</TableHead>
+              <TableHead className="text-center font-semibold w-[220px]">الإجراءات السريعة</TableHead>
             </TableRow>
           </TableHeader>
 
           <TableBody>
             {loading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={7} className="py-6 text-center opacity-50">
-                    جاري تحميل الطلبات...
-                  </TableCell>
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i} className="animate-pulse">
+                  <TableCell><div className="h-9 bg-zinc-100 dark:bg-zinc-800 rounded-lg w-32" /></TableCell>
+                  <TableCell><div className="h-5 bg-zinc-100 dark:bg-zinc-800 rounded w-24" /></TableCell>
+                  <TableCell><div className="h-5 bg-zinc-100 dark:bg-zinc-800 rounded w-16" /></TableCell>
+                  <TableCell><div className="h-6 bg-zinc-100 dark:bg-zinc-800 rounded-full w-20" /></TableCell>
+                  <TableCell><div className="h-5 bg-zinc-100 dark:bg-zinc-800 rounded w-24" /></TableCell>
+                  <TableCell><div className="h-5 bg-zinc-100 dark:bg-zinc-800 rounded w-28" /></TableCell>
+                  <TableCell><div className="h-8 bg-zinc-100 dark:bg-zinc-800 rounded-lg w-full" /></TableCell>
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center opacity-70">
-                  لا توجد طلبات مطابقة للفلاتر الحالية.
+                <TableCell colSpan={7} className="py-12 text-center text-zinc-500 dark:text-zinc-400 font-medium">
+                  لا توجد طلبات مطابقة للفلاتر المحددة حالياً.
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    <div className="font-medium">{r.full_name}</div>
-                    <div className="text-xs opacity-70">{r.email}</div>
+                <TableRow key={r.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30 transition-colors">
+                  <TableCell className="py-3">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100 max-w-[180px] truncate">{r.full_name}</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400 font-normal mt-0.5 max-w-[180px] truncate">{r.email}</div>
                   </TableCell>
 
-                  {/* ✅ اسم القطاع الصح */}
-                  <TableCell>
+                  <TableCell className="font-medium text-zinc-700 dark:text-zinc-300">
                     {SECTOR_LABEL[r.sector_key] ?? r.sector_key}
                   </TableCell>
 
-                  <TableCell className="text-sm opacity-80">
+                  <TableCell className="text-sm text-zinc-600 dark:text-zinc-400">
                     {r.city ?? "—"}
                   </TableCell>
 
                   <TableCell>{getStatusBadge(r.admin_status)}</TableCell>
 
-                  <TableCell className="text-xs opacity-80">
+                  <TableCell className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
                     {r.phone ?? "—"}
                   </TableCell>
 
-                  <TableCell className="text-xs opacity-75">
+                  <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
                     {formatDateTime(r.created_at)}
                   </TableCell>
 
-                  <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <Dialog
-                        open={open && selected?.id === r.id}
-                        onOpenChange={setOpen}
-                      >
+                  <TableCell className="py-2">
+                    <div className="flex items-center justify-center gap-1.5">
+                      {/* عرض التفاصيل مودال */}
+                      <Dialog open={open && selected?.id === r.id} onOpenChange={setOpen}>
                         <DialogTrigger asChild>
-                          <Button
-                            variant="secondary"
-                            onClick={() => openDetails(r)}
-                          >
-                            عرض التفاصيل
+                          <Button size="sm" variant="outline" className="gap-1 text-xs h-8 px-2.5 shadow-sm" onClick={() => openDetails(r)}>
+                            <Eye className="w-3.5 h-3.5" />
+                            التفاصيل
                           </Button>
                         </DialogTrigger>
 
-                        <DialogContent className="sm:max-w-4xl">
-                          <DialogHeader>
-                            <DialogTitle>تفاصيل طلب الانضمام</DialogTitle>
+                        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-6 rounded-xl" dir="rtl">
+                          <DialogHeader className="border-b pb-3">
+                            <DialogTitle className="text-xl font-bold">تفاصيل طلب الانضمام الكاملة</DialogTitle>
                           </DialogHeader>
 
                           {selected ? (
-                            <div className="max-h-[75vh] overflow-y-auto pe-2">
-                              <div className="grid gap-4 text-sm">
-                                <div className="rounded-2xl border border-black/10 p-4 dark:border-white/10">
-                                  <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div>
-                                      <div className="text-lg font-semibold">
-                                        {selected.full_name}
-                                      </div>
-                                      <div className="text-xs opacity-70">
-                                        {selected.email}
-                                      </div>
-                                    </div>
-                                    <div>{getStatusBadge(selected.admin_status)}</div>
+                            <div className="flex-1 overflow-y-auto py-4 space-y-5 pe-1 text-zinc-800 dark:text-zinc-200">
+                              {/* Basic Info Box */}
+                              <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/40 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="sm:col-span-2 lg:col-span-3 border-b pb-2 mb-1 flex items-center justify-between">
+                                  <div>
+                                    <div className="text-base font-bold text-zinc-900 dark:text-zinc-50">{selected.full_name}</div>
+                                    <div className="text-xs text-zinc-500 mt-0.5">{selected.email}</div>
                                   </div>
-
-                                  <div className="mt-4 grid gap-2 text-xs opacity-85 sm:grid-cols-2">
-                                    <div><strong>رقم الهاتف:</strong> {selected.phone ?? "—"}</div>
-                                    <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
-                                    <div><strong>السن:</strong> {selected.age ?? "—"}</div>
-                                    {/* ✅ التعليم بالعربي */}
-                                    <div>
-                                      <strong>التعليم:</strong>{" "}
-                                      {EDUCATION_LABEL[selected.education ?? ""] ?? selected.education ?? "—"}
-                                    </div>
-                                    <div><strong>الجامعة:</strong> {selected.university ?? "—"}</div>
-                                    <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
-                                    {/* ✅ القطاع بالاسم الصح */}
-                                    <div>
-                                      <strong>القطاع:</strong>{" "}
-                                      {SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}
-                                    </div>
-                                    <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
-                                    <div><strong>التفرغ:</strong> {selected.availability ?? "—"}</div>
-                                    <div><strong>تاريخ الطلب:</strong> {formatDateTime(selected.created_at)}</div>
-                                  </div>
+                                  <div>{getStatusBadge(selected.admin_status)}</div>
                                 </div>
+                                <div><strong>رقم الهاتف:</strong> <span className="font-mono">{selected.phone ?? "—"}</span></div>
+                                <div><strong>المدينة:</strong> {selected.city ?? "—"}</div>
+                                <div><strong>السن:</strong> {selected.age ?? "—"} مخرجات</div>
+                                <div><strong>التعليم:</strong> {EDUCATION_LABEL[selected.education ?? ""] ?? selected.education ?? "—"}</div>
+                                <div><strong>الجامعة:</strong> {selected.university ?? "—"}</div>
+                                <div><strong>سنة التخرج:</strong> {selected.graduation_year ?? "—"}</div>
+                                <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t text-sm grid gap-2 sm:grid-cols-2">
+                                  <div><strong>القطاع المستهدف:</strong> <span className="font-semibold text-sky-600 dark:text-sky-400">{SECTOR_LABEL[selected.sector_key] ?? selected.sector_key}</span></div>
+                                  <div><strong>الدور المفضل:</strong> {selected.preferred_role ?? "—"}</div>
+                                  <div><strong>التفرغ الإسبوعي:</strong> {selected.availability ?? "—"}</div>
+                                  <div><strong>تاريخ الإرسال:</strong> {formatDateTime(selected.created_at)}</div>
+                                </div>
+                              </div>
 
-                                <div className="grid gap-4 md:grid-cols-2">
-                                  <div className="grid gap-2">
-                                    <div className="text-xs font-semibold opacity-80">الروابط</div>
-                                    <div className="rounded-2xl border border-black/10 p-3 text-xs dark:border-white/10">
-                                      <div className="grid gap-2">
-                                        <div>
-                                          <strong>لينكدإن: </strong>
-                                          {selected.linkedin ? (
-                                            
-                                              className="underline"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              href={selected.linkedin}
-                                            >
-                                              فتح الرابط
-                                            </a>
-                                          ) : "—"}
-                                        </div>
-                                        <div>
-                                          <strong>البورتفوليو: </strong>
-                                          {selected.portfolio ? (
-                                            
-                                              className="underline"
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              href={selected.portfolio}
-                                            >
-                                              فتح الرابط
-                                            </a>
-                                          ) : "—"}
-                                        </div>
-                                      </div>
+                              {/* Portfolio Links and Admin Notes Grid */}
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="flex flex-col gap-2">
+                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">روابط المتقدم الخارجية</span>
+                                  <div className="flex-1 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 text-sm shadow-sm">
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                      <span>رابط لينكد إن:</span>
+                                      {selected.linkedin ? (
+                                        <a className="text-sky-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.linkedin}>فتح الحساب الرسمي ↗</a>
+                                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
+                                    </div>
+                                    <div className="flex items-center justify-between pt-1">
+                                      <span>رابط معرض الأعمال (Portfolio):</span>
+                                      {selected.portfolio ? (
+                                        <a className="text-emerald-600 hover:underline font-medium text-xs" target="_blank" rel="noreferrer" href={selected.portfolio}>تصفح معرض الأعمال ↗</a>
+                                      ) : <span className="text-zinc-400 text-xs">غير متوفر</span>}
                                     </div>
                                   </div>
+                                </div>
 
-                                  <div className="grid gap-2">
-                                    <div className="text-xs font-semibold opacity-80">
-                                      ملاحظات الإدارة
-                                    </div>
-                                    <textarea
-                                      className="min-h-[130px] rounded-2xl border border-black/10 bg-white/70 p-3 text-sm outline-none dark:border-white/10 dark:bg-zinc-950/40"
-                                      value={notes}
-                                      onChange={(e) => setNotes(e.target.value)}
-                                      placeholder="اكتب ملاحظات داخلية هنا..."
-                                    />
+                                <div className="flex flex-col gap-2">
+                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">ملاحظات وتقييم الإدارة (داخلي)</span>
+                                  <textarea
+                                    className="w-full min-h-[100px] flex-1 rounded-xl border border-zinc-200 bg-white p-3 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-950 shadow-sm focus:border-zinc-400"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="اكتب التقييم الداخلي أو ملاحظات المقابلة هنا..."
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Skills & Experience Details */}
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-1.5">
+                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">المهارات والقدرات</span>
+                                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
+                                    {selected.skills || "لم يتم إدخال مهارات محددة."}
                                   </div>
                                 </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">المهارات</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.skills || "—"}
+                                <div className="grid gap-1.5">
+                                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">الخبرات السابقة والأنشطة</span>
+                                  <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[160px] overflow-y-auto">
+                                    {selected.experience || "لم يتم إدخال خبرات سابقة."}
                                   </div>
                                 </div>
+                              </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">الخبرات</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.experience || "—"}
-                                  </div>
+                              <div className="grid gap-1.5">
+                                <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">رسالة المتقدم للإدارة</span>
+                                <div className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-3.5 text-xs whitespace-pre-wrap leading-relaxed dark:border-zinc-800 dark:bg-zinc-900/20 max-h-[120px] overflow-y-auto">
+                                  {selected.message || "لا توجد رسالة مرفقة من المتقدم."}
                                 </div>
+                              </div>
 
-                                <div className="grid gap-2">
-                                  <div className="text-xs font-semibold opacity-80">رسالة المتقدم</div>
-                                  <div className="rounded-2xl border border-black/10 p-3 text-xs whitespace-pre-wrap dark:border-white/10">
-                                    {selected.message || "—"}
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2 pt-2">
-                                  <Button
-                                    disabled={saving}
-                                    onClick={() => updateStatus("in_review")}
-                                  >
-                                    نقل إلى قيد المراجعة
-                                  </Button>
-                                  <Button
-                                    disabled={saving}
-                                    variant="secondary"
-                                    onClick={() => updateStatus("contacted")}
-                                  >
-                                    تعليم كـ تم التواصل
-                                  </Button>
-                                  <Button
-                                    disabled={saving}
-                                    onClick={() => updateStatus("accepted")}
-                                  >
-                                    قبول الطلب
-                                  </Button>
-                                  <Button
-                                    disabled={saving}
-                                    variant="destructive"
-                                    onClick={() => updateStatus("rejected")}
-                                  >
-                                    رفض الطلب
-                                  </Button>
-                                </div>
+                              {/* Actions inside dialog */}
+                              <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+                                <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")}>
+                                  نقل لقيد المراجعة
+                                </Button>
+                                <Button size="sm" variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20" disabled={saving} onClick={() => updateStatus("contacted")}>
+                                  تم التواصل
+                                </Button>
+                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={saving} onClick={() => updateStatus("accepted")}>
+                                  قبول المتقدم
+                                </Button>
+                                <Button size="sm" variant="destructive" disabled={saving} onClick={() => updateStatus("rejected")}>
+                                  رفض الطلب
+                                </Button>
                               </div>
                             </div>
                           ) : null}
                         </DialogContent>
                       </Dialog>
 
-                      <Button
-                        variant="secondary"
-                        onClick={() => quickUpdateStatus(r, "in_review")}
+                      {/* قائمة اختيارات سريعة مدمجة للحالة بدل زحمة الأزرار */}
+                      <select
+                        value={getStatusValue(r.admin_status)}
                         disabled={isBusy(r.id)}
+                        onChange={(e) => quickUpdateStatus(r, e.target.value)}
+                        className="h-8 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs outline-none shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-medium"
                       >
-                        قيد المراجعة
-                      </Button>
+                        <option value="new">جديد</option>
+                        <option value="in_review">مراجعة</option>
+                        <option value="contacted">تواصل</option>
+                        <option value="accepted">مقبول</option>
+                        <option value="rejected">مرفوض</option>
+                      </select>
 
+                      {/* زر الحذف الأيقوني الأنيق */}
                       <Button
-                        variant="secondary"
-                        onClick={() => quickUpdateStatus(r, "contacted")}
-                        disabled={isBusy(r.id)}
-                      >
-                        تم التواصل
-                      </Button>
-
-                      <Button
-                        onClick={() => quickUpdateStatus(r, "accepted")}
-                        disabled={isBusy(r.id)}
-                      >
-                        قبول
-                      </Button>
-
-                      <Button
-                        variant="destructive"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                         onClick={() => remove(r.id, r.full_name)}
                         disabled={isBusy(r.id)}
                       >
-                        حذف
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -791,9 +760,10 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      <div className="text-xs opacity-60">
-        تسجيل الدخول من{" "}
-        <code className="rounded bg-black/5 px-1 py-0.5 dark:bg-white/10">
+      {/* Footer Info */}
+      <div className="text-xs text-zinc-400 dark:text-zinc-500 mt-2 flex items-center gap-1">
+        <span>جلسة العمل مؤمنة ومصرحة للإدارة. مسار الدخول الحالي:</span>
+        <code className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px]">
           /ar/admin/login
         </code>
       </div>
