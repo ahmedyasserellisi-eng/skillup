@@ -62,7 +62,7 @@ const EGYPT_GOVERNORATES = [
   { ar: "الإسماعيلية", en: "Ismailia" },
   { ar: "المنوفية", en: "Monufia" }, 
   { ar: "المنيا", en: "Minya" }, 
-  { minia: "القليوبية", ar: "القليوبية", en: "Qalyubia" },
+  { ar: "القليوبية", en: "Qalyubia" },
   { ar: "الوادي الجديد", en: "New Valley" }, 
   { ar: "السويس", en: "Suez" }, 
   { ar: "الشرقية", en: "Sharqia" },
@@ -259,8 +259,14 @@ export default function JoinForm({ locale, presetSector }: Props) {
     setForm((prev) => ({ ...prev, sector_key: getSafeSectorKey(presetSector) }));
   }, [presetSector]);
 
+  // الكلاس الخاص بحقول الإدخال النصية
   const inputClass =
     "w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950/40 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-white/20 dark:focus:bg-zinc-950/60 dark:focus:ring-white/10";
+  
+  // الكلاس الجديد المخصص للـ Select لمنع مشاكل الـ Click والمقاطعة في المتصفحات
+  const selectClass =
+    "w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:focus:border-white/20 dark:focus:bg-zinc-950 dark:focus:ring-white/10 cursor-pointer";
+
   const labelClass = "mb-2 block text-sm font-medium text-zinc-800 dark:text-zinc-200";
   const cardClass = "rounded-[28px] border border-black/10 bg-white/75 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/45 md:p-6 transition-all duration-300";
 
@@ -389,7 +395,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
         throw new Error(json?.error || "Failed to submit application.");
       }
 
-      // عند النجاح تظهر شاشة النجاح ويتم تصفير الفورم داخلياً تمهيداً لأي رد جديد
       setDone(true);
       setCurrentStep(1);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -414,7 +419,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
     <div className="mx-auto grid max-w-4xl gap-6" dir={isAr ? "rtl" : "ltr"}>
       
       {done ? (
-        /* ================= شاشة النجاح الاحترافية والجديدة ================= */
+        /* ================= شاشة النجاح ================= */
         <section className="rounded-[32px] border border-black/10 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 text-center py-14 transition-all">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-8 w-8">
@@ -441,9 +446,8 @@ export default function JoinForm({ locale, presetSector }: Props) {
           </button>
         </section>
       ) : (
-        /* ================= الفورم وباقي الخطوات المعتادة ================= */
+        /* ================= خطوات الفورم ================= */
         <>
-          {/* هيدر الصفحة والتعليمات العليا ومؤشر التقدم */}
           <section className="relative overflow-hidden rounded-[32px] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 md:p-7">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
@@ -508,10 +512,10 @@ export default function JoinForm({ locale, presetSector }: Props) {
 
                   <div>
                     <label htmlFor="city" className={labelClass}>{t.city} <span className="text-red-500">*</span></label>
-                    <select id="city" className={inputClass} value={form.city} onChange={(e) => updateField("city", e.target.value)} required>
+                    <select id="city" className={selectClass} value={form.city} onChange={(e) => updateField("city", e.target.value)} required>
                       <option value="">{t.selectGovernorate}</option>
                       {EGYPT_GOVERNORATES.map((gov) => (
-                        <option key={gov.en} value={gov.en}>{isAr ? gov.ar : gov.en}</option>
+                        <option key={gov.en} value={gov.en} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? gov.ar : gov.en}</option>
                       ))}
                     </select>
                   </div>
@@ -523,30 +527,30 @@ export default function JoinForm({ locale, presetSector }: Props) {
 
                   <div>
                     <label htmlFor="member_status" className={labelClass}>{t.memberStatus} <span className="text-red-500">*</span></label>
-                    <select id="member_status" className={inputClass} value={form.member_status} onChange={(e) => updateField("member_status", e.target.value)} required>
+                    <select id="member_status" className={selectClass} value={form.member_status} onChange={(e) => updateField("member_status", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
-                      <option value="member">{t.memberOptions.member}</option>
-                      <option value="expert">{t.memberOptions.expert}</option>
+                      <option value="member" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.memberOptions.member}</option>
+                      <option value="expert" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.memberOptions.expert}</option>
                     </select>
                   </div>
 
                   <div>
                     <label htmlFor="leadership_interest" className={labelClass}>{t.leadershipInterest} <span className="text-red-500">*</span></label>
-                    <select id="leadership_interest" className={inputClass} value={form.leadership_interest} onChange={(e) => updateField("leadership_interest", e.target.value)} required>
+                    <select id="leadership_interest" className={selectClass} value={form.leadership_interest} onChange={(e) => updateField("leadership_interest", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
-                      <option value="ready">{t.leadershipOptions.ready}</option>
-                      <option value="learning">{t.leadershipOptions.learning}</option>
+                      <option value="ready" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.ready}</option>
+                      <option value="learning" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.learning}</option>
                     </select>
                   </div>
 
                   <div>
                     <label htmlFor="education" className={labelClass}>{t.education} <span className="text-red-500">*</span></label>
-                    <select id="education" className={inputClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
+                    <select id="education" className={selectClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
-                      <option value="student">{t.educationOptions.student}</option>
-                      <option value="graduate">{t.educationOptions.graduate}</option>
-                      <option value="postgrad">{t.educationOptions.postgrad}</option>
-                      <option value="school">{t.educationOptions.school}</option>
+                      <option value="student" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.student}</option>
+                      <option value="graduate" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.graduate}</option>
+                      <option value="postgrad" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.postgrad}</option>
+                      <option value="school" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.school}</option>
                     </select>
                   </div>
 
@@ -584,15 +588,15 @@ export default function JoinForm({ locale, presetSector }: Props) {
 
                   <div>
                     <label htmlFor="grade" className={labelClass}>{t.grade} <span className="text-red-500">*</span></label>
-                    <select id="grade" className={inputClass} value={form.grade} onChange={(e) => updateField("grade", e.target.value)} required>
+                    <select id="grade" className={selectClass} value={form.grade} onChange={(e) => updateField("grade", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
-                      <option value="1">{t.gradeOptions.g1}</option>
-                      <option value="2">{t.gradeOptions.g2}</option>
-                      <option value="3">{t.gradeOptions.g3}</option>
-                      <option value="4">{t.gradeOptions.g4}</option>
-                      <option value="5">{t.gradeOptions.g5}</option>
-                      <option value="6">{t.gradeOptions.g6}</option>
-                      <option value="graduated">{t.gradeOptions.grad}</option>
+                      <option value="1" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g1}</option>
+                      <option value="2" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g2}</option>
+                      <option value="3" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g3}</option>
+                      <option value="4" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g4}</option>
+                      <option value="5" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g5}</option>
+                      <option value="6" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g6}</option>
+                      <option value="graduated" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.grad}</option>
                     </select>
                   </div>
 
@@ -645,9 +649,9 @@ export default function JoinForm({ locale, presetSector }: Props) {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="sector_key" className={labelClass}>{t.sector} <span className="text-red-500">*</span></label>
-                    <select id="sector_key" className={inputClass} value={form.sector_key} onChange={(e) => updateField("sector_key", e.target.value)} required>
+                    <select id="sector_key" className={selectClass} value={form.sector_key} onChange={(e) => updateField("sector_key", e.target.value)} required>
                       {SECTORS_LIST.map((sec) => (
-                        <option key={sec.slug} value={sec.slug}>{isAr ? sec.ar : sec.en}</option>
+                        <option key={sec.slug} value={sec.slug} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? sec.ar : sec.en}</option>
                       ))}
                     </select>
                   </div>
@@ -664,13 +668,13 @@ export default function JoinForm({ locale, presetSector }: Props) {
 
                   <div>
                     <label htmlFor="heard_about_us" className={labelClass}>{t.heardAboutUs} <span className="text-red-500">*</span></label>
-                    <select id="heard_about_us" className={inputClass} value={form.heard_about_us} onChange={(e) => updateField("heard_about_us", e.target.value)} required>
+                    <select id="heard_about_us" className={selectClass} value={form.heard_about_us} onChange={(e) => updateField("heard_about_us", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
-                      <option value="facebook">{t.heardOptions.facebook}</option>
-                      <option value="linkedin">{t.heardOptions.linkedin}</option>
-                      <option value="friend">{t.heardOptions.friend}</option>
-                      <option value="university">{t.heardOptions.university}</option>
-                      <option value="other">{t.heardOptions.other}</option>
+                      <option value="facebook" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.facebook}</option>
+                      <option value="linkedin" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.linkedin}</option>
+                      <option value="friend" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.friend}</option>
+                      <option value="university" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.university}</option>
+                      <option value="other" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.other}</option>
                     </select>
                   </div>
 
@@ -704,7 +708,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
               </section>
             )}
 
-            {/* أزرار التحكم والتنقل السفلية */}
+            {/* أزرار التحكم السفلية */}
             <div className="flex items-center justify-between gap-4">
               {currentStep > 1 ? (
                 <button
@@ -737,7 +741,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
               )}
             </div>
 
-            {/* عرض رسائل الخطأ فقط هنا (لأن رسالة النجاح أصبحت شاشة كاملة بالعلّي) */}
+            {/* عرض رسائل الخطأ */}
             <div aria-live="polite" className="grid gap-3 mt-2">
               {errorMsg && (
                 <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">
