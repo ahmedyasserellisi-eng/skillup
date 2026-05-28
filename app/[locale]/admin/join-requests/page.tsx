@@ -29,7 +29,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SECTORS, getSectorLabel } from "@/lib/sectors-data";
+// استيراد المصفوفة فقط لمنع أخطاء الـ Type Error في Vercel
+import { SECTORS } from "@/lib/sectors-data";
 import { 
   Search, 
   RefreshCw, 
@@ -134,6 +135,14 @@ const STATUS_LABEL: Record<string, string> = {
 
 function getStatusValue(v?: string | null) {
   return v ?? "new";
+}
+
+// دالة محلية بديلة ومطورة لجلب مسميات القطاعات بأمان دون الاعتماد على ملفات خارجية
+function getSectorLabel(sectorKey: string, lang: "ar" | "en" = "ar"): string {
+  const sector = SECTORS.find((s: any) => s.slug === sectorKey);
+  if (!sector) return sectorKey;
+  if (lang === "ar") return sector.name_ar || sector.ar || sectorKey;
+  return sector.name_en || sector.en || sectorKey;
 }
 
 function getStatusBadge(status?: string | null) {
@@ -481,7 +490,7 @@ export default function AdminJoinRequestsPage() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {[
           { label: "إجمالي طلبات السير", value: stats.total, color: "border-l-zinc-400 bg-zinc-50/40" },
-          { label: "المطابق للفرز الحالي", value: stats.filtered, color: "border-l-sky-500 bg-sky-50/20" },
+          { label: "المطابق للفرز الحالي", value: stats.filtered, value: stats.filtered, color: "border-l-sky-500 bg-sky-50/20" },
           { label: "طلبات جديدة", value: stats.newCount, color: "border-l-purple-500 bg-purple-50/20" },
           { label: "قيد المراجعة والفحص", value: stats.reviewCount, color: "border-l-blue-500 bg-blue-50/20" },
           { label: "تم التواصل معهم", value: stats.contactedCount, color: "border-l-amber-500 bg-amber-50/20" },
@@ -539,7 +548,7 @@ export default function AdminJoinRequestsPage() {
             </label>
             <select value={sector} onChange={(e) => setSector(e.target.value)} className="w-full h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm outline-none shadow-sm text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 focus:border-zinc-400">
               <option value="all">كل قطاعات المبادرة</option>
-              {SECTORS.map((s) => <option key={s.slug} value={s.slug}>{s.name_ar}</option>)}
+              {SECTORS.map((s: any) => <option key={s.slug} value={s.slug}>{s.name_ar || s.ar}</option>)}
             </select>
           </div>
 
@@ -566,7 +575,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* Dynamic Toast Status Messages */}
+      {/* Dynamic Status Messages */}
       {message && (
         <div className={`p-4 rounded-xl border text-sm font-semibold transition-all shadow-sm flex items-center gap-2 ${
           messageType === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : 
@@ -578,7 +587,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       )}
 
-      {/* Threshold indicator limit notice */}
+      {/* Threshold indicator notice */}
       {rows.length >= 1000 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center gap-2">
           ⚠️ تنبيه حركية النظام: تم جلب أحدث 1000 استمارة لضمان استقرار وسرعة معالجة العمليات، يرجى تضييق خيارات الفرز والتصفية للوصول للمستهدف بدقة.
@@ -688,7 +697,7 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      {/* Massive Detailed Dialog View Architecture */}
+      {/* Detailed Dialog View Architecture */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl border-zinc-200 shadow-2xl" dir="rtl">
           <div className="p-6 border-b bg-zinc-50/60 dark:bg-zinc-900/40">
@@ -887,7 +896,7 @@ export default function AdminJoinRequestsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Footer Meta Details Data Securing block */}
+      {/* Footer Meta Details */}
       <div className="border-t pt-4 border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400">
         <div className="flex items-center gap-1">
           <span>نطاق حماية البيانات مؤمن للآدمن. كود الفرز المركزي النشط:</span>
