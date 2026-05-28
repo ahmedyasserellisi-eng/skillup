@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { SECTORS } from "@/lib/sectors-data";
+import { SECTORS, type Sector } from "@/lib/sectors-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -18,6 +18,8 @@ type Row = {
   profile_url: string | null;
 };
 
+type ByKey = Map<string, Row>;
+
 const ALLOWED = new Set([
   "skillupyouth.eg@gmail.com",
   "ahmedyasserellisi@gmail.com"
@@ -30,6 +32,141 @@ function monthStartISO(d = new Date()) {
   return `${yyyy}-${mm}-01`;
 }
 
+// ─── Component منفصل لكل Rank داخل القطاع ───────────────────────
+type RankRowProps = {
+  rank: 1 | 2;
+  sector: Sector;
+  month: string;
+  initial: Row | undefined;
+  isAr: boolean;
+  onSave: (payload: Omit<Row, "id"> & { id?: string }) => Promise<void>;
+  onDelete: (id?: string) => Promise<void>;
+};
+
+function RankRow({ rank, sector, month, initial, isAr, onSave, onDelete }: RankRowProps) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [photo, setPhoto] = useState(initial?.photo_url ?? "");
+  const [profile, setProfile] = useState(initial?.profile_url ?? "");
+
+  // إعادة ضبط القيم لما يتغير الشهر أو يُحمَّل بيانات جديدة
+  useEffect(() => {
+    setName(initial?.name ?? "");
+    setTitle(initial?.title ?? "");
+    setPhoto(initial?.photo_url ?? "");
+    setProfile(initial?.profile_url ?? "");
+  }, [initial]);
+
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
+      <div className="mb-3 text-sm font-semibold">
+        {rank === 1 ? "🥇" : "🥈"} {isAr ? "المركز" : "Rank"} {rank}
+      </div>
+
+      <div className="grid gap-2">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={isAr ? "الاسم" : "Name"}
+        />
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={isAr ? "الوصف/اللقب (اختياري)" : "Title (optional)"}
+        />
+        <Input
+          value={photo}
+          onChange={(e) => setPhoto(e.target.value)}
+          placeholder={isAr ? "رابط الصورة (اختياري)" : "Photo URL (optional)"}
+        />
+        <Input
+          value={profile}
+          onChange={(e) => setProfile(e.target.value)}
+          placeholder={isAr ? "رابط البروفايل (اختياري)" : "Profile URL (optional)"}
+        />
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          onClick={() =>
+            void onSave({
+              id: initial?.id,
+              month,
+              sector_slug: sector.slug,
+              rank,
+              name: name.trim() || (isAr ? "بدون اسم" : "Unnamed"),
+              title: title.trim() || null,
+              photo_url: photo.trim() || null,
+              profile_url: profile.trim() || null
+            })
+          }
+        >
+          {isAr ? "حفظ" : "Save"}
+        </Button>
+
+        <Button
+          variant="destructive"
+          onClick={() => void onDelete(initial?.id)}
+          disabled={!initial?.id}
+        >
+          {isAr ? "حذف" : "Delete"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Component كامل للقطاع ────────────────────────────────────────
+type SectorCardProps = {
+  sector: Sector;
+  month: string;
+  byKey: ByKey;
+  isAr: boolean;
+  onSave: (payload: Omit<Row, "id"> & { id?: string }) => Promise<void>;
+  onDelete: (id?: string) => Promise<void>;
+};
+
+function SectorCard({ sector, month, byKey, isAr, onSave, onDelete }: SectorCardProps) {
+  const r1 = byKey.get(`${sector.slug}:1`);
+  const r2 = byKey.get(`${sector.slug}:2`);
+
+  return (
+    <section className="rounded-3xl border border-black/10 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/40">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold opacity-70">{sector.short}</div>
+          <div className="mt-1 text-lg font-semibold">
+            {isAr ? sector.name_ar : sector.name_en}
+          </div>
+        </div>
+        <div className="text-xs opacity-70">{month}</div>
+      </div>
+
+      <div className="mt-4 grid gap-4">
+        <RankRow
+          rank={1}
+          sector={sector}
+          month={month}
+          initial={r1}
+          isAr={isAr}
+          onSave={onSave}
+          onDelete={onDelete}
+        />
+        <RankRow
+          rank={2}
+          sector={sector}
+          month={month}
+          initial={r2}
+          isAr={isAr}
+          onSave={onSave}
+          onDelete={onDelete}
+        />
+      </div>
+    </section>
+  );
+}
+
+// ─── الصفحة الرئيسية ──────────────────────────────────────────────
 export default function AdminStarsPage() {
   const params = useParams<{ locale: "ar" | "en" }>();
   const locale = params?.locale ?? "ar";
@@ -76,13 +213,10 @@ export default function AdminStarsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month]);
 
-  const byKey = useMemo(() => {
-    const m = new Map<string, Row>();
-    for (const r of rows) {
-      m.set(`${r.sector_slug}:${r.rank}`, r);
-    }
-    return m;
-  }, [rows]);
+  // بناء Map من الـ rows للوصول السريع
+  const byKey: ByKey = new Map(
+    rows.map((r) => [`${r.sector_slug}:${r.rank}`, r])
+  );
 
   const upsert = async (payload: Omit<Row, "id"> & { id?: string }) => {
     setErrorMsg("");
@@ -92,7 +226,6 @@ export default function AdminStarsPage() {
       return;
     }
 
-    // upsert يحتاج unique constraint (عملناه)
     const { error } = await supabaseBrowser
       .from("sector_stars")
       .upsert({
@@ -119,7 +252,11 @@ export default function AdminStarsPage() {
       return;
     }
 
-    const { error } = await supabaseBrowser.from("sector_stars").delete().eq("id", id);
+    const { error } = await supabaseBrowser
+      .from("sector_stars")
+      .delete()
+      .eq("id", id);
+
     if (error) setErrorMsg(error.message);
     else await load();
   };
@@ -131,7 +268,9 @@ export default function AdminStarsPage() {
           {isAr ? "أفضل 2 شهريًا لكل قطاع" : "Top 2 Monthly per Sector"}
         </h1>
         <p className="text-sm opacity-75">
-          {isAr ? "اختار الشهر وعدّل الفائزين." : "Pick a month and update winners."}
+          {isAr
+            ? "اختار الشهر وعدّل الفائزين."
+            : "Pick a month and update winners."}
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -162,85 +301,25 @@ export default function AdminStarsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {SECTORS.map((s) => {
-          const r1 = byKey.get(`${s.slug}:1`);
-          const r2 = byKey.get(`${s.slug}:2`);
-
-          return (
-            <section
-              key={s.slug}
-              className="rounded-3xl border border-black/10 bg-white/60 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/40"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold opacity-70">{s.short}</div>
-                  <div className="mt-1 text-lg font-semibold">{isAr ? s.name_ar : s.name_en}</div>
-                </div>
-                <div className="text-xs opacity-70">{month}</div>
-              </div>
-
-              <div className="mt-4 grid gap-4">
-                {[1, 2].map((rank) => {
-                  const r = rank === 1 ? r1 : r2;
-
-                  const [name, setName] = useState(r?.name ?? "");
-                  const [title, setTitle] = useState(r?.title ?? "");
-                  const [photo, setPhoto] = useState(r?.photo_url ?? "");
-                  const [profile, setProfile] = useState(r?.profile_url ?? "");
-
-                  // ⚠️ local states need reset when switching month/load
-                  useEffect(() => {
-                    setName(r?.name ?? "");
-                    setTitle(r?.title ?? "");
-                    setPhoto(r?.photo_url ?? "");
-                    setProfile(r?.profile_url ?? "");
-                    // eslint-disable-next-line react-hooks/exhaustive-deps
-                  }, [rows.length, month]);
-
-                  return (
-                    <div key={rank} className="rounded-2xl border border-black/10 bg-white/60 p-4 dark:border-white/10 dark:bg-zinc-950/40">
-                      <div className="mb-3 text-sm font-semibold">
-                        {rank === 1 ? "🥇" : "🥈"} {isAr ? "المركز" : "Rank"} {rank}
-                      </div>
-
-                      <div className="grid gap-2">
-                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isAr ? "الاسم" : "Name"} />
-                        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={isAr ? "الوصف/اللقب (اختياري)" : "Title (optional)"} />
-                        <Input value={photo} onChange={(e) => setPhoto(e.target.value)} placeholder={isAr ? "رابط الصورة (اختياري)" : "Photo URL (optional)"} />
-                        <Input value={profile} onChange={(e) => setProfile(e.target.value)} placeholder={isAr ? "رابط البروفايل (اختياري)" : "Profile URL (optional)"} />
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          onClick={() =>
-                            void upsert({
-                              id: r?.id,
-                              month,
-                              sector_slug: s.slug,
-                              rank,
-                              name: name.trim() || (isAr ? "بدون اسم" : "Unnamed"),
-                              title: title.trim() || null,
-                              photo_url: photo.trim() || null,
-                              profile_url: profile.trim() || null
-                            })
-                          }
-                        >
-                          {isAr ? "حفظ" : "Save"}
-                        </Button>
-
-                        <Button variant="destructive" onClick={() => void remove(r?.id)} disabled={!r?.id}>
-                          {isAr ? "حذف" : "Delete"}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      {loading ? (
+        <div className="text-sm opacity-70">
+          {isAr ? "جارٍ التحميل..." : "Loading..."}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {SECTORS.map((sector) => (
+            <SectorCard
+              key={sector.slug}
+              sector={sector}
+              month={month}
+              byKey={byKey}
+              isAr={isAr}
+              onSave={upsert}
+              onDelete={remove}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
