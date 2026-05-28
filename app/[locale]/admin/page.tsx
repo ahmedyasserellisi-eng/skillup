@@ -43,6 +43,14 @@ export default function AdminDashboardPage() {
         descEn: "Pick best sector, best head, best deputy, and top 2 members per sector."
       },
       {
+        href: `/${locale}/admin/stars`,
+        icon: "⭐",
+        titleAr: "نجوم الشهر",
+        titleEn: "Monthly Stars",
+        descAr: "إدارة أفضل عضوين شهريًا من كل قطاع مع صورهم وروابطهم.",
+        descEn: "Manage top 2 monthly members per sector with photos and profile links."
+      },
+      {
         href: `/${locale}/admin/events`,
         icon: "📅",
         titleAr: "الفعاليات",
@@ -147,7 +155,9 @@ export default function AdminDashboardPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm dark:border-white/10 dark:bg-zinc-950/40">
-              <div className="text-xs opacity-60">{isAr ? "الحساب الحالي" : "Current account"}</div>
+              <div className="text-xs opacity-60">
+                {isAr ? "الحساب الحالي" : "Current account"}
+              </div>
               <div className="mt-1 font-medium break-all">{email}</div>
             </div>
 
@@ -221,33 +231,21 @@ export default function AdminDashboardPage() {
           </h2>
 
           <div className="mt-3 flex flex-wrap gap-3">
-            <Link
-              href={`/${locale}`}
-              className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium transition hover:bg-white/90 dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60"
-            >
-              {isAr ? "عرض الموقع" : "View website"}
-            </Link>
-
-            <Link
-              href={`/${locale}/admin/programs`}
-              className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium transition hover:bg-white/90 dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60"
-            >
-              {isAr ? "البرامج" : "Programs"}
-            </Link>
-
-            <Link
-              href={`/${locale}/admin/events`}
-              className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium transition hover:bg-white/90 dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60"
-            >
-              {isAr ? "الفعاليات" : "Events"}
-            </Link>
-
-            <Link
-              href={`/${locale}/admin/highlights`}
-              className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium transition hover:bg-white/90 dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60"
-            >
-              {isAr ? "التكريمات" : "Highlights"}
-            </Link>
+            {[
+              { href: `/${locale}`, labelAr: "عرض الموقع", labelEn: "View website" },
+              { href: `/${locale}/admin/programs`, labelAr: "البرامج", labelEn: "Programs" },
+              { href: `/${locale}/admin/events`, labelAr: "الفعاليات", labelEn: "Events" },
+              { href: `/${locale}/admin/highlights`, labelAr: "التكريمات", labelEn: "Highlights" },
+              { href: `/${locale}/admin/stars`, labelAr: "نجوم الشهر", labelEn: "Stars" }
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-2xl border border-black/10 bg-white/70 px-4 py-2 text-sm font-medium transition hover:bg-white/90 dark:border-white/10 dark:bg-zinc-950/40 dark:hover:bg-zinc-950/60"
+              >
+                {isAr ? item.labelAr : item.labelEn}
+              </Link>
+            ))}
           </div>
         </div>
       </section>
