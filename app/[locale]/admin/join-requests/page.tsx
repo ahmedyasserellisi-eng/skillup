@@ -37,7 +37,6 @@ import {
   Trash2, 
   UserCheck, 
   XCircle,
-  HelpCircle,
   User,
   GraduationCap,
   Briefcase,
@@ -153,7 +152,6 @@ const LEADERSHIP_INTEREST_LABEL: Record<string, string> = {
   false: "لا"
 };
 
-// دالات الفرز المساعدة وتجهيز النصوص والعرض
 function getStatusValue(v?: string | null) {
   return v ?? "new";
 }
@@ -215,12 +213,13 @@ function formatDateTime(value: string) {
   }
 }
 
+// دالة تنظيف الخلايا المصدرة للإكسيل
 function cleanCell(value: unknown) {
   return value ?? "";
 }
 
 function formatGovernorate(city?: string | null) {
-  if (!city) return "غير محدد";
+  if (!city) return "غير مححدد";
   const cleaned = city.trim().toLowerCase();
   return EGYPT_GOVERNORATES_MAP[cleaned] || city.trim();
 }
@@ -229,7 +228,7 @@ function normalizeCity(city?: string | null) {
   return (city ?? "").trim();
 }
 
-// دالة استخراج النوع احترافية ونصية فقط بدون رموز أو ورود بناءً على الرقم القومي أو حقل النوع المباشر
+// دالة استخراج النوع بشكل رسمي (ذكر / أنثى) بدون أي إيموجي
 function getGenderText(nationalId?: string | null, genderField?: string | null) {
   if (genderField) {
     const g = genderField.trim().toLowerCase();
@@ -250,7 +249,7 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "warning" | "">("");
   
-  // فلاتر التصفية المتقدمة
+  // فلاتر البحث والتصفية المتقدمة كاملة
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
@@ -258,7 +257,7 @@ export default function AdminJoinRequestsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // حالات مودال التفاصيل الشاملة
+  // حالات نافذة التفاصيل والملاحظات
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<JoinRequest | null>(null);
   const [notes, setNotes] = useState("");
@@ -315,7 +314,7 @@ export default function AdminJoinRequestsPage() {
     ).sort((a, b) => formatGovernorate(a).localeCompare(formatGovernorate(b), "ar"));
   }, [rows]);
 
-  // منطق الفلترة المتقدمة والبحث الذكي والشامل
+  // منطق الفلترة المتقدمة والبحث الذكي والشامل عن المتقدمين
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
 
@@ -351,6 +350,7 @@ export default function AdminJoinRequestsPage() {
     });
   }, [rows, q, status, sector, city, fromDate, toDate]);
 
+  // إحصائيات العدادات العلوية كاملة
   const stats = useMemo(() => {
     return {
       total: rows.length,
@@ -439,7 +439,7 @@ export default function AdminJoinRequestsPage() {
     setActionLoadingId(null);
   }
 
-  // تصدير البيانات لإكسيل مع تعريب كامل الحقول المخصصة واتجاه الورقة من اليمين لليسار
+  // دالة تصدير ملف الـ Excel مع تعريب الخانات الجديدة ومحاذاة RTL كاملة
   async function exportExcel() {
     try {
       if (filtered.length === 0) {
@@ -468,7 +468,7 @@ export default function AdminJoinRequestsPage() {
         "القطاع المستهدف": getSectorLabel(r.sector_key, "ar"),
         "الدور المفضل": cleanCell(r.preferred_role),
         "ساعات التفرغ": cleanCell(r.availability),
-        "الالمهارات والقدرات": cleanCell(r.skills),
+        "المهارات والقدرات": cleanCell(r.skills),
         "الخبرات السابقة والأنشطة": cleanCell(r.experience),
         "رابط LinkedIn": cleanCell(r.linkedin),
         "رابط Facebook": cleanCell(r.facebook),
@@ -480,7 +480,7 @@ export default function AdminJoinRequestsPage() {
       }));
 
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
-      ws["!dir"] = "rtl"; // اتجاه عربي سليم
+      ws["!dir"] = "rtl"; 
       ws["!cols"] = [
         { wch: 6 }, { wch: 28 }, { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
         { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 8 }, { wch: 18 }, { wch: 26 }, 
@@ -515,7 +515,7 @@ export default function AdminJoinRequestsPage() {
   return (
     <div className="grid gap-6 p-4 md:p-6 max-w-[1700px] mx-auto font-sans text-zinc-900 dark:text-zinc-100" dir="rtl">
       
-      {/* قسم رأس الصفحة والإجراءات العامة */}
+      {/* رأس الصفحة والإجراءات العامة */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-emerald-600 rounded-xl text-white shadow-md shadow-emerald-600/10">
@@ -538,7 +538,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* شريط الإشعارات والعمليات الإدارية */}
+      {/* شريط التنبيهات الفورية */}
       {message && (
         <div className={`p-4 rounded-xl border flex items-center gap-2.5 font-medium text-sm animate-in fade-in duration-200 ${
           messageType === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-900 dark:text-emerald-300" :
@@ -570,7 +570,7 @@ export default function AdminJoinRequestsPage() {
         ))}
       </div>
 
-      {/* بطاقة أدوات الفرز والتصفية المتقدمة */}
+      {/* أدوات الفرز والتصفية المتقدمة */}
       <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm grid gap-4">
         <div className="flex items-center gap-1.5 text-zinc-800 dark:text-zinc-200 font-bold text-sm border-b dark:border-zinc-800 pb-2.5">
           <Filter className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
@@ -626,7 +626,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* الجدول المركزي الرئيسي لعرض الطلبات */}
+      {/* الجدول المركزي لعرض الطلبات (تم تعديل قفلات الـ Tags هنا لحل مشكلة الـ Build) */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm overflow-hidden">
         <div className="p-4 bg-zinc-50/60 dark:bg-zinc-900/60 border-b dark:border-zinc-800 font-bold text-xs text-zinc-600 dark:text-zinc-400 flex items-center justify-between">
           <span>جدول فرز طلبات المتقدمين المركزي</span>
@@ -685,7 +685,6 @@ export default function AdminJoinRequestsPage() {
                     <TableCell>
                       {getStatusBadge(row.admin_status)}
                     </TableCell>
-                    {/* منع فتح المودال عند الضغط على قائمة الإجراءات الجانبية بالتحديد */}
                     <TableCell onClick={(e) => e.stopPropagation()} className="text-center">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -722,12 +721,12 @@ export default function AdminJoinRequestsPage() {
                   </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
-      {/* نافذة التفاصيل المتكاملة لعرض الملف الكامل للمتقدم ومراجعته داخلياً */}
+      {/* نافذة المودال لعرض الملف بالكامل للمتقدم وإضافة الملاحظات والتقييم */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 font-sans border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xl" dir="rtl">
           <DialogHeader className="text-right border-b pb-4 border-zinc-100 dark:border-zinc-800">
@@ -742,7 +741,7 @@ export default function AdminJoinRequestsPage() {
 
           {selected && (
             <div className="space-y-6 mt-4">
-              {/* القسم الأول: الملف الشخصي والأساسي */}
+              {/* البيانات الأساسية */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <User className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> البيانات الأساسية والشخصية
@@ -758,7 +757,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الثاني: الخلفية التعليمية والأكاديمية */}
+              {/* الخلفية التعليمية */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <GraduationCap className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> الخلفية التعليمية والأكاديمية
@@ -773,7 +772,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الثالث: الرغبات والتفضيلات الهيكلية بعد التعريب */}
+              {/* التفضيلات والقطاع المستهدف بالهيكلة */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <Briefcase className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> التفضيلات والقطاع المستهدف بالهيكلة
@@ -787,7 +786,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الرابع: المهارات والخبرات والرسائل */}
+              {/* المهارات والخبرات */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <FileText className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> المهارات والخبرات السابقة
@@ -799,7 +798,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الخامس: الملفات والمستندات والروابط الخارجية */}
+              {/* المرفقات والروابط */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <Link2 className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> الروابط والملفات المرفقة
@@ -833,7 +832,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم السادس: ملاحظات لجنة التقييم واتخاذ القرارات الإدارية */}
+              {/* الملاحظات واتخاذ القرار */}
               <div className="border-t pt-4 space-y-4">
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">ملاحظات لجنة الفرز والتقييم الداخلي:</span>
@@ -870,7 +869,7 @@ export default function AdminJoinRequestsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* تذييل الصفحة ومعلومات النظام التأمينية */}
+      {/* التذييل */}
       <div className="border-t pt-5 border-zinc-200/60 dark:border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 font-medium gap-2">
         <div className="flex items-center gap-1">
           <span>نطاق حماية البيانات الإدارية مؤمن بالكامل. كود الفرز المركزي:</span>
