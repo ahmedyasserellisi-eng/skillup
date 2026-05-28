@@ -13,6 +13,7 @@ type FormState = {
   phone: string;
   national_id: string;
   city: string;
+  address: string; // <-- تم إضافة العنوان هنا
   age: string;
   gender: string;
   member_status: string; 
@@ -64,7 +65,7 @@ const EGYPT_GOVERNORATES = [
   { ar: "المنوفية", en: "Monufia" }, 
   { ar: "المنيا", en: "Minya" }, 
   { ar: "القليوبية", en: "Qalyubia" },
-  { ar: "الوادي الجديد", en: "New Valley" }, 
+  { id: "الوادي الجديد", ar: "الوادي الجديد", en: "New Valley" }, 
   { ar: "السويس", en: "Suez" }, 
   { ar: "الشرقية", en: "Sharqia" },
   { ar: "أسوان", en: "Aswan" }, 
@@ -111,6 +112,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       phone: "رقم الهاتف",
       nationalId: "الرقم القومي (14 رقم)",
       city: "المحافظة",
+      address: "العنوان بالتفصيل", // <-- ترجمة العنوان عربي
       age: "العمر",
       gender: "النوع",
       memberStatus: "صفة العضوية",
@@ -125,7 +127,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       profilePicture: "رابط الصورة الشخصية (يرجى رفعها على Drive ووضع الرابط)",
       sector: "القطاع المراد الانضمام إليه",
       role: "الدور أو المسؤولية المفضلة",
-      availability: "الوقت المتاح أسبوعيًا",
+      availability: "الوقت المتاح أسبوعياً",
       heardAboutUs: "كيف سمعت عنا؟",
       skills: "المهارات الأساسية",
       experience: "خبرات أو أنشطة سابقة",
@@ -158,6 +160,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         name: "اكتب اسمك الرباعي كما هو في البطاقة الشخصية",
         id: "14 رقم مكتوب بالبطاقة",
         phone: "01xxxxxxxxx",
+        address: "اكتب العنوان الحالي بالتفصيل (المركز / المدينة / الشارع)", // <-- Placeholder عربي
         university: "مثال: جامعة القاهرة / معهد ...",
         faculty: "مثال: كلية الهندسة / كلية التجارة",
         department: "مثال: قسم حاسبات / قسم محاسبة / عام",
@@ -183,6 +186,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       phone: "Phone Number",
       nationalId: "National ID (14 digits)",
       city: "Governorate",
+      address: "Detailed Address", // <-- ترجمة العنوان إنجليزي
       age: "Age",
       gender: "Gender",
       memberStatus: "Membership Status",
@@ -230,6 +234,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         name: "Enter your full legal name",
         id: "14 digits National ID",
         phone: "01xxxxxxxxx",
+        address: "Enter your current detailed address (City/Street/District)", // <-- Placeholder إنجليزي
         university: "e.g., Cairo University / Institute",
         faculty: "e.g., Faculty of Engineering",
         department: "e.g., Computers Department / Accounting / General",
@@ -246,7 +251,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
   }, [isAr]);
 
   const [form, setForm] = useState<FormState>({
-    full_name: "", email: "", phone: "", national_id: "", city: "", age: "", gender: "",
+    full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تعيين قيمة افتراضية للعنوان
     member_status: "", leadership_interest: "", education: "", grade: "",
     university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
     profile_picture_url: "", sector_key: getSafeSectorKey(presetSector),
@@ -320,7 +325,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
     if (currentStep === 1) {
       if (
         !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
-        !form.national_id.trim() || !form.city || !form.age.trim() || !form.gender ||
+        !form.national_id.trim() || !form.city || !form.address.trim() || !form.age.trim() || !form.gender || // <-- إضافة الـ address في التحقق
         !form.member_status || !form.leadership_interest || !form.education ||
         !form.profile_picture_url.trim()
       ) {
@@ -403,6 +408,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           email: form.email.trim(),
           phone: form.phone.trim(),
           national_id: form.national_id.trim(),
+          address: form.address.trim(), // <-- إرسال حقل العنوان مع الداتا
           age: Number(form.age),
           gender: form.gender,
           university: form.university.trim(),
@@ -439,7 +445,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       setCurrentStep(1);
       window.scrollTo({ top: 0, behavior: "smooth" });
       setForm({
-        full_name: "", email: "", phone: "", national_id: "", city: "", age: "", gender: "",
+        full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تصفير حقل العنوان بعد النجاح
         member_status: "", leadership_interest: "", education: "", grade: "",
         university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
         profile_picture_url: "", sector_key: form.sector_key,
@@ -548,6 +554,11 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       ))}
                     </select>
                   </div>
+                  {/* حقل العنوان الجديد مضاف هنا بتصميم متناسق */}
+                  <div>
+                    <label htmlFor="address" className={labelClass}>{t.address} <span className="text-red-500">*</span></label>
+                    <input id="address" type="text" className={inputClass} placeholder={t.placeholders.address} value={form.address} onChange={(e) => updateField("address", e.target.value)} required />
+                  </div>
                   <div>
                     <label htmlFor="age" className={labelClass}>{t.age} <span className="text-red-500">*</span></label>
                     <input id="age" type="number" className={inputClass} placeholder="21" value={form.age} onChange={(e) => updateField("age", e.target.value)} required />
@@ -576,7 +587,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="learning" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.learning}</option>
                     </select>
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <label htmlFor="education" className={labelClass}>{t.education} <span className="text-red-500">*</span></label>
                     <select id="education" className={selectClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
                       <option value="">{t.selectOption}</option>
