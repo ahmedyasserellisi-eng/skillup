@@ -107,11 +107,12 @@ export async function POST(req: Request) {
     const consent = Boolean(body.consent);
     const phone = safeStr(body.phone);
     const national_id = safeStr(body.national_id);
+    const address = safeStr(body.address); // 👈 1. تم استخراج حقل العنوان هنا
 
-    // 3. التحقق من الحقول الإلزامية في الخلفية (مع استثناء الحقول الـ 5 الاختيارية)
+    // 3. التحقق من الحقول الإلزامية في الخلفية (تم إضافة العنوان كحقل إجباري)
     if (
       !full_name || !email || !sector_key || !message || !consent ||
-      !national_id || !phone || !safeStr(body.city) ||
+      !national_id || !phone || !safeStr(body.city) || !address || // 👈 2. التأكد من وجود العنوان
       !safeStr(body.member_status) || !safeStr(body.leadership_interest) ||
       !safeStr(body.education) || !safeStr(body.grade) || !safeStr(body.university) ||
       !safeStr(body.faculty) || !safeStr(body.department) || !safeStr(body.profile_picture_url) ||
@@ -207,13 +208,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // 11. بناء كتل الـ Payload الكامل لـ 26 حقل بالتسميات الموحدة والآمنة للتخزين
+    // 11. بناء كتل الـ Payload الكامل لـ 27 حقل بالتسميات الموحدة والآمنة للتخزين
     const payload = {
       full_name,
       email,
       phone: nullableStr(body.phone),
       national_id: nullableStr(body.national_id),
       city: nullableStr(body.city),
+      address: nullableStr(body.address), // 👈 3. إضافة حقل العنوان للـ Payload الذاهب لـ Supabase
       age,
       member_status: nullableStr(body.member_status),
       leadership_interest: nullableStr(body.leadership_interest),
@@ -276,7 +278,7 @@ export async function POST(req: Request) {
           ${renderField("Email", email)}
           ${renderField("Phone", payload.phone)}
           ${renderField("City", payload.city)}
-          ${renderField("Age", payload.age)}
+          ${renderField("Address", payload.address)} ${renderField("Age", payload.age)}
           ${renderField("Membership Status", payload.member_status)}
           ${renderField("Leadership Interest", payload.leadership_interest)}
           ${renderField("Education Status", payload.education)}
