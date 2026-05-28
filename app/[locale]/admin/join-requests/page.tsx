@@ -662,7 +662,7 @@ export default function AdminJoinRequestsPage() {
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[160px]" dir="rtl">
+                        <DropdownMenuContent align="end" className="w-[160px]">
                           <DropdownMenuLabel className="text-right text-xs">تحديث الحالة فوراً</DropdownMenuLabel>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-right text-xs cursor-pointer" onClick={() => quickUpdateStatus(r, "new")}>طلب جديد</DropdownMenuItem>
@@ -686,7 +686,7 @@ export default function AdminJoinRequestsPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl border-zinc-200 shadow-2xl" dir="rtl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl border-zinc-200 shadow-2xl">
           <div className="p-6 border-b bg-zinc-50/60 dark:bg-zinc-900/40">
             <div>
               <div className="flex items-start justify-between">
