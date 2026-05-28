@@ -14,6 +14,7 @@ type FormState = {
   national_id: string;
   city: string;
   age: string;
+  gender: string;
   member_status: string; 
   leadership_interest: string;
   education: string; 
@@ -111,6 +112,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       nationalId: "الرقم القومي (14 رقم)",
       city: "المحافظة",
       age: "العمر",
+      gender: "النوع",
       memberStatus: "صفة العضوية",
       leadershipInterest: "الرغبة في القيادة",
       education: "الحالة التعليمية الحالية",
@@ -146,6 +148,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       errAge: "يرجى إدخال عمر منطقي وصحيح (بين 15 و 70 سنة).",
       selectGovernorate: "اختر المحافظة",
       selectOption: "اختر من القائمة...",
+      genderOptions: { male: "ذكر", female: "أنثى" },
       memberOptions: { member: "عضو", expert: "خبير (لديك خبرة كبيرة)" },
       leadershipOptions: { ready: "أرغب وجاهز لتولي مسؤولية قيادية", learning: "بأهل نفسي لسه" },
       educationOptions: { student: "طالب جامعي", graduate: "خريج", postgrad: "طالب دراسات عليا", school: "طالب ثانوي" },
@@ -181,6 +184,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       nationalId: "National ID (14 digits)",
       city: "Governorate",
       age: "Age",
+      gender: "Gender",
       memberStatus: "Membership Status",
       leadershipInterest: "Leadership Interest",
       education: "Current Educational Status",
@@ -216,6 +220,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       errAge: "Please enter a valid age (between 15 and 70).",
       selectGovernorate: "Select Governorate",
       selectOption: "Select an option...",
+      genderOptions: { male: "Male", female: "Female" },
       memberOptions: { member: "Member", expert: "Expert (Highly experienced)" },
       leadershipOptions: { ready: "I want and am ready to take a leadership role", learning: "I am still preparing myself" },
       educationOptions: { student: "Undergraduate Student", graduate: "Graduate", postgrad: "Postgraduate Student", school: "High School Student" },
@@ -237,12 +242,11 @@ export default function JoinForm({ locale, presetSector }: Props) {
         message: "Write your message, motivations and expectations here"
       }
     };
-
     return isAr ? ar : en;
   }, [isAr]);
 
   const [form, setForm] = useState<FormState>({
-    full_name: "", email: "", phone: "", national_id: "", city: "", age: "",
+    full_name: "", email: "", phone: "", national_id: "", city: "", age: "", gender: "",
     member_status: "", leadership_interest: "", education: "", grade: "",
     university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
     profile_picture_url: "", sector_key: getSafeSectorKey(presetSector),
@@ -259,14 +263,50 @@ export default function JoinForm({ locale, presetSector }: Props) {
     setForm((prev) => ({ ...prev, sector_key: getSafeSectorKey(presetSector) }));
   }, [presetSector]);
 
-  // الكلاس الخاص بحقول الإدخال النصية
+  // التحليل التلقائي الذكي للرقم القومي المصري فور اكتمال الـ 14 رقماً
+  useEffect(() => {
+    if (/^\d{14}$/.test(form.national_id)) {
+      const id = form.national_id;
+
+      // 1. استخراج النوع (الرقم الـ 13 فردي = ذكر، زوجي = أنثى)
+      const genderDigit = parseInt(id.charAt(12), 10);
+      const extractedGender = genderDigit % 2 === 1 ? "male" : "female";
+
+      // 2. استخراج تاريخ الميلاد وحساب العمر البرمي الدقيق لعام 2026
+      const centuryDigit = id.charAt(0);
+      const yearPart = id.substring(1, 3);
+      const birthYear = parseInt((centuryDigit === "3" ? "20" : "19") + yearPart, 10);
+      const currentYear = 2026;
+      const calculatedAge = currentYear - birthYear;
+
+      // 3. خريطة تكويد المحافظات الرسمية في جمهورية مصر العربية
+      const govCode = id.substring(7, 9);
+      const govMap: Record<string, string> = {
+        "01": "Cairo", "02": "Alexandria", "03": "Port Said", "04": "Suez",
+        "11": "Damietta", "12": "Dakahlia", "13": "Sharqia", "14": "Qalyubia",
+        "15": "Kafr El Sheikh", "16": "Gharbia", "17": "Monufia", "18": "Beheira",
+        "19": "Ismailia", "21": "Giza", "22": "Beni Suef", "23": "Fayoum",
+        "24": "Minya", "25": "Asyut", "26": "Sohag", "27": "Qena",
+        "28": "Aswan", "29": "Luxor", "31": "Red Sea", "32": "New Valley",
+        "33": "Matrouh", "34": "North Sinai", "35": "South Sinai"
+      };
+      const extractedCity = govMap[govCode] || "";
+
+      setForm((prev) => ({
+        ...prev,
+        gender: extractedGender,
+        age: calculatedAge > 0 && calculatedAge < 100 ? String(calculatedAge) : prev.age,
+        city: extractedCity || prev.city
+      }));
+    }
+  }, [form.national_id]);
+
   const inputClass =
     "w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950/40 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-white/20 dark:focus:bg-zinc-950/60 dark:focus:ring-white/10";
   
-  // الكلاس الجديد المخصص للـ Select لمنع مشاكل الـ Click والمقاطعة في المتصفحات
   const selectClass =
     "w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:focus:border-white/20 dark:focus:bg-zinc-950 dark:focus:ring-white/10 cursor-pointer";
-
+  
   const labelClass = "mb-2 block text-sm font-medium text-zinc-800 dark:text-zinc-200";
   const cardClass = "rounded-[28px] border border-black/10 bg-white/75 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/45 md:p-6 transition-all duration-300";
 
@@ -280,7 +320,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
     if (currentStep === 1) {
       if (
         !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
-        !form.national_id.trim() || !form.city || !form.age.trim() ||
+        !form.national_id.trim() || !form.city || !form.age.trim() || !form.gender ||
         !form.member_status || !form.leadership_interest || !form.education ||
         !form.profile_picture_url.trim()
       ) {
@@ -341,7 +381,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMsg("");
-    
     if (form.website || form.hidden_honey) {
       setDone(true);
       return;
@@ -365,6 +404,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           phone: form.phone.trim(),
           national_id: form.national_id.trim(),
           age: Number(form.age),
+          gender: form.gender,
           university: form.university.trim(),
           faculty: form.faculty.trim(),
           department: form.department.trim(),
@@ -398,9 +438,8 @@ export default function JoinForm({ locale, presetSector }: Props) {
       setDone(true);
       setCurrentStep(1);
       window.scrollTo({ top: 0, behavior: "smooth" });
-      
       setForm({
-        full_name: "", email: "", phone: "", national_id: "", city: "", age: "",
+        full_name: "", email: "", phone: "", national_id: "", city: "", age: "", gender: "",
         member_status: "", leadership_interest: "", education: "", grade: "",
         university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
         profile_picture_url: "", sector_key: form.sector_key,
@@ -419,24 +458,18 @@ export default function JoinForm({ locale, presetSector }: Props) {
     <div className="mx-auto grid max-w-4xl gap-6" dir={isAr ? "rtl" : "ltr"}>
       
       {done ? (
-        /* ================= شاشة النجاح ================= */
         <section className="rounded-[32px] border border-black/10 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 text-center py-14 transition-all">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-8 w-8">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </div>
-          
-          <h1 className="text-2xl font-bold text-zinc-950 dark:text-white md:text-3xl">
-            {t.ok}
-          </h1>
-          
+          <h1 className="text-2xl font-bold text-zinc-950 dark:text-white md:text-3xl">{t.ok}</h1>
           <p className="mt-3 text-sm leading-7 text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
             {isAr 
-              ? "تم استلام معلوماتك بالكامل في قاعدة البيانات، وسنقوم بالتواصل معك قريبا." 
+              ? "تم استلام معلوماتك بالكامل في قاعدة البيانات، وسنقوم بالتواصل معك قريباً."
               : "Your data has been successfully securely stored. Our MEAL team will review it shortly."}
           </p>
-          
           <button
             type="button"
             onClick={() => setDone(false)}
@@ -446,7 +479,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
           </button>
         </section>
       ) : (
-        /* ================= خطوات الفورم ================= */
         <>
           <section className="relative overflow-hidden rounded-[32px] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 md:p-7">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -468,14 +500,13 @@ export default function JoinForm({ locale, presetSector }: Props) {
 
             <div className="mt-4 flex justify-between text-xs font-medium text-zinc-400">
               <span className={`transition-colors ${currentStep >= 1 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "1. الأساسية" : "1. Basic"}</span>
-              <span className={`transition-colors ${currentStep >= 2 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "2. التعليم" : "2. Education"}</span>
+              <span className={`transition-colors ${currentStep >= 2 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "2. التعليمية" : "2. Academic"}</span>
               <span className={`transition-colors ${currentStep >= 3 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "3. التفضيلات" : "3. Preferences"}</span>
               <span className={`transition-colors ${currentStep >= 4 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "4. التأكيد" : "4. Consent"}</span>
             </div>
           </section>
 
           <form className="grid gap-5" onSubmit={submit} noValidate>
-            
             <div className="hidden" aria-hidden="true">
               <input type="text" name="website" value={form.website} onChange={(e) => updateField("website", e.target.value)} tabIndex={-1} autoComplete="off" />
               <input type="text" name="hidden_honey" value={form.hidden_honey} onChange={(e) => updateField("hidden_honey", e.target.value)} tabIndex={-1} autoComplete="off" />
@@ -488,43 +519,47 @@ export default function JoinForm({ locale, presetSector }: Props) {
                   <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section1}</h2>
                   <span className="text-xs font-mono text-zinc-400">01 / 04</span>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="full_name" className={labelClass}>{t.name} <span className="text-red-500">*</span></label>
                     <input id="full_name" type="text" className={inputClass} placeholder={t.placeholders.name} value={form.full_name} onChange={(e) => updateField("full_name", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="national_id" className={labelClass}>{t.nationalId} <span className="text-red-500">*</span></label>
-                    <input id="national_id" type="text" className={inputClass} placeholder={t.placeholders.id} value={form.national_id} onChange={(e) => updateField("national_id", e.target.value)} inputMode="numeric" maxLength={14} required />
+                    <input id="national_id" type="text" className={inputClass} placeholder={t.placeholders.id} value={form.national_id} onChange={(e) => updateField("national_id", e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={14} required />
+                    {/^\d{14}$/.test(form.national_id) && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">✓ تم فحص وتعبئة البيانات ديموغرافياً تلقائياً</span>
+                    )}
                   </div>
-
                   <div>
                     <label htmlFor="email" className={labelClass}>{t.email} <span className="text-red-500">*</span></label>
                     <input id="email" type="email" className={inputClass} placeholder="example@domain.com" value={form.email} onChange={(e) => updateField("email", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="phone" className={labelClass}>{t.phone} <span className="text-red-500">*</span></label>
-                    <input id="phone" type="tel" className={inputClass} placeholder={t.placeholders.phone} value={form.phone} onChange={(e) => updateField("phone", e.target.value)} required />
+                    <input id="phone" type="text" className={inputClass} placeholder={t.placeholders.phone} value={form.phone} onChange={(e) => updateField("phone", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="city" className={labelClass}>{t.city} <span className="text-red-500">*</span></label>
                     <select id="city" className={selectClass} value={form.city} onChange={(e) => updateField("city", e.target.value)} required>
                       <option value="">{t.selectGovernorate}</option>
-                      {EGYPT_GOVERNORATES.map((gov) => (
-                        <option key={gov.en} value={gov.en} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? gov.ar : gov.en}</option>
+                      {EGYPT_GOVERNORATES.map((g) => (
+                        <option key={g.en} value={g.en} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? g.ar : g.en}</option>
                       ))}
                     </select>
                   </div>
-
                   <div>
                     <label htmlFor="age" className={labelClass}>{t.age} <span className="text-red-500">*</span></label>
-                    <input id="age" type="text" className={inputClass} placeholder="e.g. 21" value={form.age} onChange={(e) => updateField("age", e.target.value)} inputMode="numeric" required />
+                    <input id="age" type="number" className={inputClass} placeholder="21" value={form.age} onChange={(e) => updateField("age", e.target.value)} required />
                   </div>
-
+                  <div>
+                    <label htmlFor="gender" className={labelClass}>{t.gender} <span className="text-red-500">*</span></label>
+                    <select id="gender" className={selectClass} value={form.gender} onChange={(e) => updateField("gender", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="male" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.genderOptions.male}</option>
+                      <option value="female" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.genderOptions.female}</option>
+                    </select>
+                  </div>
                   <div>
                     <label htmlFor="member_status" className={labelClass}>{t.memberStatus} <span className="text-red-500">*</span></label>
                     <select id="member_status" className={selectClass} value={form.member_status} onChange={(e) => updateField("member_status", e.target.value)} required>
@@ -533,7 +568,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="expert" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.memberOptions.expert}</option>
                     </select>
                   </div>
-
                   <div>
                     <label htmlFor="leadership_interest" className={labelClass}>{t.leadershipInterest} <span className="text-red-500">*</span></label>
                     <select id="leadership_interest" className={selectClass} value={form.leadership_interest} onChange={(e) => updateField("leadership_interest", e.target.value)} required>
@@ -542,7 +576,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="learning" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.learning}</option>
                     </select>
                   </div>
-
                   <div>
                     <label htmlFor="education" className={labelClass}>{t.education} <span className="text-red-500">*</span></label>
                     <select id="education" className={selectClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
@@ -553,7 +586,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="school" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.school}</option>
                     </select>
                   </div>
-
                   <div className="md:col-span-2">
                     <label htmlFor="profile_picture_url" className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
                     <input id="profile_picture_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.profile_picture_url} onChange={(e) => updateField("profile_picture_url", e.target.value)} required />
@@ -569,23 +601,19 @@ export default function JoinForm({ locale, presetSector }: Props) {
                   <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section2}</h2>
                   <span className="text-xs font-mono text-zinc-400">02 / 04</span>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="university" className={labelClass}>{t.university} <span className="text-red-500">*</span></label>
                     <input id="university" type="text" className={inputClass} placeholder={t.placeholders.university} value={form.university} onChange={(e) => updateField("university", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="faculty" className={labelClass}>{t.faculty} <span className="text-red-500">*</span></label>
                     <input id="faculty" type="text" className={inputClass} placeholder={t.placeholders.faculty} value={form.faculty} onChange={(e) => updateField("faculty", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="department" className={labelClass}>{t.department} <span className="text-red-500">*</span></label>
                     <input id="department" type="text" className={inputClass} placeholder={t.placeholders.department} value={form.department} onChange={(e) => updateField("department", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="grade" className={labelClass}>{t.grade} <span className="text-red-500">*</span></label>
                     <select id="grade" className={selectClass} value={form.grade} onChange={(e) => updateField("grade", e.target.value)} required>
@@ -596,43 +624,20 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="4" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g4}</option>
                       <option value="5" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g5}</option>
                       <option value="6" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g6}</option>
-                      <option value="graduated" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.grad}</option>
+                      <option value="grad" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.grad}</option>
                     </select>
                   </div>
-
                   <div>
                     <label htmlFor="graduation_year" className={labelClass}>{t.graduation} <span className="text-red-500">*</span></label>
-                    <input id="graduation_year" type="text" className={inputClass} placeholder="e.g. 2026" value={form.graduation_year} onChange={(e) => updateField("graduation_year", e.target.value)} inputMode="numeric" required />
+                    <input id="graduation_year" type="number" className={inputClass} placeholder="2025" value={form.graduation_year} onChange={(e) => updateField("graduation_year", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="postgrad_info" className={labelClass}>{t.postgradInfo}</label>
                     <input id="postgrad_info" type="text" className={inputClass} placeholder={t.placeholders.postgrad} value={form.postgrad_info} onChange={(e) => updateField("postgrad_info", e.target.value)} />
                   </div>
-
-                  <div>
-                    <label htmlFor="linkedin" className={labelClass}>{t.linkedin}</label>
-                    <input id="linkedin" type="url" className={inputClass} placeholder="https://linkedin.com/in/..." value={form.linkedin} onChange={(e) => updateField("linkedin", e.target.value)} />
-                  </div>
-
-                  <div>
-                    <label htmlFor="facebook" className={labelClass}>{t.facebook}</label>
-                    <input id="facebook" type="url" className={inputClass} placeholder="https://facebook.com/..." value={form.facebook} onChange={(e) => updateField("facebook", e.target.value)} />
-                  </div>
-
-                  <div>
-                    <label htmlFor="resume_url" className={labelClass}>{t.resumeUrl}</label>
-                    <input id="resume_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.resume_url} onChange={(e) => updateField("resume_url", e.target.value)} />
-                  </div>
-
-                  <div>
-                    <label htmlFor="portfolio" className={labelClass}>{t.portfolio}</label>
-                    <input id="portfolio" type="url" className={inputClass} placeholder="https://..." value={form.portfolio} onChange={(e) => updateField("portfolio", e.target.value)} />
-                  </div>
-
                   <div className="md:col-span-2">
                     <label htmlFor="experience" className={labelClass}>{t.experience} <span className="text-red-500">*</span></label>
-                    <textarea id="experience" className={`${inputClass} min-h-[120px] resize-none`} placeholder={t.placeholders.experience} value={form.experience} onChange={(e) => updateField("experience", e.target.value)} required />
+                    <textarea id="experience" rows={4} className={inputClass} placeholder={t.placeholders.experience} value={form.experience} onChange={(e) => updateField("experience", e.target.value)} required />
                   </div>
                 </div>
               </section>
@@ -645,27 +650,23 @@ export default function JoinForm({ locale, presetSector }: Props) {
                   <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section3}</h2>
                   <span className="text-xs font-mono text-zinc-400">03 / 04</span>
                 </div>
-
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label htmlFor="sector_key" className={labelClass}>{t.sector} <span className="text-red-500">*</span></label>
                     <select id="sector_key" className={selectClass} value={form.sector_key} onChange={(e) => updateField("sector_key", e.target.value)} required>
-                      {SECTORS_LIST.map((sec) => (
-                        <option key={sec.slug} value={sec.slug} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? sec.ar : sec.en}</option>
+                      {SECTORS_LIST.map((s) => (
+                        <option key={s.slug} value={s.slug} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? s.ar : s.en}</option>
                       ))}
                     </select>
                   </div>
-
                   <div>
                     <label htmlFor="preferred_role" className={labelClass}>{t.role} <span className="text-red-500">*</span></label>
                     <input id="preferred_role" type="text" className={inputClass} placeholder={t.placeholders.role} value={form.preferred_role} onChange={(e) => updateField("preferred_role", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="availability" className={labelClass}>{t.availability} <span className="text-red-500">*</span></label>
                     <input id="availability" type="text" className={inputClass} placeholder={t.placeholders.availability} value={form.availability} onChange={(e) => updateField("availability", e.target.value)} required />
                   </div>
-
                   <div>
                     <label htmlFor="heard_about_us" className={labelClass}>{t.heardAboutUs} <span className="text-red-500">*</span></label>
                     <select id="heard_about_us" className={selectClass} value={form.heard_about_us} onChange={(e) => updateField("heard_about_us", e.target.value)} required>
@@ -677,45 +678,54 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="other" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.other}</option>
                     </select>
                   </div>
-
                   <div className="md:col-span-2">
                     <label htmlFor="skills" className={labelClass}>{t.skills} <span className="text-red-500">*</span></label>
-                    <input id="skills" type="text" className={inputClass} placeholder={t.placeholders.skills} value={form.skills} onChange={(e) => updateField("skills", e.target.value)} required />
+                    <textarea id="skills" rows={3} className={inputClass} placeholder={t.placeholders.skills} value={form.skills} onChange={(e) => updateField("skills", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="linkedin" className={labelClass}>{t.linkedin}</label>
+                    <input id="linkedin" type="url" className={inputClass} placeholder="https://linkedin.com/in/..." value={form.linkedin} onChange={(e) => updateField("linkedin", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="facebook" className={labelClass}>{t.facebook}</label>
+                    <input id="facebook" type="url" className={inputClass} placeholder="https://facebook.com/..." value={form.facebook} onChange={(e) => updateField("facebook", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="portfolio" className={labelClass}>{t.portfolio}</label>
+                    <input id="portfolio" type="url" className={inputClass} placeholder="https://..." value={form.portfolio} onChange={(e) => updateField("portfolio", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="resume_url" className={labelClass}>{t.resumeUrl}</label>
+                    <input id="resume_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.resume_url} onChange={(e) => updateField("resume_url", e.target.value)} />
                   </div>
                 </div>
               </section>
             )}
 
-            {/* الخطوة الرابعة: الرسالة وإقرار الجدية */}
+            {/* الخطوة الرابعة: رسالة المتقدم وإقرار الجدية */}
             {currentStep === 4 && (
               <section className={cardClass}>
                 <div className="mb-5 flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/5">
                   <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section4}</h2>
                   <span className="text-xs font-mono text-zinc-400">04 / 04</span>
                 </div>
-
                 <div className="grid gap-4">
                   <div>
                     <label htmlFor="message" className={labelClass}>{t.message} <span className="text-red-500">*</span></label>
-                    <textarea id="message" className={`${inputClass} min-h-[140px] resize-none`} placeholder={t.placeholders.message} value={form.message} onChange={(e) => updateField("message", e.target.value)} required />
+                    <textarea id="message" rows={5} className={inputClass} placeholder={t.placeholders.message} value={form.message} onChange={(e) => updateField("message", e.target.value)} required />
                   </div>
-
-                  <label className="flex items-start gap-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 text-sm text-zinc-700 dark:border-white/10 dark:bg-zinc-950/40 dark:text-zinc-200 cursor-pointer select-none">
-                    <input type="checkbox" className="mt-1 h-4 w-4 accent-zinc-900 dark:accent-white" checked={form.consent} onChange={(e) => updateField("consent", e.target.checked)} required />
-                    <span>{t.consent}</span>
-                  </label>
+                  <div className="flex items-start gap-3 mt-2">
+                    <input id="consent" type="checkbox" className="mt-1 h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 cursor-pointer" checked={form.consent} onChange={(e) => updateField("consent", e.target.checked)} required />
+                    <label htmlFor="consent" className="text-sm leading-6 text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">{t.consent}</label>
+                  </div>
                 </div>
               </section>
             )}
 
-            {/* أزرار التحكم السفلية */}
-            <div className="flex items-center justify-between gap-4">
+            {/* أزرار التحكم بالخطوات */}
+            <div className="flex justify-between items-center mt-4">
               {currentStep > 1 ? (
-                <button
-                  type="button"
-                  onClick={handlePrevStep}
-                  className="rounded-2xl border border-black/10 bg-white px-6 py-3 text-sm font-medium text-zinc-900 transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800"
-                >
+                <button type="button" onClick={handlePrevStep} className="rounded-2xl border border-black/10 bg-white px-6 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800">
                   {t.prev}
                 </button>
               ) : (
@@ -723,33 +733,24 @@ export default function JoinForm({ locale, presetSector }: Props) {
               )}
 
               {currentStep < 4 ? (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  className="rounded-2xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900"
-                >
+                <button type="button" onClick={handleNextStep} className="rounded-2xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900">
                   {t.next}
                 </button>
               ) : (
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="rounded-2xl bg-zinc-900 px-8 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900"
-                >
+                <button type="submit" disabled={loading} className="rounded-2xl bg-zinc-900 px-8 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900">
                   {loading ? t.sending : t.submit}
                 </button>
               )}
             </div>
 
-            {/* عرض رسائل الخطأ */}
+            {/* عرض رسائل الخطأ إن وجدت */}
             <div aria-live="polite" className="grid gap-3 mt-2">
               {errorMsg && (
-                <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">
+                <div className="rounded-2xl border border-red-500/30 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-950/20 dark:text-red-400 font-medium">
                   {errorMsg}
                 </div>
               )}
             </div>
-
           </form>
         </>
       )}
