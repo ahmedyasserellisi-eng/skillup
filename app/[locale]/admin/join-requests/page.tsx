@@ -140,27 +140,39 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: "مرفوض"
 };
 
-const MEMBER_STATUS_LABEL: Record<string, string> = {
-  member: "عضو متطوع",
-  leader: "قائد / مسؤول"
-};
+// دالة ذكية لترجمة وتوحيد القطاعات الهيكلية بدقة
+function getSectorLabel(sectorKey: any, lang: "ar" | "en" = "ar"): string {
+  if (!sectorKey) return "غير محدد";
+  const cleanKey = String(sectorKey).trim().toLowerCase();
+  const sector = SECTORS.find((s: any) => 
+    String(s.slug).toLowerCase() === cleanKey || 
+    String(s.id).toLowerCase() === cleanKey
+  ) as any;
+  if (!sector) return String(sectorKey);
+  if (lang === "ar") return sector.name_ar || sector.ar || sector.name || cleanKey;
+  return sector.name_en || sector.en || sector.name || cleanKey;
+}
 
-const LEADERSHIP_INTEREST_LABEL: Record<string, string> = {
-  yes: "نعم",
-  no: "لا",
-  true: "نعم",
-  false: "لا"
-};
+// دالة ذكية لتعريب خانة الرغبة في منصب قيادي والتعامل مع كافة أشكال الداتا
+function getLeadershipInterestLabel(value: any): string {
+  if (value === null || value === undefined || value === "") return "غير محدد";
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "yes" || normalized === "true" || normalized === "1" || normalized === "نعم") return "نعم";
+  if (normalized === "no" || normalized === "false" || normalized === "0" || normalized === "لا") return "لا";
+  return String(value);
+}
+
+// دالة ذكية لتعريب صفة العضوية
+function getMemberStatusLabel(value: any): string {
+  if (!value) return "غير محدد";
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "member" || normalized === "عضو") return "عضو متطوع";
+  if (normalized === "leader" || normalized === "قائد") return "قائد / مسؤول";
+  return String(value);
+}
 
 function getStatusValue(v?: string | null) {
   return v ?? "new";
-}
-
-function getSectorLabel(sectorKey: string, lang: "ar" | "en" = "ar"): string {
-  const sector = SECTORS.find((s: any) => s.slug === sectorKey) as any;
-  if (!sector) return sectorKey;
-  if (lang === "ar") return sector.name_ar || sector.ar || sectorKey;
-  return sector.name_en || sector.en || sectorKey;
 }
 
 function getStatusBadge(status?: string | null) {
@@ -213,13 +225,12 @@ function formatDateTime(value: string) {
   }
 }
 
-// دالة تنظيف الخلايا المصدرة للإكسيل
 function cleanCell(value: unknown) {
   return value ?? "";
 }
 
 function formatGovernorate(city?: string | null) {
-  if (!city) return "غير مححدد";
+  if (!city) return "غير محدد";
   const cleaned = city.trim().toLowerCase();
   return EGYPT_GOVERNORATES_MAP[cleaned] || city.trim();
 }
@@ -228,7 +239,6 @@ function normalizeCity(city?: string | null) {
   return (city ?? "").trim();
 }
 
-// دالة استخراج النوع بشكل رسمي (ذكر / أنثى) بدون أي إيموجي
 function getGenderText(nationalId?: string | null, genderField?: string | null) {
   if (genderField) {
     const g = genderField.trim().toLowerCase();
@@ -249,7 +259,6 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "warning" | "">("");
   
-  // فلاتر البحث والتصفية المتقدمة كاملة
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
@@ -257,7 +266,6 @@ export default function AdminJoinRequestsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // حالات نافذة التفاصيل والملاحظات
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<JoinRequest | null>(null);
   const [notes, setNotes] = useState("");
@@ -314,7 +322,7 @@ export default function AdminJoinRequestsPage() {
     ).sort((a, b) => formatGovernorate(a).localeCompare(formatGovernorate(b), "ar"));
   }, [rows]);
 
-  // منطق الفلترة المتقدمة والبحث الذكي والشامل عن المتقدمين
+  // منطق الفلترة المتقدم والبحث الذكي - تم تزويده بالـ Helpers الجديدة لضمان دقة البحث باللغة العربية
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
 
@@ -340,8 +348,8 @@ export default function AdminJoinRequestsPage() {
         r.experience ?? "",
         r.university ?? "",
         r.preferred_role ?? "",
-        r.member_status ? (MEMBER_STATUS_LABEL[r.member_status.toLowerCase()] || r.member_status) : "",
-        r.leadership_interest ? (LEADERSHIP_INTEREST_LABEL[r.leadership_interest.toLowerCase()] || r.leadership_interest) : ""
+        getMemberStatusLabel(r.member_status),
+        getLeadershipInterestLabel(r.leadership_interest)
       ]
         .join(" ")
         .toLowerCase();
@@ -350,7 +358,6 @@ export default function AdminJoinRequestsPage() {
     });
   }, [rows, q, status, sector, city, fromDate, toDate]);
 
-  // إحصائيات العدادات العلوية كاملة
   const stats = useMemo(() => {
     return {
       total: rows.length,
@@ -439,7 +446,6 @@ export default function AdminJoinRequestsPage() {
     setActionLoadingId(null);
   }
 
-  // دالة تصدير ملف الـ Excel مع تعريب الخانات الجديدة ومحاذاة RTL كاملة
   async function exportExcel() {
     try {
       if (filtered.length === 0) {
@@ -453,8 +459,8 @@ export default function AdminJoinRequestsPage() {
         "الاسم الكامل": cleanCell(r.full_name),
         "الرقم القومي (14 رقم)": cleanCell(r.national_id),
         "النوع": getGenderText(r.national_id, r.gender),
-        "صفة العضوية": r.member_status ? (MEMBER_STATUS_LABEL[r.member_status.toLowerCase()] || r.member_status) : "غير محدد",
-        "الرغبة في دور قيادي": r.leadership_interest ? (LEADERSHIP_INTEREST_LABEL[r.leadership_interest.toLowerCase()] || r.leadership_interest) : "غير محدد",
+        "صفة العضوية": getMemberStatusLabel(r.member_status),
+        "الرغبة في دور قيادي": getLeadershipInterestLabel(r.leadership_interest),
         "البريد الإلكتروني": cleanCell(r.email),
         "رقم الهاتف": cleanCell(r.phone),
         "المحافظة": formatGovernorate(r.city),
@@ -475,7 +481,7 @@ export default function AdminJoinRequestsPage() {
         "رابط معرض الأعمال Portfolio": cleanCell(r.portfolio),
         "رسالة المتقدم": cleanCell(r.message),
         "حالة الطلب الإدارية": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
-        "ملاحظات لجنة الفرز والتقييم": cleanCell(r.admin_notes),
+        "ملاحظات لجنة الفرز والتقييم الداخلي": cleanCell(r.admin_notes),
         "تاريخ وساعة التقديم": formatDateTime(r.created_at)
       }));
 
@@ -626,7 +632,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* الجدول المركزي لعرض الطلبات (تم تعديل قفلات الـ Tags هنا لحل مشكلة الـ Build) */}
+      {/* الجدول المركزي - مدمج به التعريب المحدث والإصلاح الشامل لقفلات التاجز */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm overflow-hidden">
         <div className="p-4 bg-zinc-50/60 dark:bg-zinc-900/60 border-b dark:border-zinc-800 font-bold text-xs text-zinc-600 dark:text-zinc-400 flex items-center justify-between">
           <span>جدول فرز طلبات المتقدمين المركزي</span>
@@ -662,21 +668,21 @@ export default function AdminJoinRequestsPage() {
                     <TableCell className="font-bold text-zinc-900 dark:text-zinc-50 py-3">
                       {row.full_name}
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    <TableCell className="text-xs font-black text-zinc-700 dark:text-zinc-300">
                       {getSectorLabel(row.sector_key, "ar")}
                     </TableCell>
                     <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">
                       {formatGovernorate(row.city)}
                     </TableCell>
                     <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {row.age ? `${row.age} سنة` : "غير محدد"} / {getGenderText(row.national_id, row.gender)}
+                      {row.age ? `${row.age} سنة` : "غير مححدد"} / {getGenderText(row.national_id, row.gender)}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      {row.member_status ? (MEMBER_STATUS_LABEL[row.member_status.toLowerCase()] || row.member_status) : "غير محدد"}
+                      {getMemberStatusLabel(row.member_status)}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      <span className={row.leadership_interest === "yes" || row.leadership_interest === "true" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-zinc-400"}>
-                        {row.leadership_interest ? (LEADERSHIP_INTEREST_LABEL[row.leadership_interest.toLowerCase()] || row.leadership_interest) : "غير محدد"}
+                      <span className={String(row.leadership_interest).toLowerCase() === "yes" || String(row.leadership_interest).toLowerCase() === "true" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-zinc-400"}>
+                        {getLeadershipInterestLabel(row.leadership_interest)}
                       </span>
                     </TableCell>
                     <TableCell className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
@@ -772,7 +778,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* التفضيلات والقطاع المستهدف بالهيكلة */}
+              {/* التفضيلات والقطاع المستهدف بالهيكلة - مع تطبيق التعريب المحدث هنا */}
               <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
                 <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
                   <Briefcase className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> التفضيلات والقطاع المستهدف بالهيكلة
@@ -781,8 +787,8 @@ export default function AdminJoinRequestsPage() {
                   <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">القطاع المختار:</span> <strong className="text-emerald-700 dark:text-emerald-400 font-black">{getSectorLabel(selected.sector_key, "ar")}</strong></div>
                   <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الدور أو المسؤولية المفضلة:</span> <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{selected.preferred_role || "غير محدد"}</strong></div>
                   <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">ساعات التفرغ المتاحة:</span> <span>{selected.availability || "غير محدد"}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">صفة العضوية:</span> <strong className="text-blue-600 dark:text-blue-400 font-bold">{selected.member_status ? (MEMBER_STATUS_LABEL[selected.member_status.toLowerCase()] || selected.member_status) : "غير محدد"}</strong></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الرغبة في دور قيادي:</span> <strong className="text-amber-600 dark:text-amber-400 font-bold">{selected.leadership_interest ? (LEADERSHIP_INTEREST_LABEL[selected.leadership_interest.toLowerCase()] || selected.leadership_interest) : "غير محدد"}</strong></div>
+                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">صفة العضوية:</span> <strong className="text-blue-600 dark:text-blue-400 font-bold">{getMemberStatusLabel(selected.member_status)}</strong></div>
+                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الرغبة في دور قيادي:</span> <strong className="text-amber-600 dark:text-amber-400 font-bold">{getLeadershipInterestLabel(selected.leadership_interest)}</strong></div>
                 </div>
               </div>
 
@@ -793,7 +799,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
                 <div className="space-y-2 text-sm">
                   <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1">المهارات والقدرات:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.skills || "لا يوجد"}</p></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1">الخبرات السابقة والأنشطة:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.experience || "لا يوجد"}</p></div>
+                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1"> الخبرات السابقة والأنشطة:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.experience || "لا يوجد"}</p></div>
                   {selected.message && <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1">رسالة المتقدم الموجهة للإدارة:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.message}</p></div>}
                 </div>
               </div>
