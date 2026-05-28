@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -29,7 +28,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// استيراد المصفوفة فقط لمنع أخطاء الـ Type Error في Vercel
 import { SECTORS } from "@/lib/sectors-data";
 import { 
   Search, 
@@ -57,7 +55,6 @@ import {
   Filter
 } from "lucide-react";
 
-// خريطة تحويل وتوحيد مسميات المحافظات من الإنجليزية للعربية
 const EGYPT_GOVERNORATES_MAP: Record<string, string> = {
   "cairo": "القاهرة",
   "giza": "الجيزة",
@@ -137,9 +134,8 @@ function getStatusValue(v?: string | null) {
   return v ?? "new";
 }
 
-// دالة محلية بديلة ومطورة لجلب مسميات القطاعات بأمان دون الاعتماد على ملفات خارجية
 function getSectorLabel(sectorKey: string, lang: "ar" | "en" = "ar"): string {
-  const sector = SECTORS.find((s: any) => s.slug === sectorKey);
+  const sector = SECTORS.find((s: any) => s.slug === sectorKey) as any;
   if (!sector) return sectorKey;
   if (lang === "ar") return sector.name_ar || sector.ar || sectorKey;
   return sector.name_en || sector.en || sectorKey;
@@ -217,7 +213,6 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "warning" | "">("");
   
-  // فلاتر البحث والفرز
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
@@ -225,7 +220,6 @@ export default function AdminJoinRequestsPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  // حالات التحكم بالـ Dialog والتعديل
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<JoinRequest | null>(null);
   const [notes, setNotes] = useState("");
@@ -465,7 +459,6 @@ export default function AdminJoinRequestsPage() {
   return (
     <div className="grid gap-6 p-4 md:p-6 max-w-[1600px] mx-auto font-sans" dir="rtl">
       
-      {/* Top Bar Header Layout */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6 dark:border-zinc-800">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50">إدارة طلبات الانضمام للفريق</h1>
@@ -486,11 +479,10 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* Analytics Dashboard Grid */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {[
           { label: "إجمالي طلبات السير", value: stats.total, color: "border-l-zinc-400 bg-zinc-50/40" },
-          { label: "المطابق للفرز الحالي", value: stats.filtered, value: stats.filtered, color: "border-l-sky-500 bg-sky-50/20" },
+          { label: "المطابق للفرز الحالي", value: stats.filtered, color: "border-l-sky-500 bg-sky-50/20" },
           { label: "طلبات جديدة", value: stats.newCount, color: "border-l-purple-500 bg-purple-50/20" },
           { label: "قيد المراجعة والفحص", value: stats.reviewCount, color: "border-l-blue-500 bg-blue-50/20" },
           { label: "تم التواصل معهم", value: stats.contactedCount, color: "border-l-amber-500 bg-amber-50/20" },
@@ -504,7 +496,6 @@ export default function AdminJoinRequestsPage() {
         ))}
       </div>
 
-      {/* Advanced Structural Filters panel */}
       <div className="rounded-xl border border-zinc-200 bg-zinc-50/40 p-5 dark:border-zinc-800 dark:bg-zinc-900/40 shadow-sm">
         <div className="flex items-center justify-between border-b pb-3 mb-4 border-zinc-200/60 dark:border-zinc-800">
           <div className="flex items-center gap-2 text-sm font-bold text-zinc-800 dark:text-zinc-200">
@@ -575,7 +566,6 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* Dynamic Status Messages */}
       {message && (
         <div className={`p-4 rounded-xl border text-sm font-semibold transition-all shadow-sm flex items-center gap-2 ${
           messageType === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : 
@@ -587,14 +577,12 @@ export default function AdminJoinRequestsPage() {
         </div>
       )}
 
-      {/* Threshold indicator notice */}
       {rows.length >= 1000 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center gap-2">
           ⚠️ تنبيه حركية النظام: تم جلب أحدث 1000 استمارة لضمان استقرار وسرعة معالجة العمليات، يرجى تضييق خيارات الفرز والتصفية للوصول للمستهدف بدقة.
         </div>
       )}
 
-      {/* Data Core Grid Table Architecture */}
       <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-zinc-50/70 dark:bg-zinc-900/60 border-b">
@@ -697,11 +685,10 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      {/* Detailed Dialog View Architecture */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl border-zinc-200 shadow-2xl" dir="rtl">
           <div className="p-6 border-b bg-zinc-50/60 dark:bg-zinc-900/40">
-            <DialogHeader>
+            <div>
               <div className="flex items-start justify-between">
                 <div>
                   <DialogTitle className="text-xl font-black text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
@@ -714,13 +701,12 @@ export default function AdminJoinRequestsPage() {
                 </div>
                 {selected && <div className="ml-6">{getStatusBadge(selected.admin_status)}</div>}
               </div>
-            </DialogHeader>
+            </div>
           </div>
 
           {selected ? (
             <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
               
-              {/* Structural Section 1: Personal Profile */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5" /> البيانات الشخصية والتعريفية
@@ -759,7 +745,6 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* Structural Section 2: Educational background */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                   <GraduationCap className="w-3.5 h-3.5" /> الخلفية الأكاديمية والتعليمية
@@ -782,7 +767,6 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* Structural Section 3: SkillUp Targeted Segment */}
               <div className="space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                   <Briefcase className="w-3.5 h-3.5" /> الرغبات والملاءمة الهيكلية للمبادرة
@@ -805,7 +789,6 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* External Documents References */}
               <div className="space-y-2">
                 <span className="text-xs font-bold text-zinc-400 block flex items-center gap-1">
                   <Link2 className="w-3 h-3" /> الروابط والملفات الخارجية المرفقة
@@ -826,7 +809,6 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* Essay Subsections Fields */}
               <div className="space-y-4">
                 <div className="grid gap-1">
                   <span className="text-xs font-bold text-zinc-400 flex items-center gap-1">
@@ -851,12 +833,11 @@ export default function AdminJoinRequestsPage() {
                     <FileText className="w-3 h-3" /> دافع ورسالة المتقدم (لماذا يريد التقديم في SkillUp؟)
                   </span>
                   <p className="bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-700 dark:text-zinc-300 p-3.5 rounded-xl border leading-relaxed whitespace-pre-wrap max-h-[120px] overflow-y-auto">
-                    {selected.message || "لا توجد رسالة تغطية مضافة."}
+                    {selected.message || "لا توجد رسالة تغطية مضافه."}
                   </p>
                 </div>
               </div>
 
-              {/* Administration internal evaluation core */}
               <div className="pt-4 border-t space-y-3 dark:border-zinc-800">
                 <label className="block text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   ملاحظات تقييم المقابلة والفرز الداخلي (تعديل وحفظ تلقائي للملف):
@@ -872,7 +853,6 @@ export default function AdminJoinRequestsPage() {
             </div>
           ) : null}
 
-          {/* Dialog Action Buttons Panel Footer */}
           <div className="p-4 bg-zinc-50 border-t flex flex-wrap items-center justify-between gap-3 px-6 dark:bg-zinc-900/60 dark:border-zinc-800">
             <span className="text-xs text-zinc-400 font-mono">تاريخ التقديم: {selected ? formatDateTime(selected.created_at) : "—"}</span>
             <div className="flex items-center gap-2">
@@ -896,7 +876,6 @@ export default function AdminJoinRequestsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Footer Meta Details */}
       <div className="border-t pt-4 border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400">
         <div className="flex items-center gap-1">
           <span>نطاق حماية البيانات مؤمن للآدمن. كود الفرز المركزي النشط:</span>
