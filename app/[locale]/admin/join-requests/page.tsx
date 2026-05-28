@@ -63,10 +63,18 @@ const ALLOWED = new Set([
   "ahmedyasserellisi@gmail.com"
 ]);
 
-const SECTOR_LABEL: Record<string, string> = Object.fromEntries(
-  SECTORS.map((s) => [s.slug, s.name_ar])
-);
+// ✅ تم تعديل المسميات لتطابق الـ Slugs الفعلية القادمة من الاستمارة والداتابيز
+const SECTOR_LABEL: Record<string, string> = {
+  hrm: "إدارة الموارد البشرية",
+  meal: "المتابعة والتقييم والتعلّم",
+  "digital-marketing": "التسويق والإعلام الرقمي",
+  logistics: "التنظيم والعمليات",
+  "sustainable-development": "التنمية المستدامة والشراكات",
+  "training-development": "التدريب والتطوير",
+  "culture-entertainment": "الثقافة والترفيه"
+};
 
+// ✅ قاموس ترجمة الحالات التعليمية للغة العربية
 const EDUCATION_LABEL: Record<string, string> = {
   student: "طالب",
   graduate: "خريج",
@@ -355,6 +363,7 @@ export default function AdminJoinRequestsPage() {
         "رقم الهاتف": cleanCell(r.phone),
         "المدينة": cleanCell(r.city),
         "السن": cleanCell(r.age),
+        // ✅ تم إدخال التعديل ليعرض النص العربي للتعليم بدلاً من الـ Slug
         "التعليم": EDUCATION_LABEL[r.education ?? ""] ?? cleanCell(r.education),
         "الجامعة": cleanCell(r.university),
         "سنة التخرج": cleanCell(r.graduation_year),
@@ -444,7 +453,7 @@ export default function AdminJoinRequestsPage() {
         ))}
       </div>
 
-      {/* Filters Accordion/Box */}
+      {/* Filters Box */}
       <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/50 shadow-sm backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300">
           <SlidersHorizontal className="w-4 h-4" />
@@ -587,6 +596,7 @@ export default function AdminJoinRequestsPage() {
                   </TableCell>
 
                   <TableCell className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {/* ✅ يقرأ الآن من الـ Slug الجديد بشكل صحيح وبدون أخطاء */}
                     {SECTOR_LABEL[r.sector_key] ?? r.sector_key}
                   </TableCell>
 
@@ -642,7 +652,7 @@ export default function AdminJoinRequestsPage() {
         </Table>
       </div>
 
-      {/* Shared Single Dialog Component (Outside the Loop for High Performance) */}
+      {/* Shared Single Dialog Component */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col p-6 rounded-xl" dir="rtl">
           <DialogHeader className="border-b pb-3">
