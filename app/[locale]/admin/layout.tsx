@@ -66,6 +66,12 @@ export default function AdminLayout({
             />
 
             <NavItem
+              href={`/${locale}/admin/stars`}
+              label={isAr ? "نجوم الشهر" : "Stars"}
+              pathname={pathname}
+            />
+
+            <NavItem
               href={`/${locale}/admin/events`}
               label={isAr ? "الفعاليات" : "Events"}
               pathname={pathname}
