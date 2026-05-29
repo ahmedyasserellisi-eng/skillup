@@ -51,8 +51,25 @@ import {
   Layers,
   Clock,
   MapPin,
-  ShieldAlert
+  ShieldAlert,
+  Compass,
+  Info
 } from "lucide-react";
+
+// قاموس حماية مركزي لضمان ترجمة كافة القطاعات للعربية حتى لو اختلف التكويد بالخلفية
+const SECTORS_TRANSLATION_MAP: Record<string, string> = {
+  "marketing-digital-media": "التسويق والإعلام الرقمي",
+  "human-resources": "الموارد البشرية",
+  "hr": "الموارد البشرية",
+  "logistics-organization": "اللوجستيات والتنظيم",
+  "logistics": "اللوجستيات والتنظيم",
+  "public-relations-partnerships": "العلاقات العامة والشراكات",
+  "pr": "العلاقات العامة والشراكات",
+  "it-web-development": "تكنولوجيا المعلومات وتطوير المواقع",
+  "it": "تكنولوجيا المعلومات وتطوير المواقع",
+  "coaching-education": "التدريب والتعليم",
+  "media-production-photography": "الإنتاج الإعلامي والتصوير"
+};
 
 const EGYPT_GOVERNORATES_MAP: Record<string, string> = {
   "cairo": "القاهرة", "giza": "الجيزة", "alexandria": "الإسكندرية", "dakahlia": "الدقهلية",
@@ -85,6 +102,7 @@ type JoinRequest = {
   sector_key: string;
   preferred_role: string | null;
   availability: string | null;
+  heard_about_us?: string | null;
   skills: string | null;
   experience: string | null;
   linkedin: string | null;
@@ -111,29 +129,39 @@ const STATUS_LABEL: Record<string, string> = {
   new: "جديد", in_review: "قيد المراجعة", contacted: "تم التواصل", accepted: "مقبول", rejected: "مرفوض"
 };
 
-function getSectorLabel(sectorKey: any, lang: "ar" | "en" = "ar"): string {
-  if (!sectorKey) return "غير محدد";
+function getSectorLabel(sectorKey: any): string {
+  if (!sectorKey) return "غير مححدد";
   const cleanKey = String(sectorKey).trim().toLowerCase();
+  
+  // الفحص الأول: من قاموس الحماية الداخلي لتفادي مشاكل الـ Slugs الإنجليزية
+  if (SECTORS_TRANSLATION_MAP[cleanKey]) {
+    return SECTORS_TRANSLATION_MAP[cleanKey];
+  }
+
+  // الفحص الثاني: محاولة جلب الاسم من الملف الخارجي الممرر
   const sector = SECTORS.find((s: any) => 
     String(s.slug).toLowerCase() === cleanKey || String(s.id).toLowerCase() === cleanKey
   ) as any;
-  if (!sector) return String(sectorKey);
-  if (lang === "ar") return sector.name_ar || sector.ar || sector.name || cleanKey;
-  return sector.name_en || sector.en || sector.name || cleanKey;
+
+  if (sector) {
+    return sector.name_ar || sector.ar || sector.name || cleanKey;
+  }
+  return cleanKey;
 }
 
 function getLeadershipInterestLabel(value: any): string {
-  if (value === null || value === undefined || value === "") return "غير محدد";
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === "yes" || normalized === "true" || normalized === "1" || normalized === "نعم") return "نعم";
-  if (normalized === "no" || normalized === "false" || normalized === "0" || normalized === "لا") return "لا";
-  return String(value);
+  if (value === null || value === undefined) return "غير محدد";
+  const str = String(value).trim().toLowerCase();
+  if (str === "") return "غير محدد";
+  if (str === "yes" || str === "true" || str === "نعم" || value === true) return "نعم";
+  if (str === "no" || str === "false" || str === "لا" || value === false) return "لا";
+  return str;
 }
 
 function getMemberStatusLabel(value: any): string {
   if (!value) return "غير محدد";
   const normalized = String(value).trim().toLowerCase();
-  if (normalized === "member" || normalized === "عضو") return "عضو متطوع";
+  if (normalized === "member" || normalized === "عضو") return "عضو";
   if (normalized === "leader" || normalized === "قائد") return "قائد / مسؤول";
   return String(value);
 }
@@ -147,31 +175,31 @@ function getStatusBadge(status?: string | null) {
   switch (v) {
     case "accepted":
       return (
-        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900 gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md shadow-none pointer-events-none">
+        <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900 gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md shadow-none pointer-events-none">
           <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> مقبول
         </Badge>
       );
     case "rejected":
       return (
-        <Badge className="bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900 gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md shadow-none pointer-events-none">
+        <Badge className="bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900 gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md shadow-none pointer-events-none">
           <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" /> مرفوض
         </Badge>
       );
     case "contacted":
       return (
-        <Badge className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900 gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md shadow-none pointer-events-none">
+        <Badge className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900 gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md shadow-none pointer-events-none">
           <PhoneCall className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> تم التواصل
         </Badge>
       );
     case "in_review":
       return (
-        <Badge className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900 gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md shadow-none pointer-events-none">
+        <Badge className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900 gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md shadow-none pointer-events-none">
           <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> قيد المراجعة
         </Badge>
       );
     default:
       return (
-        <Badge className="bg-zinc-100 text-zinc-700 border border-zinc-300/60 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700 gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md shadow-none pointer-events-none">
+        <Badge className="bg-zinc-100 text-zinc-700 border border-zinc-300/60 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700 gap-1.5 px-2.5 py-1 text-xs font-bold rounded-md shadow-none pointer-events-none">
           <UserPlus className="w-3.5 h-3.5 text-zinc-500 dark:text-zinc-400" /> جديد
         </Badge>
       );
@@ -210,7 +238,7 @@ function getGenderText(nationalId?: string | null, genderField?: string | null) 
   }
   if (!nationalId) return "غير محدد";
   const cleanId = nationalId.trim();
-  if (!/^\d{14}$/.test(cleanId)) return "غير مححدد";
+  if (!/^\d{14}$/.test(cleanId)) return "غير محدد";
   const genderDigit = parseInt(cleanId.charAt(12), 10);
   return genderDigit % 2 === 0 ? "أنثى" : "ذكر";
 }
@@ -305,7 +333,6 @@ export default function AdminJoinRequestsPage() {
       if (sector !== "all" && r.sector_key !== sector) return false;
       if (city !== "all" && normalizeCity(r.city) !== city) return false;
 
-      // أداء مثالي: اقتطاع النص مباشرة بدلاً من استدعاء كلاس الـ Date الثقيل في كل لفة فحص
       const createdDate = r.created_at ? r.created_at.slice(0, 10) : "";
       if (fromDate && createdDate < fromDate) return false;
       if (toDate && createdDate > toDate) return false;
@@ -319,7 +346,7 @@ export default function AdminJoinRequestsPage() {
         r.national_id ?? "",
         formatGovernorate(r.city),
         r.address ?? "",
-        getSectorLabel(r.sector_key, "ar"),
+        getSectorLabel(r.sector_key),
         r.skills ?? "",
         r.experience ?? "",
         r.university ?? "",
@@ -369,7 +396,6 @@ export default function AdminJoinRequestsPage() {
     if (error) {
       showNotification(`❌ فشل التحديث: ${error.message}`, "error");
     } else {
-      // تعديل الحالة محلياً بشكل فوري ودون إعادة جلب 1000 سجل من السيرفر
       setRows(prev => prev.map(item => item.id === selected.id ? { ...item, admin_status: newStatus, admin_notes: notes } : item));
       setSelected(prev => prev ? { ...prev, admin_status: newStatus, admin_notes: notes } : null);
       setOpen(false);
@@ -389,7 +415,6 @@ export default function AdminJoinRequestsPage() {
     if (error) {
       showNotification(`❌ خطأ: ${error.message}`, "error");
     } else {
-      // تعديل فوري محلي فائق السرعة
       setRows(prev => prev.map(item => item.id === row.id ? { ...item, admin_status: newStatus } : item));
       showNotification("✅ تم تحديث الحالة فورياً وعزل العملية بنجاح.", "success");
     }
@@ -405,7 +430,6 @@ export default function AdminJoinRequestsPage() {
     if (error) {
       showNotification(`❌ فشل الحذف: ${error.message}`, "error");
     } else {
-      // التطهير المحلي الفوري للسجل
       setRows(prev => prev.filter(item => item.id !== id));
       showNotification("✅ تم حذف السجل بالكامل من قاعدة البيانات محلياً وعالمياً.", "success");
     }
@@ -438,9 +462,10 @@ export default function AdminJoinRequestsPage() {
         "القسم / التخصص": cleanCell(r.department),
         "الفرقة الدراسية": cleanCell(r.grade),
         "سنة التخرج": cleanCell(r.graduation_year),
-        "القطاع المستهدف": getSectorLabel(r.sector_key, "ar"),
+        "القطاع المستهدف": getSectorLabel(r.sector_key),
         "الدور المفضل": cleanCell(r.preferred_role),
         "ساعات التفرغ": cleanCell(r.availability),
+        "عرفت عنا من خلال": cleanCell(r.heard_about_us),
         "المهارات والقدرات": cleanCell(r.skills),
         "الخبرات السابقة والأنشطة": cleanCell(r.experience),
         "رابط LinkedIn": cleanCell(r.linkedin),
@@ -455,11 +480,11 @@ export default function AdminJoinRequestsPage() {
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
       ws["!dir"] = "rtl"; 
       ws["!cols"] = [
-        { wch: 6 }, { wch: 28 }, { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 18 },
+        { wch: 6 }, { wch: 28 }, { wch: 22 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
         { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 8 }, { wch: 18 }, 
         { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, 
-        { wch: 20 }, { wch: 28 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, { wch: 30 }, 
-        { wch: 30 }, { wch: 45 }, { wch: 18 }, { wch: 35 }, { wch: 24 }
+        { wch: 20 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, 
+        { wch: 30 }, { wch: 30 }, { wch: 45 }, { wch: 18 }, { wch: 35 }, { wch: 24 }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -467,7 +492,7 @@ export default function AdminJoinRequestsPage() {
       const dateStr = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `SkillUp-Join-Requests-${dateStr}.xlsx`);
       
-      showNotification("✅ تم إنشاء وتنزيل تقرير Excel بنجاح وتوحيد البيانات باللغة العربية ومن اليمين لليسار.", "success");
+      showNotification("✅ تم إنشاء وتنزيل تقرير Excel بنجاح وتوحيد كافة البيانات بالعربية.", "success");
     } catch (e: any) {
       showNotification(`❌ حدث خطأ غير متوقع أثناء تصدير الملف: ${e?.message}`, "error");
     }
@@ -485,7 +510,6 @@ export default function AdminJoinRequestsPage() {
 
   const isBusy = (id: string) => actionLoadingId === id;
 
-  // حارس البوابة الرئيسي والآمن بالكامل (Security Gate UI Rendering)
   if (isAuthorized === false) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6 text-center" dir="rtl">
@@ -614,10 +638,10 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* الجدول المركزي المستقر والآمن تماماً من الـ Event Bubbling */}
+      {/* الجدول المركزي بعد ربط ضغطة السطر بالكامل مع عزل أحداث القائمة المنسدلة */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm overflow-hidden">
         <div className="p-4 bg-zinc-50/60 dark:bg-zinc-900/60 border-b dark:border-zinc-800 font-bold text-xs text-zinc-600 dark:text-zinc-400 flex items-center justify-between">
-          <span>جدول فرز طلبات المتقدمين المركزي</span>
+          <span>جدول فرز طلبات المتقدمين المركزي (اضغط على أي مكان بالسطر لعرض التفاصيل بالكامل)</span>
           <span className="bg-zinc-200/60 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2.5 py-1 rounded-md">{filtered.length} طلب مطابق</span>
         </div>
         <div className="overflow-x-auto">
@@ -646,19 +670,17 @@ export default function AdminJoinRequestsPage() {
                 </TableRow>
               ) : (
                 filtered.map((row) => (
-                  <TableRow key={row.id} className="hover:bg-zinc-50/40 dark:hover:bg-zinc-800/20 transition-colors">
-                    {/* هندسة عزل متقدمة: الاسم هو العنصر التفاعلي لفتح المودال مع أيقونة الرؤية لثبات الـ Click Map */}
-                    <TableCell className="py-3">
-                      <button 
-                        onClick={() => openDetails(row)}
-                        className="flex items-center gap-2 text-right font-bold text-zinc-900 dark:text-zinc-50 hover:text-emerald-600 dark:hover:text-emerald-400 group transition-colors focus:outline-none"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-zinc-300 group-hover:text-emerald-500 shrink-0 transition-colors" />
-                        <span>{row.full_name}</span>
-                      </button>
+                  <TableRow 
+                    key={row.id} 
+                    onClick={() => openDetails(row)}
+                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30 transition-colors cursor-pointer select-none"
+                  >
+                    <TableCell className="py-3 font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
+                      <Eye className="w-3.5 h-3.5 text-zinc-400" />
+                      <span>{row.full_name}</span>
                     </TableCell>
                     <TableCell className="text-xs font-black text-zinc-700 dark:text-zinc-300">
-                      {getSectorLabel(row.sector_key, "ar")}
+                      {getSectorLabel(row.sector_key)}
                     </TableCell>
                     <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">
                       {formatGovernorate(row.city)}
@@ -666,11 +688,11 @@ export default function AdminJoinRequestsPage() {
                     <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
                       {row.age ? `${row.age} سنة` : "غير محدد"} / {getGenderText(row.national_id, row.gender)}
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    <TableCell className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
                       {getMemberStatusLabel(row.member_status)}
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      <span className={String(row.leadership_interest).toLowerCase() === "yes" || String(row.leadership_interest).toLowerCase() === "true" ? "text-amber-600 dark:text-amber-400 font-bold" : "text-zinc-400"}>
+                    <TableCell className="text-xs font-bold">
+                      <span className={getLeadershipInterestLabel(row.leadership_interest) === "نعم" ? "text-amber-600 dark:text-amber-400 font-black" : "text-zinc-400"}>
                         {getLeadershipInterestLabel(row.leadership_interest)}
                       </span>
                     </TableCell>
@@ -680,7 +702,8 @@ export default function AdminJoinRequestsPage() {
                     <TableCell>
                       {getStatusBadge(row.admin_status)}
                     </TableCell>
-                    <TableCell className="text-center">
+                    {/* عزل حدث فتح المودال لمنع Ghost Clicks عند استخدام القائمة المنسدلة للإجراءات السريعة */}
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800">
@@ -701,7 +724,7 @@ export default function AdminJoinRequestsPage() {
                               rejected: "text-rose-600 dark:text-rose-400"
                             };
                             return (
-                              <DropdownMenuItem key={st} disabled={isBusy(row.id)} onClick={() => quickUpdateStatus(row, st)} className={`text-right font-medium cursor-pointer focus:bg-zinc-50 dark:focus:bg-zinc-800 ${colors[st]}`}>
+                              <DropdownMenuItem key={st} disabled={isBusy(row.id)} onClick={() => quickUpdateStatus(row, st)} className={`text-right font-bold cursor-pointer focus:bg-zinc-50 dark:focus:bg-zinc-800 ${colors[st]}`}>
                                 تحديث: {STATUS_LABEL[st]}
                               </DropdownMenuItem>
                             );
@@ -721,153 +744,254 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* نافذة المودال لعرض الملف بالكامل للمتقدم مع حقل العنوان بالتفصيل */}
+      {/* نافذة المودال الاحترافية لتقييم المتقدم (Premium HR Evaluation Dashboard Layout) */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 font-sans border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-xl" dir="rtl">
-          <DialogHeader className="text-right border-b pb-4 border-zinc-100 dark:border-zinc-800">
-            <DialogTitle className="text-xl font-black flex items-center gap-2">
-              <User className="w-5 h-5 text-emerald-600" />
-              <span>تفاصيل طلب الانضمام الكاملة</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-zinc-500 mt-1">
-              مراجعة البيانات الشخصية، المهنية، والأكاديمية للمتقدم وإدارة حالة الطلب.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl p-0 font-sans border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 shadow-2xl block" dir="rtl">
+          
+          {/* هيدر المودال الثابت */}
+          <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 p-5 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-t-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+                  {selected?.full_name}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-zinc-400 dark:text-zinc-500 font-medium mt-0.5">
+                  رقم طلب الانضمام المركزي الآلي: <span className="font-mono text-zinc-600 dark:text-zinc-400">{selected?.id?.slice(0, 8)}</span>
+                </DialogDescription>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <span className="text-[11px] font-mono text-zinc-400 pl-2">{selected && formatDateTime(selected.created_at)}</span>
+              {selected && getStatusBadge(selected.admin_status)}
+            </div>
+          </div>
 
           {selected && (
-            <div className="space-y-6 mt-4">
-              {/* البيانات الأساسية */}
-              <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
-                  <User className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> البيانات الأساسية والشخصية
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الاسم الكامل:</span> <span className="font-semibold">{selected.full_name}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الرقم القومي:</span> <span className="font-mono font-semibold">{selected.national_id || "غير محدد"}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">البريد الإلكتروني:</span> <span className="font-mono">{selected.email}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">رقم الهاتف:</span> <span className="font-mono">{selected.phone || "غير محدد"}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">المحافظة:</span> <span>{formatGovernorate(selected.city)}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">السن:</span> <span>{selected.age ? `${selected.age} سنة` : "غير محدد"}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">النوع:</span> <span className="font-medium text-zinc-900 dark:text-zinc-50">{getGenderText(selected.national_id, selected.gender)}</span></div>
-                  
-                  {/* عرض حقل العنوان المسترجع بالتفصيل */}
-                  <div className="md:col-span-2 bg-white dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200/50 flex items-start gap-1.5">
+            <div className="p-6 space-y-6">
+              
+              {/* القسم الأول: البيانات الشخصية */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
+                  <User className="w-4 h-4" /> البيانات الشخصية والاتصال
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">الرقم القومي (14 رقم):</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200 text-sm">{selected.national_id || "غير مسجل"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">رقم الهاتف:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200 text-sm" dir="ltr">{selected.phone || "غير مسجل"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">البريد الإلكتروني:</span>
+                    <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200 break-all">{selected.email}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">المحافظة:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{formatGovernorate(selected.city)}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">السن الحالي:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.age ? `${selected.age} عاماً` : "غير محدد"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">النوع:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{getGenderText(selected.national_id, selected.gender)}</span>
+                  </div>
+                  <div className="sm:col-span-2 md:col-span-3 bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 flex items-start gap-2 mt-1">
                     <MapPin className="w-4 h-4 text-zinc-400 mt-0.5 shrink-0" />
                     <div>
-                      <span className="text-zinc-400 dark:text-zinc-500 font-medium text-xs block">العنوان بالتفصيل المعين بسجلات المبادرة:</span>
-                      <span className="font-semibold text-xs text-zinc-800 dark:text-zinc-200">{selected.address || "غير محدد بالتفصيل"}</span>
+                      <span className="text-zinc-400 text-[11px] block font-medium">العنوان بالتفصيل المعين بسجلات المبادرة:</span>
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.address || "لم يتم تعيين عنوان تفصيلي"}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* الخلفية التعليمية */}
-              <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
-                  <GraduationCap className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> الخلفية التعليمية والأكاديمية
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الحالة التعليمية:</span> <strong className="font-semibold">{EDUCATION_LABEL[selected.education ?? ""] || selected.education || "غير محدد"}</strong></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الجامعة / المعهد:</span> <span className="font-semibold">{selected.university || "غير محدد"}</span></div>
-                  {selected.faculty && <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الكلية:</span> <span className="font-semibold">{selected.faculty}</span></div>}
-                  {selected.department && <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">القسم / التخصص:</span> <span className="font-semibold">{selected.department}</span></div>}
-                  {selected.grade && <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الفرقة الدراسية:</span> <span className="font-semibold">{selected.grade}</span></div>}
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">سنة التخرج:</span> <span className="font-mono font-semibold">{selected.graduation_year || "غير محدد"}</span></div>
-                </div>
-              </div>
-
-              {/* التفضيلات والقطاع المستهدف بالهيكلة */}
-              <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
-                  <Briefcase className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> التفضيلات والقطاع المستهدف بالهيكلة
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">القطاع المختار:</span> <strong className="text-emerald-700 dark:text-emerald-400 font-black">{getSectorLabel(selected.sector_key, "ar")}</strong></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الدور أو المسؤولية المفضلة:</span> <strong className="text-zinc-900 dark:text-zinc-100 font-semibold">{selected.preferred_role || "غير محدد"}</strong></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">ساعات التفرغ المتاحة:</span> <span>{selected.availability || "غير محدد"}</span></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">صفة العضوية:</span> <strong className="text-blue-600 dark:text-blue-400 font-bold">{getMemberStatusLabel(selected.member_status)}</strong></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium">الرغبة في دور قيادي:</span> <strong className="text-amber-600 dark:text-amber-400 font-bold">{getLeadershipInterestLabel(selected.leadership_interest)}</strong></div>
-                </div>
-              </div>
-
-              {/* المهارات والخبرات */}
-              <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
-                  <FileText className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> المهارات والخبرات السابقة
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1">المهارات والقدرات:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.skills || "لا يوجد"}</p></div>
-                  <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1"> الخبرات السابقة والأنشطة:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.experience || "لا يوجد"}</p></div>
-                  {selected.message && <div><span className="text-zinc-400 dark:text-zinc-500 font-medium block mb-1">رسالة المتقدم الموجهة للإدارة:</span> <p className="bg-white dark:bg-zinc-900 p-2.5 rounded-lg border border-zinc-100 dark:border-zinc-800 whitespace-pre-wrap text-xs font-medium text-zinc-700 dark:text-zinc-300">{selected.message}</p></div>}
+              {/* القسم الثاني: المسار الأكاديمي والتعليمي */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
+                  <GraduationCap className="w-4 h-4" /> الحالة الأكاديمية والتعليمية
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">المستوى التعليمي الحالي:</span>
+                    <span className="font-bold text-zinc-900 dark:text-zinc-50 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">{EDUCATION_LABEL[selected.education ?? ""] || selected.education || "غير محدد"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">الجامعة / المعهد:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.university || "غير محدد"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">الكلية:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.faculty || "غير محدد"}</span>
+                  </div>
+                  {selected.department && (
+                    <div>
+                      <span className="text-zinc-400 block mb-0.5">القسم / التخصص الداخلي:</span>
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.department}</span>
+                    </div>
+                  )}
+                  {selected.grade && (
+                    <div>
+                      <span className="text-zinc-400 block mb-0.5">الفرقة الدراسية الحالية:</span>
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.grade}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">سنة التخرج المتوقعة/الفعلية:</span>
+                    <span className="font-mono font-bold text-zinc-800 dark:text-zinc-200">{selected.graduation_year || "غير محدد"}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* المرفقات والروابط */}
-              <div className="grid gap-3 bg-zinc-50/50 dark:bg-zinc-950/40 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                <div className="font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 border-b dark:border-zinc-800 pb-1.5 text-xs">
-                  <Link2 className="w-4 h-4 text-zinc-400 dark:text-zinc-500" /> الروابط والملفات المرفقة
+              {/* القسم الثالث: خيارات التطوع ورغبات الهيكلة */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
+                  <Briefcase className="w-4 h-4" /> تفضيلات التعيين ورغبات الهيكلة التابعة للمبادرة
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
+                  <div className="sm:col-span-2 md:col-span-1 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
+                    <span className="text-emerald-700 dark:text-emerald-400 block mb-0.5 font-medium">القطاع المستهدف والمختار:</span>
+                    <span className="font-black text-emerald-800 dark:text-emerald-300 text-sm">{getSectorLabel(selected.sector_key)}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">الدور أو المسؤولية المفضلة:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.preferred_role || "غير محدد"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">عدد ساعات التفرغ المتاحة أسبوعياً:</span>
+                    <span className="font-bold text-zinc-800 dark:text-zinc-200">{selected.availability || "غير محدد"}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">صفة العضوية المطلوبة:</span>
+                    <span className="font-black text-zinc-900 dark:text-zinc-50 bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-md">{getMemberStatusLabel(selected.member_status)}</span>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 block mb-0.5">هل يمتلك المتقدم رغبة في دور قيادي؟</span>
+                    <span className={`px-2 py-0.5 rounded-md font-black ${getLeadershipInterestLabel(selected.leadership_interest) === "نعم" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"}`}>
+                      {getLeadershipInterestLabel(selected.leadership_interest)}
+                    </span>
+                  </div>
+                  {selected.heard_about_us && (
+                    <div>
+                      <span className="text-zinc-400 block mb-0.5">قناة الوصول والتسويق للمبادرة:</span>
+                      <span className="font-medium text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                        <Compass className="w-3.5 h-3.5 shrink-0" /> {selected.heard_about_us}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              </div>
+
+              {/* القسم الرابع: تحليل المهارات والخبرات */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
+                  <FileText className="w-4 h-4" /> القدرات التقنية والتحليل السلوكي للخبرات
+                </h3>
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <span className="text-zinc-400 font-bold block mb-1">المهارات والأدوات والقدرات الشخصية:</span>
+                    <p className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/60 whitespace-pre-wrap font-medium text-zinc-700 dark:text-zinc-300 leading-relaxed text-[11px]">
+                      {selected.skills || "لا توجد مهارات مسجلة."}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-zinc-400 font-bold block mb-1">الخبرات السابقة والأنشطة التطوعية/العملية:</span>
+                    <p className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/60 whitespace-pre-wrap font-medium text-zinc-700 dark:text-zinc-300 leading-relaxed text-[11px]">
+                      {selected.experience || "لا توجد خبرات سابقة مسجلة."}
+                    </p>
+                  </div>
+                  {selected.message && (
+                    <div>
+                      <span className="text-zinc-400 font-bold block mb-1">رسالة المتقدم الموجهة للجنة الفرز والتقييم:</span>
+                      <p className="bg-zinc-50 dark:bg-zinc-950 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800/60 whitespace-pre-wrap font-medium text-zinc-700 dark:text-zinc-300 leading-relaxed text-[11px]">
+                        {selected.message}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* القسم الخامس: الملفات والمرفقات الخارجية */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
+                  <Link2 className="w-4 h-4" /> المرفقات الرقمية والروابط الموثقة للملف الشخصي
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-semibold">
+                  {selected.resume_url ? (
+                    <a href={selected.resume_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-emerald-50 hover:bg-emerald-100/70 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50 rounded-xl border border-emerald-100 dark:border-emerald-900/40 transition">
+                      📄 عرض السيرة الذاتية الرسمية للمتقدم (CV Drive)
+                    </a>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2.5 bg-zinc-50 text-zinc-400 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800 pointer-events-none">
+                      ⚠️ لم يقم المتقدم برفع ملف السيرة الذاتية
+                    </div>
+                  )}
+
+                  {selected.portfolio && (
+                    <a href={selected.portfolio} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-purple-50 hover:bg-purple-100/70 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 dark:hover:bg-purple-950/50 rounded-xl border border-purple-100 dark:border-purple-900/40 transition">
+                      🎨 رابط معرض الأعمال التخصصي Portfolio
+                    </a>
+                  )}
                   {selected.linkedin && (
-                    <a href={selected.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-100 dark:border-zinc-800 text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                      🔗 حساب LinkedIn الخاص بالمتقدم
+                    <a href={selected.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-blue-50 hover:bg-blue-100/70 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-950/50 rounded-xl border border-blue-100 dark:border-blue-900/40 transition">
+                      🔗 زيارة حساب المتقدم على شبكة LinkedIn
                     </a>
                   )}
                   {selected.facebook && (
-                    <a href={selected.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-100 dark:border-zinc-800 text-blue-800 dark:text-blue-300 hover:underline font-medium">
-                      🔵 حساب Facebook الخاص بالمتقدم
-                    </a>
-                  )}
-                  {selected.portfolio && (
-                    <a href={selected.portfolio} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-100 dark:border-zinc-800 text-purple-600 dark:text-purple-400 hover:underline font-medium">
-                      🎨 رابط معرض الأعمال Portfolio
-                    </a>
-                  )}
-                  {selected.resume_url && (
-                    <a href={selected.resume_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-100 dark:border-zinc-800 text-emerald-600 dark:text-emerald-400 hover:underline font-medium">
-                      📄 رابط السيرة الذاتية (CV Drive)
+                    <a href={selected.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700/60 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 transition">
+                      🔵 زيارة الملف الشخصي على منصة Facebook
                     </a>
                   )}
                   {selected.profile_picture_url && (
-                    <a href={selected.profile_picture_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 p-2 bg-white dark:bg-zinc-950 rounded-lg border border-zinc-100 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:underline font-medium">
-                      🖼️ عرض الصورة الشخصية للمتقدم
+                    <a href={selected.profile_picture_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-amber-50 hover:bg-amber-100/70 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50 rounded-xl border border-amber-100 dark:border-amber-900/40 transition sm:col-span-2">
+                      🖼️ فتح وعرض الصورة الشخصية الرسمية المرفقة
                     </a>
                   )}
                 </div>
               </div>
 
-              {/* الملاحظات واتخاذ القرار */}
-              <div className="border-t pt-4 space-y-4">
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">ملاحظات لجنة الفرز والتقييم الداخلي:</span>
+              {/* القسم السادس والأخير: اتخاذ القرار الإداري والملاحظات */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-300 dark:border-zinc-800 p-5 shadow-md space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                    <Info className="w-4 h-4 text-zinc-400" /> ملاحظات لجنة المتابعة والتقييم الداخلي (MEAL):
+                  </label>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="اكتب ملاحظاتك الإدارية هنا حول المتقدم للرجوع إليها لاحقاً..."
-                    className="w-full min-h-[80px] p-3 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-800 dark:text-zinc-200 resize-y"
+                    placeholder="اكتب ملاحظات التقييم، التقييم السلوكي، المقابلة أو أسباب الاستبعاد هنا للرجوع إليها لاحقاً برمجياً..."
+                    className="w-full min-h-[100px] p-3 text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-800 dark:text-zinc-200 resize-y font-medium leading-relaxed"
                   />
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-950/50 p-3 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-medium">
-                    <span>الحالة الحالية:</span>
+                
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-3 border-t dark:border-zinc-800">
+                  <div className="text-xs text-zinc-500 font-bold flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5 rounded-lg border dark:border-zinc-800 w-full md:w-auto">
+                    <span>حالة الطلب الإدارية الحالية:</span>
                     {getStatusBadge(selected.admin_status)}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")} className="text-xs h-9 rounded-xl font-bold border-blue-100 dark:border-blue-900 text-blue-600 dark:text-blue-400 bg-white dark:bg-zinc-950 hover:bg-blue-50 dark:hover:bg-blue-950/20">
+                  <div className="flex flex-wrap items-center gap-2 justify-end w-full md:w-auto">
+                    <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("in_review")} className="text-xs h-9 rounded-xl font-bold border-blue-200 text-blue-600 bg-white dark:bg-zinc-950 hover:bg-blue-50 dark:hover:bg-blue-950/20">
                       قيد المراجعة
                     </Button>
-                    <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("contacted")} className="text-xs h-9 rounded-xl font-bold text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/50 bg-white dark:bg-zinc-950 hover:bg-amber-50 dark:hover:bg-amber-950/20">
+                    <Button size="sm" variant="outline" disabled={saving} onClick={() => updateStatus("contacted")} className="text-xs h-9 rounded-xl font-bold text-amber-600 border-amber-200 bg-white dark:bg-zinc-950 hover:bg-amber-50 dark:hover:bg-amber-950/20">
                       تم التواصل
                     </Button>
-                    <Button size="sm" variant="destructive" disabled={saving} onClick={() => updateStatus("rejected")} className="text-xs h-9 rounded-xl font-bold">
-                      استبعاد / رفض
+                    <Button size="sm" variant="destructive" disabled={saving} onClick={() => updateStatus("rejected")} className="text-xs h-9 rounded-xl font-bold px-4">
+                      استبعاد الطلب
                     </Button>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white text-xs h-9 rounded-xl font-bold shadow-sm" disabled={saving} onClick={() => updateStatus("accepted")}>
-                      قبول وتعيين المتقدم
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white text-xs h-9 rounded-xl font-bold shadow-md px-5" disabled={saving} onClick={() => updateStatus("accepted")}>
+                      قبول وتعيين المتطوع
                     </Button>
                   </div>
                 </div>
               </div>
+
             </div>
           )}
         </DialogContent>
