@@ -4,13 +4,11 @@ import { setRequestLocale } from "next-intl/server";
 import JoinForm from "./join-form";
 import type { Metadata } from "next";
 
-// تعريف الأنواع بدقة لضمان استقرار الـ Typescript بالكامل
 type Props = {
   params: Promise<{ locale: string }>;
   searchParams: Promise<{ sector?: string }>;
 };
 
-// تحسين الأداء وتهيئة السيو (SEO) بشكل ديناميكي للغتين بناءً على الـ Locale
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
   const isAr = locale === "ar";
@@ -29,27 +27,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-// المكون الرئيسي للصفحة مع معالجة الـ Promises بطريقة Next.js الآمنة
 export default async function JoinPage({ params, searchParams }: Props) {
-  // استقبال الـ params والـ searchParams بشكل غير متزامن (Async) لضمان التوافق الكامل
   const { locale } = await params;
   const { sector } = await searchParams;
 
-  // التحقق الصارم من أن اللغة الممررة مدعومة في نظام i18n
   if (!locales.includes(locale as Locale)) {
     notFound();
   }
 
-  const safeLocale = locale as Locale;
-  
-  // تفعيل الاستهلاك الساكن والمستقر للغات داخل مكونات الخادم
-  setRequestLocale(safeLocale);
+  // تفعيل دالة الترجمة المستقرة في السيرفر لـ Next.js 15
+  setRequestLocale(locale);
 
-  // إرجاع الفورم بكامل خصائصه ومميزاته مع تمرير القطاع الافتراضي إن وجد
   return (
-    <JoinForm 
-      locale={safeLocale} 
-      presetSector={sector ?? ""} 
-    />
+    <JoinForm locale={locale as "ar" | "en"} presetSector={sector || ""} />
   );
 }
