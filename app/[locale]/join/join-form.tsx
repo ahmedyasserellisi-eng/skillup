@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type Props = {
   locale: "ar" | "en";
@@ -14,12 +13,12 @@ type FormState = {
   phone: string;
   national_id: string;
   city: string;
-  address: string;
+  address: string; // <-- تم إضافة العنوان هنا
   age: string;
   gender: string;
   member_status: string; 
   leadership_interest: string;
-  education: string;
+  education: string; 
   grade: string;
   university: string;
   faculty: string; 
@@ -43,45 +42,43 @@ type FormState = {
   hidden_honey: string;
 };
 
-// المصفوفة المركزية الموحدة لضمان التوافق التام مع لوحة الإدارة والفرز
 const SECTORS_LIST = [
-  { slug: "hrm", ar: "إدارة الموارد البشرية", en: "Human Resources Management" },
-  { slug: "meal", ar: "التخطيط الاستراتيجي والمتابعة والتقييم", en: "Strategic Planning & MEAL" },
-  { slug: "digital-marketing", ar: "التسويق والإعلام الرقمي", en: "Marketing & Digital Media" },
-  { slug: "logistics", ar: "التنظيم واللوجيستيات", en: "Logistics & Organization" },
+  { slug: "marketing-digital-media", ar: "التسويق والإعلام الرقمي", en: "Marketing & Digital Media" },
+  { slug: "human-resources", ar: "إدارة الموارد البشرية", en: "Human Resources Management" },
+  { slug: "strategic-planning", ar: "التخطيط الاستراتيجي", en: "Strategic Planning" },
   { slug: "sustainable-development", ar: "التنمية المستدامة", en: "Sustainable Development" },
-  { slug: "training-development", ar: "التدريب والتطوير المهني", en: "Training & Professional Development" },
-  { slug: "culture-entertainment", ar: "الترفيه والثقافة", en: "Entertainment & Culture" }
+  { slug: "logistics-organization", ar: "التنظيم واللوجيستيات", en: "Logistics & Organization" },
+  { slug: "entertainment-culture", ar: "الترفيه والثقافة", en: "Entertainment & Culture" },
+  { slug: "training-development", ar: "التدريب والتطوير المهني", en: "Training & Professional Development" }
 ];
 
-// قائمة محافظات جمهورية مصر العربية كاملة بدون إسقاط
 const EGYPT_GOVERNORATES = [
-  { ar: "القاهرة", en: "Cairo" },
-  { ar: "الجيزة", en: "Giza" },
+  { ar: "القاهرة", en: "Cairo" }, 
+  { ar: "الجيزة", en: "Giza" }, 
   { ar: "الإسكندرية", en: "Alexandria" },
-  { ar: "الدقهلية", en: "Dakahlia" },
-  { ar: "البحر الأحمر", en: "Red Sea" },
+  { ar: "الدقهلية", en: "Dakahlia" }, 
+  { ar: "البحر الأحمر", en: "Red Sea" }, 
   { ar: "البحيرة", en: "Beheira" },
-  { ar: "الفيوم", en: "Fayoum" },
-  { ar: "الغربية", en: "Gharbia" },
+  { ar: "الفيوم", en: "Fayoum" }, 
+  { ar: "الغربية", en: "Gharbia" }, 
   { ar: "الإسماعيلية", en: "Ismailia" },
-  { ar: "المنوفية", en: "Monufia" },
-  { ar: "المنيا", en: "Minya" },
+  { ar: "المنوفية", en: "Monufia" }, 
+  { ar: "المنيا", en: "Minya" }, 
   { ar: "القليوبية", en: "Qalyubia" },
-  { ar: "الوادي الجديد", en: "New Valley" },
-  { ar: "السويس", en: "Suez" },
+  { id: "الوادي الجديد", ar: "الوادي الجديد", en: "New Valley" }, 
+  { ar: "السويس", en: "Suez" }, 
   { ar: "الشرقية", en: "Sharqia" },
-  { ar: "أسوان", en: "Aswan" },
-  { ar: "أسيوط", en: "Asyut" },
+  { ar: "أسوان", en: "Aswan" }, 
+  { ar: "أسيوط", en: "Asyut" }, 
   { ar: "بني سويف", en: "Beni Suef" },
-  { ar: "بورسعيد", en: "Port Said" },
-  { ar: "دمياط", en: "Damietta" },
+  { ar: "بورسعيد", en: "Port Said" }, 
+  { ar: "دمياط", en: "Damietta" }, 
   { ar: "جنوب سيناء", en: "South Sinai" },
-  { ar: "كفر الشيخ", en: "Kafr El Sheikh" },
-  { ar: "مطروح", en: "Matrouh" },
+  { ar: "كفر الشيخ", en: "Kafr El Sheikh" }, 
+  { ar: "مطروح", en: "Matrouh" }, 
   { ar: "الأقصر", en: "Luxor" },
-  { ar: "قنا", en: "Qena" },
-  { ar: "شمال سيناء", en: "North Sinai" },
+  { ar: "قنا", en: "Qena" }, 
+  { ar: "شمال سيناء", en: "North Sinai" }, 
   { ar: "سوهاج", en: "Sohag" }
 ];
 
@@ -101,530 +98,672 @@ function getSafeSectorKey(value: string) {
 export default function JoinForm({ locale, presetSector }: Props) {
   const isAr = locale === "ar";
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
 
   const t = useMemo(() => {
     const ar = {
       title: "انضم إلى فريق SkillUp",
       sub: "املأ النموذج بدقة، وسيقوم فريق المتابعة والتقييم بمراجعة طلبك وتحديد المسار الأنسب لك.",
-      section1: "البيانات الأساسية للمتقدم",
+      section1: "البيانات الأساسية",
       section2: "الخلفية التعليمية والمهنية",
-      section3: "التفضيلات والاهتمامات داخل المبادرة",
-      section4: "الروابط ورسالة الدوافع وإقرار الجدية",
-      name: "الاسم الكامل (رباعي كما هو بالبطاقة)",
-      email: "البريد الإلكتروني الحالي",
-      phone: "رقم الهاتف (واتساب فعّال)",
-      nationalId: "الرقم القومي (14 رقم بالكامل)",
+      section3: "التفضيلات والاهتمامات",
+      section4: "رسالتك وإقرار الجدية",
+      name: "الاسم الكامل",
+      email: "البريد الإلكتروني",
+      phone: "رقم الهاتف",
+      nationalId: "الرقم القومي (14 رقم)",
       city: "المحافظة",
-      address: "العنوان الحالي بالتفصيل (المركز / الحي / الشارع)",
+      address: "العنوان بالتفصيل", // <-- ترجمة العنوان عربي
       age: "العمر",
       gender: "النوع",
-      memberStatus: "صفة العضوية المرغوبة",
-      leadershipInterest: "هل لديك رغبة في تولي مناصب قيادية مستقبلاً؟",
+      memberStatus: "صفة العضوية",
+      leadershipInterest: "الرغبة في القيادة",
       education: "الحالة التعليمية الحالية",
-      grade: "الفرقة الدراسية أو الصف",
-      university: "الجامعة / المعهد التعليمي",
-      faculty: "الكلية / المدرسة",
-      department: "التخصص الدراسي / القسم",
-      postgradInfo: "بيانات وتخصص الدراسات العليا (إن وجد)",
+      grade: "الفرقة الدراسية",
+      university: "الجامعة / المعهد",
+      faculty: "الكلية",
+      department: "القسم",
+      postgradInfo: "بيانات الدراسات العليا (إن وجد)",
       graduation: "سنة التخرج",
-      profilePicture: "رابط الصورة الشخصية (يرجى رفعها على Google Drive ووضع الرابط هنا بشكل عام)",
-      sector: "القطاع الرئيسي المراد الانضمام إليه",
-      role: "الدور أو المسؤولية المفضلة لديك داخل القطاع",
-      availability: "عدد الساعات المتاحة للتطوع أسبوعياً",
-      heardAboutUs: "كيف تعرفت على مبادرة SkillUp؟",
-      skills: "المهارات الأساسية التي تتقنها (التقنية والشخصية)",
-      experience: "الخبرات السابقة، المبادرات، أو الأنشطة الطلابية التي شاركت بها بالتفصيل",
-      linkedin: "رابط حساب لينكد إن الخاص بك (اختياري)",
-      facebook: "رابط حساب فيسبوك الخاص بك (اختياري)",
-      portfolio: "رابط معرض أعمالك Portfolio / Behance / GitHub (اختياري)",
-      resumeUrl: "رابط السيرة الذاتية CV (يرجى رفعه على Google Drive ووضع الرابط مفتوحاً للجميع)",
-      message: "لماذا ترغب في الانضمام إلى مبادرة SkillUp تحديداً؟ وماذا تتوقع منا؟",
-      consent: "أقر وأتعهد بأن جميع البيانات والمعلومات المسجلة أعلاه صحيحة تماماً وعلى مسؤوليتي الشخصية، وأوافق على قيام فريق التقييم بالتواصل معي عبر الهاتف أو الواتساب.",
-      submit: "إرسال طلب الانضمام الرسمي",
-      next: "الخطوة التالية",
-      prev: "الرجوع للخلف",
-      stepOf: "الخطوة {step} من أصل 4 خطوات",
-      sending: "جاري تشفير وإرسال البيانات بأمان...",
-      ok: "تم تسجيل وتأمين بياناتك بنجاح! سيقوم فريق المتابعة والتقييم (MEAL) بالاتصال بك في أقرب وقت.",
-      anotherResponse: "إرسال طلب جديد باسم آخر",
-      errRequired: "برجاء التأكد من ملء جميع الحقول الإجبارية التي تحتوي على علامة (*) قبل الانتقال.",
-      errEmail: "البريد الإلكتروني المكتوب غير صحيح، يرجى كتابته بشكل سليم (اسم@نطاق.كوم).",
-      errNationalId: "الرقم القومي غير صحيح، يجب أن يتكون من 14 رقماً كاملاً بدون أي حروف.",
-      errAge: "العمر غير منطقي، يرجى إدخال عمر صحيح يقع بين 15 و 70 عاماً.",
-      selectGovernorate: "اختر المحافظة من القائمة",
-      selectOption: "اختر الخيار المناسب...",
+      profilePicture: "رابط الصورة الشخصية (يرجى رفعها على Drive ووضع الرابط)",
+      sector: "القطاع المراد الانضمام إليه",
+      role: "الدور أو المسؤولية المفضلة",
+      availability: "الوقت المتاح أسبوعياً",
+      heardAboutUs: "كيف سمعت عنا؟",
+      skills: "المهارات الأساسية",
+      experience: "خبرات أو أنشطة سابقة",
+      linkedin: "رابط حساب لينكد إن (اختياري)",
+      facebook: "رابط حساب فيس بوك (اختياري)",
+      portfolio: "رابط معرض الأعمال Portfolio (اختياري)",
+      resumeUrl: "رابط السيرة الذاتية (يرجى رفعها على Drive ووضع الرابط - اختياري)",
+      message: "لماذا ترغب في الانضمام إلى SkillUp؟",
+      consent: "أقر بأن جميع البيانات المسجلة صحيحة وأوافق على تواصل الفريق معي لتقييم الطلب.",
+      submit: "إرسال طلب الانضمام",
+      next: "التالي",
+      prev: "السابق",
+      stepOf: "خطوة {step} من 4",
+      sending: "جاري إرسال البيانات...",
+      ok: "تم تسجيل البيانات بنجاح وهنتواصل معاك قريباً.",
+      anotherResponse: "إرسال رد آخر (فورم جديد)",
+      errRequired: "برجاء استكمال جميع الحقول الإجبارية المعلّمة بنجمة (*).",
+      errEmail: "يرجى إدخال بريد إلكتروني صحيح بشكل سليم.",
+      errNationalId: "الرقم القومي غير صحيح، يجب أن يتكون من 14 رقماً بالضبط.",
+      errAge: "يرجى إدخال عمر منطقي وصحيح (بين 15 و 70 سنة).",
+      selectGovernorate: "اختر المحافظة",
+      selectOption: "اختر من القائمة...",
       genderOptions: { male: "ذكر", female: "أنثى" },
-      memberOptions: { member: "عضو متطوع (ترغب في التعلم والمشاركة)", expert: "خبير وموجه (لديك خبرة عملية سابقة في المجال)" },
-      leadershipOptions: { ready: "نعم، أرغب وجاهز تماماً لتولي مسؤولية وإدارة فريق", learning: "في الوقت الحالي أرغب في العمل كعضو وصقل مهاراتي أولاً" },
-      educationOptions: { student: "طالب جامعي", graduate: "خريج", postgrad: "طالب دراسات عليا (ماجستير/دبلومة)", school: "طالب في المرحلة الثانوية" },
-      gradeOptions: { g1: "الفرقة الأولى / الصف الأول", g2: "الفرقة الثانية / الصف الثاني", g3: "الفرقة الثالثة / الصف الثالث", g4: "الفرقة الرابعة / الصف الرابع", g5: "الفرقة الخامسة", g6: "الفرقة السادسة / السابعة", grad: "خريج بالفعل" },
-      heardOptions: { facebook: "منصة فيسبوك (Facebook)", linkedin: "منصة لينكد إن (LinkedIn)", friend: "عن طريق ترشيح من صديق أو زميل", university: "ندوة أو إعلان داخل الجامعة", other: "وسائل وأماكن أخرى" },
+      memberOptions: { member: "عضو", expert: "خبير (لديك خبرة كبيرة)" },
+      leadershipOptions: { ready: "أرغب وجاهز لتولي مسؤولية قيادية", learning: "بأهل نفسي لسه" },
+      educationOptions: { student: "طالب جامعي", graduate: "خريج", postgrad: "طالب دراسات عليا", school: "طالب ثانوي" },
+      gradeOptions: { g1: "الأولى", g2: "الثانية", g3: "الثالثة", g4: "الرابعة", g5: "الخامسة", g6: "السابعة", grad: "خريج" },
+      heardOptions: { facebook: "فيسبوك", linkedin: "لينكد إن", friend: "ترشيح من صديق", university: "الجامعة", other: "أخرى" },
       placeholders: {
-        name: "اكتب اسمك كاملاً كما هو مدون في بطاقة الرقم القومي",
-        id: "أدخل الـ 14 رقماً من اليسار إلى اليمين باللغة الإنجليزية",
-        phone: "رقم الموبايل المربوط بحساب الواتساب الخاص بك",
-        address: "اكتب اسم المدينة، الشارع، ورقم العقار إن وجد لسهولة التواصل والتوزيع الجغرافي",
-        university: "مثال: جامعة القاهرة / جامعة عين شمس / معهد تكنولوجي",
-        faculty: "مثال: كلية الهندسة / كلية التجارة / كلية الآداب",
-        department: "مثال: قسم نظم المعلومات / قسم المحاسبة / عام",
-        postgrad: "اكتب التخصص الأكاديمي الحالي للدراسات العليا",
+        name: "اكتب اسمك الرباعي كما هو في البطاقة الشخصية",
+        id: "14 رقم مكتوب بالبطاقة",
+        phone: "01xxxxxxxxx",
+        address: "اكتب العنوان الحالي بالتفصيل (المركز / المدينة / الشارع)", // <-- Placeholder عربي
+        university: "مثال: جامعة القاهرة / معهد ...",
+        faculty: "مثال: كلية الهندسة / كلية التجارة",
+        department: "مثال: قسم حاسبات / قسم محاسبة / عام",
+        postgrad: "اكتب التخصص الدراسي الحالي أو الدبلومة إن وجد",
         url: "https://drive.google.com/...",
-        role: "مثال: صانع محتوى / منسق علاقات عامة / مدرب محترف / مصمم جرافيك",
-        availability: "مثال: 12 ساعة أسبوعياً موزعة على أيام معينة",
-        skills: "اكتب كل المهارات البرمجية، التنظيمية، اللغوية، أو الشخصية التي تمتلكها وتود استغلالها",
-        experience: "اذكر الأماكن، الشركات، المبادرات، أو الأنشطة الطلابية التي عملت بها سابقاً بالتفصيل والمسمى الوظيفي الخاص بك",
-        message: "عبر بكلماتك عن شغفك، أهدافك، وما الذي يمكن أن تضيفه لفريق سكيل أب عند قبولك"
+        role: "مثال: صانع محتوى / منسق ميداني / مدرب / محلل بيانات",
+        availability: "مثال: 10 ساعات أسبوعيًا أو الأيام المتاحة",
+        skills: "اكتب أهم المهارات التقنية أو الشخصية التي تتقنها",
+        experience: "اذكر المبادرات أو الأنشطة الطلابية أو الأعمال السابقة بالتفصيل",
+        message: "اكتب تطلعاتك من الانضمام والقطاع والسبب الرئيسي لرغبتك"
       }
     };
+
     const en = {
       title: "Join SkillUp Team",
       sub: "Fill out the form accurately, and the MEAL team will review your application to determine the best path for you.",
       section1: "Basic Information",
       section2: "Educational & Professional Background",
-      section3: "Preferences & Interests within the Initiative",
-      section4: "Links, Motivation Letter & Consent",
-      name: "Full Name (As in National ID)",
-      email: "Current Email Address",
-      phone: "Phone Number (Active WhatsApp)",
+      section3: "Preferences & Interests",
+      section4: "Your Message & Consent",
+      name: "Full Name",
+      email: "Email Address",
+      phone: "Phone Number",
       nationalId: "National ID (14 digits)",
       city: "Governorate",
-      address: "Detailed Current Address (City / District / Street)",
+      address: "Detailed Address", // <-- ترجمة العنوان إنجليزي
       age: "Age",
       gender: "Gender",
-      memberStatus: "Desired Membership Status",
-      leadershipInterest: "Do you have a desire to hold leadership positions in the future?",
+      memberStatus: "Membership Status",
+      leadershipInterest: "Leadership Interest",
       education: "Current Educational Status",
       grade: "Academic Year / Grade",
-      university: "University / Educational Institute",
-      faculty: "Faculty / School",
-      department: "Academic Department / Major",
-      postgradInfo: "Postgraduate Details (If applicable)",
+      university: "University / Institute",
+      faculty: "Faculty",
+      department: "Department",
+      postgradInfo: "Postgraduate Info (Optional)",
       graduation: "Graduation Year",
-      profilePicture: "Profile Picture URL (Please upload to Google Drive and set link to public)",
-      sector: "Main Sector You Wish to Join",
-      role: "Preferred Role or Responsibility within the Sector",
-      availability: "Available Volunteering Hours per Week",
-      heardAboutUs: "How did you hear about SkillUp Initiative?",
-      skills: "Core Mastered Skills (Technical & Soft Skills)",
-      experience: "Previous experiences, initiatives, or student activities you participated in details",
-      linkedin: "Your LinkedIn Profile URL (Optional)",
-      facebook: "Your Facebook Profile URL (Optional)",
-      portfolio: "Your Portfolio URL / Behance / GitHub (Optional)",
-      resumeUrl: "Resume/CV Link (Please upload to Google Drive and set link access to anyone with link)",
-      message: "Why do you specifically want to join SkillUp Initiative? What do you expect from us?",
-      consent: "I hereby declare and confirm that all data and information registered above are completely correct under my personal responsibility, and I agree to be contacted by the evaluation team via phone or WhatsApp.",
-      submit: "Submit Official Join Application",
-      next: "Next Step",
-      prev: "Go Back",
-      stepOf: "Step {step} of 4 steps",
-      sending: "Encrypting and transmitting data securely...",
-      ok: "Your data has been successfully secured! The MEAL team will contact you very soon.",
-      anotherResponse: "Submit another application with a different name",
-      errRequired: "Please make sure to fill in all mandatory fields marked with an asterisk (*) before proceeding.",
-      errEmail: "The email address entered is invalid, please type it correctly (name@domain.com).",
-      errNationalId: "National ID is invalid, it must consist of exactly 14 numeric digits with no letters.",
-      errAge: "Age is unrealistic, please enter a valid age between 15 and 70 years old.",
-      selectGovernorate: "Select Governorate from the list",
-      selectOption: "Select the appropriate option...",
+      profilePicture: "Profile Picture Link (Please upload to Drive and paste link)",
+      sector: "Sector You Wish to Join",
+      role: "Preferred Role / Responsibility",
+      availability: "Weekly Availability",
+      heardAboutUs: "How did you hear about us?",
+      skills: "Core Skills",
+      experience: "Previous Experience / Activities",
+      linkedin: "LinkedIn Profile URL (Optional)",
+      facebook: "Facebook Profile URL (Optional)",
+      portfolio: "Portfolio URL (Optional)",
+      resumeUrl: "Resume Link (Please upload to Drive and paste link - Optional)",
+      message: "Why do you want to join SkillUp?",
+      consent: "I confirm that all registered data is correct and agree to be contacted by the team.",
+      submit: "Submit Application",
+      next: "Next",
+      prev: "Back",
+      stepOf: "Step {step} of 4",
+      sending: "Submitting data...",
+      ok: "Data registered successfully! We will contact you soon.",
+      anotherResponse: "Submit another response",
+      errRequired: "Please complete all mandatory fields marked with an asterisk (*).",
+      errEmail: "Please enter a valid email address.",
+      errNationalId: "National ID must be exactly 14 digits.",
+      errAge: "Please enter a valid age (between 15 and 70).",
+      selectGovernorate: "Select Governorate",
+      selectOption: "Select an option...",
       genderOptions: { male: "Male", female: "Female" },
-      memberOptions: { member: "Volunteer Member (Wish to learn and participate)", expert: "Expert & Mentor (Have prior practical experience in the field)" },
-      leadershipOptions: { ready: "Yes, I am willing and fully ready to take responsibility and manage a team", learning: "Currently, I prefer to work as a member and hone my skills first" },
-      educationOptions: { student: "Undergraduate Student", graduate: "Graduate", postgrad: "Postgraduate Student (Master/Diploma)", school: "High School Student" },
-      gradeOptions: { g1: "1st Year / Grade 1", g2: "2nd Year / Grade 2", g3: "3rd Year / Grade 3", g4: "4th Year / Grade 4", g5: "5th Year", g6: "6th / 7th Year", grad: "Already Graduated" },
-      heardOptions: { facebook: "Facebook Platform", linkedin: "LinkedIn Platform", friend: "Through a recommendation from a friend or colleague", university: "Seminar or advertisement inside the university", other: "Other means and places" },
+      memberOptions: { member: "Member", expert: "Expert (Highly experienced)" },
+      leadershipOptions: { ready: "I want and am ready to take a leadership role", learning: "I am still preparing myself" },
+      educationOptions: { student: "Undergraduate Student", graduate: "Graduate", postgrad: "Postgraduate Student", school: "High School Student" },
+      gradeOptions: { g1: "1st Year", g2: "2nd Year", g3: "3rd Year", g4: "4th Year", g5: "5th Year", g6: "6th Year", grad: "Graduated" },
+      heardOptions: { facebook: "Facebook", linkedin: "LinkedIn", friend: "Friend Recommendation", university: "University", other: "Other" },
       placeholders: {
-        name: "Enter your full name as it appears on your national identity card",
-        id: "Enter 14 digits from left to right in English digits",
-        phone: "Your mobile number connected to your active WhatsApp account",
-        address: "Write the name of the city, street, and building number for ease of communication and geographical distribution",
-        university: "e.g., Cairo University / Ain Shams University / Technological Institute",
-        faculty: "e.g., Faculty of Engineering / Faculty of Commerce / Faculty of Arts",
-        department: "e.g., Information Systems Department / Accounting Department / General",
-        postgrad: "Write your current academic specialization for postgraduate studies",
+        name: "Enter your full legal name",
+        id: "14 digits National ID",
+        phone: "01xxxxxxxxx",
+        address: "Enter your current detailed address (City/Street/District)", // <-- Placeholder إنجليزي
+        university: "e.g., Cairo University / Institute",
+        faculty: "e.g., Faculty of Engineering",
+        department: "e.g., Computers Department / Accounting / General",
+        postgrad: "Write your current postgraduate study field if applicable",
         url: "https://drive.google.com/...",
-        role: "e.g., Content Creator / PR Coordinator / Professional Trainer / Graphic Designer",
-        availability: "e.g., 12 hours per week distributed over specific days",
-        skills: "Write all programming, organizational, linguistic, or soft skills you have and want to utilize",
-        experience: "Mention the places, companies, initiatives, or student activities you worked at previously with your job titles in details",
-        message: "Express in your own words your passion, goals, and what you can add to the SkillUp team upon acceptance"
+        role: "e.g., Content Creator / Logistics Coordinator / MEAL Analyst",
+        availability: "e.g., 10 hours per week",
+        skills: "Technical and soft skills you master",
+        experience: "Mention any previous initiatives, student activities, or jobs",
+        message: "Write your message, motivations and expectations here"
       }
     };
     return isAr ? ar : en;
   }, [isAr]);
 
   const [form, setForm] = useState<FormState>({
-    full_name: "", email: "", phone: "", national_id: "", city: "", address: "",
-    age: "", gender: "", member_status: "member", leadership_interest: "learning",
-    education: "student", grade: "g1", university: "", faculty: "", department: "",
-    postgrad_info: "", graduation_year: "", profile_picture_url: "",
-    sector_key: "training-development", preferred_role: "", availability: "",
-    heard_about_us: "facebook", skills: "", experience: "", linkedin: "",
-    facebook: "", portfolio: "", resume_url: "", message: "", consent: false,
+    full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تعيين قيمة افتراضية للعنوان
+    member_status: "", leadership_interest: "", education: "", grade: "",
+    university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
+    profile_picture_url: "", sector_key: getSafeSectorKey(presetSector),
+    preferred_role: "", availability: "", heard_about_us: "", skills: "", experience: "",
+    linkedin: "", facebook: "", portfolio: "", resume_url: "", message: "", consent: false,
     website: "", hidden_honey: ""
   });
+
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     setForm((prev) => ({ ...prev, sector_key: getSafeSectorKey(presetSector) }));
   }, [presetSector]);
 
+  // التحليل التلقائي الذكي للرقم القومي المصري فور اكتمال الـ 14 رقماً
   useEffect(() => {
     if (/^\d{14}$/.test(form.national_id)) {
       const id = form.national_id;
+
+      // 1. استخراج النوع (الرقم الـ 13 فردي = ذكر، زوجي = أنثى)
       const genderDigit = parseInt(id.charAt(12), 10);
       const extractedGender = genderDigit % 2 === 1 ? "male" : "female";
-      
-      const birthCentury = id.charAt(0) === "3" ? "20" : "19";
-      const birthYear = birthCentury + id.substring(1, 3);
-      const currentYear = new Date().getFullYear();
-      const extractedAge = (currentYear - parseInt(birthYear, 10)).toString();
+
+      // 2. استخراج تاريخ الميلاد وحساب العمر البرمي الدقيق لعام 2026
+      const centuryDigit = id.charAt(0);
+      const yearPart = id.substring(1, 3);
+      const birthYear = parseInt((centuryDigit === "3" ? "20" : "19") + yearPart, 10);
+      const currentYear = 2026;
+      const calculatedAge = currentYear - birthYear;
+
+      // 3. خريطة تكويد المحافظات الرسمية في جمهورية مصر العربية
+      const govCode = id.substring(7, 9);
+      const govMap: Record<string, string> = {
+        "01": "Cairo", "02": "Alexandria", "03": "Port Said", "04": "Suez",
+        "11": "Damietta", "12": "Dakahlia", "13": "Sharqia", "14": "Qalyubia",
+        "15": "Kafr El Sheikh", "16": "Gharbia", "17": "Monufia", "18": "Beheira",
+        "19": "Ismailia", "21": "Giza", "22": "Beni Suef", "23": "Fayoum",
+        "24": "Minya", "25": "Asyut", "26": "Sohag", "27": "Qena",
+        "28": "Aswan", "29": "Luxor", "31": "Red Sea", "32": "New Valley",
+        "33": "Matrouh", "34": "North Sinai", "35": "South Sinai"
+      };
+      const extractedCity = govMap[govCode] || "";
 
       setForm((prev) => ({
         ...prev,
-        gender: prev.gender || extractedGender,
-        age: prev.age || extractedAge
+        gender: extractedGender,
+        age: calculatedAge > 0 && calculatedAge < 100 ? String(calculatedAge) : prev.age,
+        city: extractedCity || prev.city
       }));
     }
   }, [form.national_id]);
 
-  const updateField = (key: keyof FormState, value: any) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrorMsg("");
-  };
+  const inputClass =
+    "w-full rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950/40 dark:text-white dark:placeholder:text-zinc-500 dark:focus:border-white/20 dark:focus:bg-zinc-950/60 dark:focus:ring-white/10";
+  
+  const selectClass =
+    "w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-zinc-300 focus:bg-white focus:ring-4 focus:ring-black/5 dark:border-white/10 dark:bg-zinc-950 dark:text-white dark:focus:border-white/20 dark:focus:bg-zinc-950 dark:focus:ring-white/10 cursor-pointer";
+  
+  const labelClass = "mb-2 block text-sm font-medium text-zinc-800 dark:text-zinc-200";
+  const cardClass = "rounded-[28px] border border-black/10 bg-white/75 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/45 md:p-6 transition-all duration-300";
 
-  const handleNextStep = () => {
+  function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (errorMsg) setErrorMsg("");
+  }
+
+  function validateCurrentStep(): boolean {
+    setErrorMsg("");
     if (currentStep === 1) {
-      if (!form.full_name.trim() || !form.email.trim() || !form.phone.trim() || !form.national_id.trim() || !form.city || !form.address.trim() || !form.age.trim() || !form.gender) {
+      if (
+        !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
+        !form.national_id.trim() || !form.city || !form.address.trim() || !form.age.trim() || !form.gender || // <-- إضافة الـ address في التحقق
+        !form.member_status || !form.leadership_interest || !form.education ||
+        !form.profile_picture_url.trim()
+      ) {
         setErrorMsg(t.errRequired);
-        return;
+        return false;
       }
       if (!isValidEmail(form.email)) {
         setErrorMsg(t.errEmail);
-        return;
+        return false;
       }
       if (!isValidNationalId(form.national_id)) {
         setErrorMsg(t.errNationalId);
-        return;
+        return false;
       }
       const ageNum = Number(form.age);
       if (isNaN(ageNum) || ageNum < 15 || ageNum > 70) {
         setErrorMsg(t.errAge);
-        return;
+        return false;
       }
     }
+
     if (currentStep === 2) {
-      if (!form.university.trim() || !form.faculty.trim() || !form.department.trim() || !form.grade || !form.graduation_year.trim() || !form.experience.trim()) {
+      if (
+        !form.university.trim() || !form.faculty.trim() || !form.department.trim() ||
+        !form.grade || !form.graduation_year.trim() || !form.experience.trim()
+      ) {
         setErrorMsg(t.errRequired);
-        return;
+        return false;
       }
     }
+
     if (currentStep === 3) {
-      if (!form.sector_key || !form.preferred_role.trim() || !form.availability.trim() || !form.skills.trim()) {
+      if (
+        !form.sector_key || !form.preferred_role.trim() || 
+        !form.availability.trim() || !form.heard_about_us || !form.skills.trim()
+      ) {
         setErrorMsg(t.errRequired);
-        return;
+        return false;
       }
     }
-    setCurrentStep((p) => p + 1);
+
+    return true;
+  }
+
+  function handleNextStep() {
+    if (validateCurrentStep()) {
+      setCurrentStep((prev) => prev + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function handlePrevStep() {
+    setErrorMsg("");
+    setCurrentStep((prev) => prev - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.consent) return;
-
-    // حظر الروبوتات وهجمات السبام برمجياً بشكل صامت تماماً لحماية قاعدة البيانات
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMsg("");
     if (form.website || form.hidden_honey) {
-      console.warn("Spam Bot submission filtered out securely.");
       setDone(true);
       return;
     }
 
+    if (!form.message.trim() || !form.consent) {
+      setErrorMsg(t.errRequired);
+      return;
+    }
+
     setLoading(true);
-    setErrorMsg("");
 
     try {
-      // عزل حقول السخام لعدم الإخلال بجدول السوبابيز
-      const { website, hidden_honey, ...cleanData } = form;
+      const res = await fetch("/api/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          full_name: form.full_name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          national_id: form.national_id.trim(),
+          address: form.address.trim(), // <-- إرسال حقل العنوان مع الداتا
+          age: Number(form.age),
+          gender: form.gender,
+          university: form.university.trim(),
+          faculty: form.faculty.trim(),
+          department: form.department.trim(),
+          postgrad_info: form.postgrad_info.trim() || null,
+          graduation_year: Number(form.graduation_year),
+          profile_picture_url: form.profile_picture_url.trim(),
+          preferred_role: form.preferred_role.trim(),
+          availability: form.availability.trim(),
+          skills: form.skills.trim(),
+          experience: form.experience.trim(),
+          linkedin: form.linkedin.trim() || null,
+          facebook: form.facebook.trim() || null,
+          portfolio: form.portfolio.trim() || null,
+          resume_url: form.resume_url.trim() || null,
+          message: form.message.trim()
+        })
+      });
+      const json = await res.json().catch(() => ({}));
 
-      const { error } = await supabaseBrowser
-        .from("join_requests")
-        .insert([
-          {
-            ...cleanData,
-            age: parseInt(cleanData.age, 10),
-            graduation_year: parseInt(cleanData.graduation_year, 10),
-            admin_status: "new" // إسناد حالة الطلب الجديد التلقائية لتظهر في قائمة الأدمن فوراً المعلقة
-          }
-        ]);
+      if (!res.ok) {
+        if (json?.error === "duplicate_entry") {
+          throw new Error(
+            isAr 
+              ? "عذراً، هذا الرقم القومي أو البريد الإلكتروني مسجل لدينا بالفعل!" 
+              : "This National ID or Email is already registered!"
+          );
+        }
+        throw new Error(json?.error || "Failed to submit application.");
+      }
 
-      if (error) throw error;
       setDone(true);
-    } catch (err: any) {
-      setErrorMsg(err?.message || "An unexpected central storage error occurred. Please check network connection.");
+      setCurrentStep(1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setForm({
+        full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تصفير حقل العنوان بعد النجاح
+        member_status: "", leadership_interest: "", education: "", grade: "",
+        university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
+        profile_picture_url: "", sector_key: form.sector_key,
+        preferred_role: "", availability: "", heard_about_us: "", skills: "", 
+        experience: "", linkedin: "", facebook: "", portfolio: "", resume_url: "", 
+        message: "", consent: false, website: "", hidden_honey: ""
+      });
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : "An error occurred.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const inputClass = "w-full rounded-2xl border border-black/10 bg-black/[0.02] px-4 py-3 text-sm outline-none transition focus:border-black/30 dark:border-white/10 dark:bg-white/[0.02] dark:focus:border-white/30 text-zinc-900 dark:text-white placeholder:text-zinc-400 font-sans text-right";
-  const labelClass = "mb-1.5 block text-xs font-bold text-zinc-700 dark:text-zinc-300 select-none text-right";
+  }
 
   return (
     <div className="mx-auto grid max-w-4xl gap-6" dir={isAr ? "rtl" : "ltr"}>
+      
       {done ? (
         <section className="rounded-[32px] border border-black/10 bg-white/80 p-8 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 text-center py-14 transition-all">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-8 w-8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
           </div>
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-2">{t.title}</h2>
-          <p className="text-zinc-600 dark:text-zinc-400 max-w-md mx-auto text-sm leading-relaxed">{t.ok}</p>
-          <button type="button" onClick={() => { setDone(false); setCurrentStep(1); setForm((p) => ({ ...p, full_name: "", email: "", phone: "", national_id: "", consent: false })); }} className="mt-8 rounded-2xl bg-zinc-900 px-6 py-3 text-xs font-bold text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900">
+          <h1 className="text-2xl font-bold text-zinc-950 dark:text-white md:text-3xl">{t.ok}</h1>
+          <p className="mt-3 text-sm leading-7 text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+            {isAr 
+              ? "تم استلام معلوماتك بالكامل في قاعدة البيانات، وسنقوم بالتواصل معك قريباً."
+              : "Your data has been successfully securely stored. Our MEAL team will review it shortly."}
+          </p>
+          <button
+            type="button"
+            onClick={() => setDone(false)}
+            className="mt-8 rounded-2xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900 shadow-md"
+          >
             {t.anotherResponse}
           </button>
         </section>
       ) : (
-        <form onSubmit={handleSubmit} className="rounded-[32px] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 md:p-8">
-          <div className="mb-8 border-b border-black/5 pb-5 dark:border-white/5 text-right">
-            <h1 className="text-2xl font-extrabold text-zinc-950 dark:text-white mb-1.5">{t.title}</h1>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{t.sub}</p>
-            <div className="mt-4 text-[11px] font-bold text-zinc-400 bg-zinc-100 dark:bg-zinc-900 inline-block px-3 py-1 rounded-md">{t.stepOf.replace("{step}", currentStep.toString())}</div>
-          </div>
-
-          {/* حقول الأمان المخفية تماماً لمنع الروبوتات من تعبئة البيانات تلقائياً */}
-          <div className="hidden" aria-hidden="true">
-            <input type="text" value={form.website} onChange={(e) => updateField("website", e.target.value)} tabIndex={-1} autoComplete="off" />
-            <input type="text" value={form.hidden_honey} onChange={(e) => updateField("hidden_honey", e.target.value)} tabIndex={-1} autoComplete="off" />
-          </div>
-
-          {/* الخطوة الأولى: البيانات الأساسية */}
-          {currentStep === 1 && (
-            <div className="grid gap-5">
-              <div className="border-b border-black/5 pb-2 dark:border-white/5 text-right">
-                <h2 className="text-sm font-bold text-zinc-950 dark:text-white flex items-center gap-1">📍 {t.section1}</h2>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.name} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.name} value={form.full_name} onChange={(e) => updateField("full_name", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.nationalId} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.id} value={form.national_id} onChange={(e) => updateField("national_id", e.target.value.replace(/\D/g, ""))} maxLength={14} required />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.email} <span className="text-red-500">*</span></label>
-                  <input type="email" className={inputClass} placeholder="example@gmail.com" value={form.email} onChange={(e) => updateField("email", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.phone} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.phone} value={form.phone} onChange={(e) => updateField("phone", e.target.value.replace(/\D/g, ""))} required />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.age} <span className="text-red-500">*</span></label>
-                  <input type="number" className={inputClass} placeholder="21" value={form.age} onChange={(e) => updateField("age", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.gender} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.gender} onChange={(e) => updateField("gender", e.target.value)} required>
-                    <option value="">{t.selectOption}</option>
-                    <option value="male">{t.genderOptions.male}</option>
-                    <option value="female">{t.genderOptions.female}</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.city} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.city} onChange={(e) => updateField("city", e.target.value)} required>
-                    <option value="">{t.selectGovernorate}</option>
-                    {EGYPT_GOVERNORATES.map((g) => (
-                      <option key={g.en} value={g.en}>{isAr ? g.ar : g.en}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{t.address} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.address} value={form.address} onChange={(e) => updateField("address", e.target.value)} required />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* الخطوة الثانية: الخلفية التعليمية والمهنية */}
-          {currentStep === 2 && (
-            <div className="grid gap-5">
-              <div className="border-b border-black/5 pb-2 dark:border-white/5 text-right">
-                <h2 className="text-sm font-bold text-zinc-950 dark:text-white flex items-center gap-1">🎓 {t.section2}</h2>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.education} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
-                    {Object.entries(t.educationOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{t.grade} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.grade} onChange={(e) => updateField("grade", e.target.value)} required>
-                    {Object.entries(t.gradeOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className={labelClass}>{t.university} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.university} value={form.university} onChange={(e) => updateField("university", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.faculty} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.faculty} value={form.faculty} onChange={(e) => updateField("faculty", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.department} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.department} value={form.department} onChange={(e) => updateField("department", e.target.value)} required />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.graduation} <span className="text-red-500">*</span></label>
-                  <input type="number" className={inputClass} placeholder="2027" value={form.graduation_year} onChange={(e) => updateField("graduation_year", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.postgradInfo}</label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.postgrad} value={form.postgrad_info} onChange={(e) => updateField("postgrad_info", e.target.value)} />
-                </div>
-              </div>
+        <>
+          <section className="relative overflow-hidden rounded-[32px] border border-black/10 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50 md:p-7">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <label className={labelClass}>{t.experience} <span className="text-red-500">*</span></label>
-                <textarea rows={4} className={`${inputClass} resize-none`} placeholder={t.placeholders.experience} value={form.experience} onChange={(e) => updateField("experience", e.target.value)} required />
+                <h1 className="text-2xl font-semibold text-zinc-950 dark:text-white md:text-3xl">{t.title}</h1>
+                <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">{t.sub}</p>
               </div>
+              <span className="inline-flex self-start items-center rounded-full bg-zinc-900/5 px-3 py-1 text-xs font-medium text-zinc-800 dark:bg-white/10 dark:text-zinc-200">
+                {t.stepOf.replace("{step}", String(currentStep))}
+              </span>
             </div>
-          )}
 
-          {/* الخطوة الثالثة: التفضيلات والاهتمامات داخل المبادرة */}
-          {currentStep === 3 && (
-            <div className="grid gap-5">
-              <div className="border-b border-black/5 pb-2 dark:border-white/5 text-right">
-                <h2 className="text-sm font-bold text-zinc-950 dark:text-white flex items-center gap-1">💼 {t.section3}</h2>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.sector} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.sector_key} onChange={(e) => updateField("sector_key", e.target.value)} required>
-                    {SECTORS_LIST.map((s) => <option key={s.slug} value={s.slug}>{isAr ? s.ar : s.en}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{t.role} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.role} value={form.preferred_role} onChange={(e) => updateField("preferred_role", e.target.value)} required />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className={labelClass}>{t.availability} <span className="text-red-500">*</span></label>
-                  <input type="text" className={inputClass} placeholder={t.placeholders.availability} value={form.availability} onChange={(e) => updateField("availability", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.memberStatus} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.member_status} onChange={(e) => updateField("member_status", e.target.value)} required>
-                    {Object.entries(t.memberOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>{t.leadershipInterest} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.leadership_interest} onChange={(e) => updateField("leadership_interest", e.target.value)} required>
-                    {Object.entries(t.leadershipOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>{t.skills} <span className="text-red-500">*</span></label>
-                <textarea rows={4} className={`${inputClass} resize-none`} placeholder={t.placeholders.skills} value={form.skills} onChange={(e) => updateField("skills", e.target.value)} required />
-              </div>
+            <div className="mt-6 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <div 
+                className="h-full bg-zinc-900 transition-all duration-500 ease-out dark:bg-white"
+                style={{ width: `${(currentStep / 4) * 100}%` }}
+              />
             </div>
-          )}
 
-          {/* الخطوة الرابعة: الروابط ورسالة الدوافع والموافقة */}
-          {currentStep === 4 && (
-            <div className="grid gap-5">
-              <div className="border-b border-black/5 pb-2 dark:border-white/5 text-right">
-                <h2 className="text-sm font-bold text-zinc-950 dark:text-white flex items-center gap-1">🔗 {t.section4}</h2>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <label className={labelClass}>{t.linkedin}</label>
-                  <input type="url" className={inputClass} placeholder="https://linkedin.com/in/..." value={form.linkedin} onChange={(e) => updateField("linkedin", e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.facebook}</label>
-                  <input type="url" className={inputClass} placeholder="https://facebook.com/..." value={form.facebook} onChange={(e) => updateField("facebook", e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.portfolio}</label>
-                  <input type="url" className={inputClass} placeholder="https://behance.net/..." value={form.portfolio} onChange={(e) => updateField("portfolio", e.target.value)} />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.resumeUrl}</label>
-                  <input type="url" className={inputClass} placeholder={t.placeholders.url} value={form.resume_url} onChange={(e) => updateField("resume_url", e.target.value)} />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
-                  <input type="url" className={inputClass} placeholder={t.placeholders.url} value={form.profile_picture_url} onChange={(e) => updateField("profile_picture_url", e.target.value)} required />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={labelClass}>{t.message} <span className="text-red-500">*</span></label>
-                  <textarea rows={4} className={`${inputClass} resize-none`} placeholder={t.placeholders.message} value={form.message} onChange={(e) => updateField("message", e.target.value)} required />
-                </div>
-                <div>
-                  <label className={labelClass}>{t.heardAboutUs} <span className="text-red-500">*</span></label>
-                  <select className={inputClass} value={form.heard_about_us} onChange={(e) => updateField("heard_about_us", e.target.value)} required>
-                    {Object.entries(t.heardOptions).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="mt-4 flex items-start gap-3 bg-zinc-50 dark:bg-zinc-900/40 p-4 rounded-2xl border">
-                <input id="consent" type="checkbox" checked={form.consent} onChange={(e) => updateField("consent", e.target.checked)} className="mt-1 h-4 w-4 rounded border-black/10 text-zinc-900 focus:ring-zinc-900 dark:border-white/10 dark:text-white cursor-pointer" required />
-                <label htmlFor="consent" className="text-xs text-zinc-600 dark:text-zinc-400 font-medium leading-relaxed select-none text-right cursor-pointer">{t.consent}</label>
-              </div>
+            <div className="mt-4 flex justify-between text-xs font-medium text-zinc-400">
+              <span className={`transition-colors ${currentStep >= 1 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "1. الأساسية" : "1. Basic"}</span>
+              <span className={`transition-colors ${currentStep >= 2 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "2. التعليمية" : "2. Academic"}</span>
+              <span className={`transition-colors ${currentStep >= 3 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "3. التفضيلات" : "3. Preferences"}</span>
+              <span className={`transition-colors ${currentStep >= 4 ? "text-zinc-950 font-semibold dark:text-white" : ""}`}>{isAr ? "4. التأكيد" : "4. Consent"}</span>
             </div>
-          )}
+          </section>
 
-          {/* أزرار التحكم بالتنقل عبر الخطوات */}
-          <div className="mt-8 flex items-center justify-between border-t border-black/5 pt-5 dark:border-white/5">
-            {currentStep > 1 ? (
-              <button type="button" onClick={() => setCurrentStep((p) => p - 1)} className="rounded-2xl border border-black/10 bg-white px-6 py-3 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800">
-                {t.prev}
-              </button>
-            ) : <div aria-hidden="true" />}
+          <form className="grid gap-5" onSubmit={submit} noValidate>
+            <div className="hidden" aria-hidden="true">
+              <input type="text" name="website" value={form.website} onChange={(e) => updateField("website", e.target.value)} tabIndex={-1} autoComplete="off" />
+              <input type="text" name="hidden_honey" value={form.hidden_honey} onChange={(e) => updateField("hidden_honey", e.target.value)} tabIndex={-1} autoComplete="off" />
+            </div>
 
-            {currentStep < 4 ? (
-              <button type="button" onClick={handleNextStep} className="rounded-2xl bg-zinc-900 px-6 py-3 text-xs font-bold text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900">
-                {t.next}
-              </button>
-            ) : (
-              <button type="submit" disabled={loading || !form.consent} className="rounded-2xl bg-zinc-900 px-8 py-3 text-xs font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900">
-                {loading ? t.sending : t.submit}
-              </button>
+            {/* الخطوة الأولى: البيانات الأساسية */}
+            {currentStep === 1 && (
+              <section className={cardClass}>
+                <div className="mb-5 flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/5">
+                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section1}</h2>
+                  <span className="text-xs font-mono text-zinc-400">01 / 04</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="full_name" className={labelClass}>{t.name} <span className="text-red-500">*</span></label>
+                    <input id="full_name" type="text" className={inputClass} placeholder={t.placeholders.name} value={form.full_name} onChange={(e) => updateField("full_name", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="national_id" className={labelClass}>{t.nationalId} <span className="text-red-500">*</span></label>
+                    <input id="national_id" type="text" className={inputClass} placeholder={t.placeholders.id} value={form.national_id} onChange={(e) => updateField("national_id", e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={14} required />
+                    {/^\d{14}$/.test(form.national_id) && (
+                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">✓ تم فحص وتعبئة البيانات ديموغرافياً تلقائياً</span>
+                    )}
+                  </div>
+                  <div>
+                    <label htmlFor="email" className={labelClass}>{t.email} <span className="text-red-500">*</span></label>
+                    <input id="email" type="email" className={inputClass} placeholder="example@domain.com" value={form.email} onChange={(e) => updateField("email", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="phone" className={labelClass}>{t.phone} <span className="text-red-500">*</span></label>
+                    <input id="phone" type="text" className={inputClass} placeholder={t.placeholders.phone} value={form.phone} onChange={(e) => updateField("phone", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="city" className={labelClass}>{t.city} <span className="text-red-500">*</span></label>
+                    <select id="city" className={selectClass} value={form.city} onChange={(e) => updateField("city", e.target.value)} required>
+                      <option value="">{t.selectGovernorate}</option>
+                      {EGYPT_GOVERNORATES.map((g) => (
+                        <option key={g.en} value={g.en} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? g.ar : g.en}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* حقل العنوان الجديد مضاف هنا بتصميم متناسق */}
+                  <div>
+                    <label htmlFor="address" className={labelClass}>{t.address} <span className="text-red-500">*</span></label>
+                    <input id="address" type="text" className={inputClass} placeholder={t.placeholders.address} value={form.address} onChange={(e) => updateField("address", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="age" className={labelClass}>{t.age} <span className="text-red-500">*</span></label>
+                    <input id="age" type="number" className={inputClass} placeholder="21" value={form.age} onChange={(e) => updateField("age", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="gender" className={labelClass}>{t.gender} <span className="text-red-500">*</span></label>
+                    <select id="gender" className={selectClass} value={form.gender} onChange={(e) => updateField("gender", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="male" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.genderOptions.male}</option>
+                      <option value="female" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.genderOptions.female}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="member_status" className={labelClass}>{t.memberStatus} <span className="text-red-500">*</span></label>
+                    <select id="member_status" className={selectClass} value={form.member_status} onChange={(e) => updateField("member_status", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="member" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.memberOptions.member}</option>
+                      <option value="expert" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.memberOptions.expert}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="leadership_interest" className={labelClass}>{t.leadershipInterest} <span className="text-red-500">*</span></label>
+                    <select id="leadership_interest" className={selectClass} value={form.leadership_interest} onChange={(e) => updateField("leadership_interest", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="ready" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.ready}</option>
+                      <option value="learning" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.leadershipOptions.learning}</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="education" className={labelClass}>{t.education} <span className="text-red-500">*</span></label>
+                    <select id="education" className={selectClass} value={form.education} onChange={(e) => updateField("education", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="student" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.student}</option>
+                      <option value="graduate" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.graduate}</option>
+                      <option value="postgrad" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.postgrad}</option>
+                      <option value="school" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.school}</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="profile_picture_url" className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
+                    <input id="profile_picture_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.profile_picture_url} onChange={(e) => updateField("profile_picture_url", e.target.value)} required />
+                  </div>
+                </div>
+              </section>
             )}
-          </div>
 
-          {/* شريط عرض الأخطاء التحذيرية الموحد */}
-          {errorMsg && (
-            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-xs font-semibold text-red-600 dark:text-red-400 text-right">
-              ⚠️ {errorMsg}
+            {/* الخطوة الثانية: الخلفية التعليمية والمهنية */}
+            {currentStep === 2 && (
+              <section className={cardClass}>
+                <div className="mb-5 flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/5">
+                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section2}</h2>
+                  <span className="text-xs font-mono text-zinc-400">02 / 04</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="university" className={labelClass}>{t.university} <span className="text-red-500">*</span></label>
+                    <input id="university" type="text" className={inputClass} placeholder={t.placeholders.university} value={form.university} onChange={(e) => updateField("university", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="faculty" className={labelClass}>{t.faculty} <span className="text-red-500">*</span></label>
+                    <input id="faculty" type="text" className={inputClass} placeholder={t.placeholders.faculty} value={form.faculty} onChange={(e) => updateField("faculty", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="department" className={labelClass}>{t.department} <span className="text-red-500">*</span></label>
+                    <input id="department" type="text" className={inputClass} placeholder={t.placeholders.department} value={form.department} onChange={(e) => updateField("department", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="grade" className={labelClass}>{t.grade} <span className="text-red-500">*</span></label>
+                    <select id="grade" className={selectClass} value={form.grade} onChange={(e) => updateField("grade", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="1" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g1}</option>
+                      <option value="2" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g2}</option>
+                      <option value="3" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g3}</option>
+                      <option value="4" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g4}</option>
+                      <option value="5" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g5}</option>
+                      <option value="6" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.g6}</option>
+                      <option value="grad" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.gradeOptions.grad}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="graduation_year" className={labelClass}>{t.graduation} <span className="text-red-500">*</span></label>
+                    <input id="graduation_year" type="number" className={inputClass} placeholder="2025" value={form.graduation_year} onChange={(e) => updateField("graduation_year", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="postgrad_info" className={labelClass}>{t.postgradInfo}</label>
+                    <input id="postgrad_info" type="text" className={inputClass} placeholder={t.placeholders.postgrad} value={form.postgrad_info} onChange={(e) => updateField("postgrad_info", e.target.value)} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="experience" className={labelClass}>{t.experience} <span className="text-red-500">*</span></label>
+                    <textarea id="experience" rows={4} className={inputClass} placeholder={t.placeholders.experience} value={form.experience} onChange={(e) => updateField("experience", e.target.value)} required />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* الخطوة الثالثة: التفضيلات والاهتمامات */}
+            {currentStep === 3 && (
+              <section className={cardClass}>
+                <div className="mb-5 flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/5">
+                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section3}</h2>
+                  <span className="text-xs font-mono text-zinc-400">03 / 04</span>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label htmlFor="sector_key" className={labelClass}>{t.sector} <span className="text-red-500">*</span></label>
+                    <select id="sector_key" className={selectClass} value={form.sector_key} onChange={(e) => updateField("sector_key", e.target.value)} required>
+                      {SECTORS_LIST.map((s) => (
+                        <option key={s.slug} value={s.slug} className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{isAr ? s.ar : s.en}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="preferred_role" className={labelClass}>{t.role} <span className="text-red-500">*</span></label>
+                    <input id="preferred_role" type="text" className={inputClass} placeholder={t.placeholders.role} value={form.preferred_role} onChange={(e) => updateField("preferred_role", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="availability" className={labelClass}>{t.availability} <span className="text-red-500">*</span></label>
+                    <input id="availability" type="text" className={inputClass} placeholder={t.placeholders.availability} value={form.availability} onChange={(e) => updateField("availability", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="heard_about_us" className={labelClass}>{t.heardAboutUs} <span className="text-red-500">*</span></label>
+                    <select id="heard_about_us" className={selectClass} value={form.heard_about_us} onChange={(e) => updateField("heard_about_us", e.target.value)} required>
+                      <option value="">{t.selectOption}</option>
+                      <option value="facebook" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.facebook}</option>
+                      <option value="linkedin" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.linkedin}</option>
+                      <option value="friend" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.friend}</option>
+                      <option value="university" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.university}</option>
+                      <option value="other" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.heardOptions.other}</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="skills" className={labelClass}>{t.skills} <span className="text-red-500">*</span></label>
+                    <textarea id="skills" rows={3} className={inputClass} placeholder={t.placeholders.skills} value={form.skills} onChange={(e) => updateField("skills", e.target.value)} required />
+                  </div>
+                  <div>
+                    <label htmlFor="linkedin" className={labelClass}>{t.linkedin}</label>
+                    <input id="linkedin" type="url" className={inputClass} placeholder="https://linkedin.com/in/..." value={form.linkedin} onChange={(e) => updateField("linkedin", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="facebook" className={labelClass}>{t.facebook}</label>
+                    <input id="facebook" type="url" className={inputClass} placeholder="https://facebook.com/..." value={form.facebook} onChange={(e) => updateField("facebook", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="portfolio" className={labelClass}>{t.portfolio}</label>
+                    <input id="portfolio" type="url" className={inputClass} placeholder="https://..." value={form.portfolio} onChange={(e) => updateField("portfolio", e.target.value)} />
+                  </div>
+                  <div>
+                    <label htmlFor="resume_url" className={labelClass}>{t.resumeUrl}</label>
+                    <input id="resume_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.resume_url} onChange={(e) => updateField("resume_url", e.target.value)} />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* الخطوة الرابعة: رسالة المتقدم وإقرار الجدية */}
+            {currentStep === 4 && (
+              <section className={cardClass}>
+                <div className="mb-5 flex items-center justify-between border-b border-black/5 pb-3 dark:border-white/5">
+                  <h2 className="text-lg font-semibold text-zinc-950 dark:text-white">{t.section4}</h2>
+                  <span className="text-xs font-mono text-zinc-400">04 / 04</span>
+                </div>
+                <div className="grid gap-4">
+                  <div>
+                    <label htmlFor="message" className={labelClass}>{t.message} <span className="text-red-500">*</span></label>
+                    <textarea id="message" rows={5} className={inputClass} placeholder={t.placeholders.message} value={form.message} onChange={(e) => updateField("message", e.target.value)} required />
+                  </div>
+                  <div className="flex items-start gap-3 mt-2">
+                    <input id="consent" type="checkbox" className="mt-1 h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 cursor-pointer" checked={form.consent} onChange={(e) => updateField("consent", e.target.checked)} required />
+                    <label htmlFor="consent" className="text-sm leading-6 text-zinc-600 dark:text-zinc-300 cursor-pointer select-none">{t.consent}</label>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* أزرار التحكم بالخطوات */}
+            <div className="flex justify-between items-center mt-4">
+              {currentStep > 1 ? (
+                <button type="button" onClick={handlePrevStep} className="rounded-2xl border border-black/10 bg-white px-6 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800">
+                  {t.prev}
+                </button>
+              ) : (
+                <div aria-hidden="true" />
+              )}
+
+              {currentStep < 4 ? (
+                <button type="button" onClick={handleNextStep} className="rounded-2xl bg-zinc-900 px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 dark:bg-white dark:text-zinc-900">
+                  {t.next}
+                </button>
+              ) : (
+                <button type="submit" disabled={loading} className="rounded-2xl bg-zinc-900 px-8 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900">
+                  {loading ? t.sending : t.submit}
+                </button>
+              )}
             </div>
-          )}
-        </form>
+
+            {/* عرض رسائل الخطأ إن وجدت */}
+            <div aria-live="polite" className="grid gap-3 mt-2">
+              {errorMsg && (
+                <div className="rounded-2xl border border-red-500/30 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-950/20 dark:text-red-400 font-medium">
+                  {errorMsg}
+                </div>
+              )}
+            </div>
+          </form>
+        </>
       )}
     </div>
   );
