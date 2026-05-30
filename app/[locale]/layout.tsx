@@ -56,32 +56,18 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <body
-        className={[
-          cairo.variable,
-          robotoMono.variable,
-          "flex min-h-screen flex-col font-sans antialiased"
-        ].join(" ")}
+        className={`${cairo.variable} ${robotoMono.variable} flex min-h-screen flex-col font-sans antialiased bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50`}
       >
-        {/* 🔥 سكريبت يمنع الوضع الداكن عند أول تحميل */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var saved = localStorage.getItem('theme');
-                  if (saved === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
-                  }
-                } catch (e) {}
-              })();
-            `
-          }}
-        />
-
-        {/* ❗ ThemeProvider بدون أي props */}
-        <ThemeProvider>
+        {/* 
+          🔥 تم نقل التحكم بالكامل للـ ThemeProvider. 
+          الـ Props دي بتخلي الـ Provider يحقن الـ Script بتاعه تلقائياً في الـ Head ويمنع الـ Flash تماماً وبدون مشاكل Hydration.
+        */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          storageKey="theme"
+        >
           <NextIntlClientProvider locale={locale} messages={messages}>
             <Navbar locale={locale} />
 
