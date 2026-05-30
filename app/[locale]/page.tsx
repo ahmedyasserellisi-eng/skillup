@@ -126,15 +126,15 @@ export default async function HomePage({
     ? "منظومة شبابية رائدة تسعى لتمكين الكوادر الشابة عبر نموذج تعلّم تطبيقي متكامل يحاكي بيئة العمل الحقيقية ويسد الفجوة مع متطلبات سوق العمل المعاصر."
     : "A leading youth initiative dedicated to empowering young talents through an integrated, hands-on learning model that simulates real corporate environments and bridges the job market gap.";
 
-  // هويات الألوان الرسمية (Navy #182B36 & Gold #C8A448)
+  // ثوابت التصميم المتناسقة مع هوية المبادرة (Navy #182B36 & Gold #C8A448)
   const glass =
     "rounded-[28px] border border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60";
 
   const softCard =
-    "rounded-2xl border border-black/10 bg-white/85 dark:border-white/10 dark:bg-zinc-955/45";
+    "rounded-2xl border border-black/10 bg-white/85 dark:border-white/10 dark:bg-zinc-950/45";
 
   const cardHover =
-    "transition duration-300 will-change-transform hover:-translate-y-1 hover:border-black/15 hover:shadow-xl hover:shadow-black/5 dark:hover:border-white/15 dark:hover:shadow-black/20";
+    "transition duration-300 will-change-transform hover:-translate-y-1 hover:border-[#182B36]/30 hover:shadow-xl hover:shadow-black/5 dark:hover:border-[#C8A448]/30 dark:hover:shadow-black/20";
 
   const pill =
     "rounded-full border border-black/10 bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm dark:border-white/10 dark:bg-zinc-950/55 dark:text-zinc-200";
@@ -232,7 +232,7 @@ export default async function HomePage({
   ];
 
   return (
-    <div className="grid gap-12">
+    <div className="grid gap-12 min-w-0 w-full">
       <MotionSection
         variants={fadeUp}
         initial="hidden"
@@ -266,7 +266,7 @@ export default async function HomePage({
 
               <div className="flex flex-wrap gap-3">
                 <Link href={href("/join")} className={primaryBtn}>
-                  {isAr ? "انضم كعضو / مستفيد" : "Join us as member"}
+                  {isAr ? "انضم إلينا" : "Join us"}
                 </Link>
 
                 <Link href={href("/programs")} className={secondaryBtn}>
@@ -356,7 +356,7 @@ export default async function HomePage({
         </div>
       </MotionSection>
 
-      <section className="grid gap-4">
+      <section className="grid gap-4 min-w-0">
         <div>
           <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
             {isAr ? "لماذا وجهتك القادمة هي SkillUp؟" : "Why SkillUp"}
@@ -395,8 +395,8 @@ export default async function HomePage({
         </MotionDiv>
       </section>
 
-      {/* قسم البرامج المميزة - سلايدر أفقي متجاوب */}
-      <section className="grid gap-4 overflow-hidden">
+      {/* قسم البرامج المميزة - تم حل مشكلة الاسكرول بالكامل */}
+      <section className="grid gap-4 min-w-0 overflow-hidden">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -408,7 +408,6 @@ export default async function HomePage({
           </div>
 
           <div className="flex items-center gap-4">
-            {/* أسهم التنقل الذكية */}
             <div className="hidden md:flex items-center gap-1.5">
               <a 
                 href={isAr ? "#program-2" : "#program-0"} 
@@ -430,23 +429,18 @@ export default async function HomePage({
           </div>
         </div>
 
-        <div className="relative w-full">
+        <div className="w-full min-w-0 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <MotionDiv
             variants={stagger}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, amount: 0.1 }}
-            className="flex gap-4 overflow-x-auto pb-4 snap-x scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden w-full"
+            className="flex gap-4 w-max min-w-full"
           >
             {featuredPrograms.length === 0 ? (
               <div className={cx("w-full p-6 text-sm shrink-0 snap-start", glass)}>
                 <div className="font-semibold text-zinc-900 dark:text-white">
                   {isAr ? "لا يوجد برامج مميزة حاليًا" : "No featured programs yet"}
-                </div>
-                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  {isAr
-                    ? "من لوحة الإدارة فعّل Published و Show on Home."
-                    : "From admin, enable Published and Show on Home."}
                 </div>
               </div>
             ) : (
@@ -457,11 +451,10 @@ export default async function HomePage({
                 ).slice(0, 130);
 
                 return (
-                  <MotionDiv 
+                  <div 
                     key={program.id} 
                     id={`program-${index}`}
-                    variants={fadeUp}
-                    className="w-[290px] sm:w-[340px] md:w-[380px] shrink-0 snap-start"
+                    className="w-[280px] sm:w-[320px] md:w-[360px] shrink-0 snap-start"
                   >
                     <Link
                       href={href(`/programs/${program.id}`)}
@@ -492,12 +485,8 @@ export default async function HomePage({
 
                           <div className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
                             {program.youtube_playlist
-                              ? isAr
-                                ? "سلسلة فيديو"
-                                : "Playlist"
-                              : isAr
-                                ? "برنامج"
-                                : "Program"}
+                              ? isAr ? "سلسلة فيديو" : "Playlist"
+                              : isAr ? "برنامج" : "Program"}
                           </div>
                         </div>
                       </div>
@@ -512,7 +501,7 @@ export default async function HomePage({
                         </div>
                       </div>
                     </Link>
-                  </MotionDiv>
+                  </div>
                 );
               })
             )}
@@ -520,8 +509,8 @@ export default async function HomePage({
         </div>
       </section>
 
-      {/* قسم أحدث الفعاليات - سلايدر أفقي متجاوب */}
-      <section className="grid gap-4 overflow-hidden">
+      {/* قسم أحدث الفعاليات - تم حل مشكلة الاسكرول بالكامل */}
+      <section className="grid gap-4 min-w-0 overflow-hidden">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -533,7 +522,6 @@ export default async function HomePage({
           </div>
 
           <div className="flex items-center gap-4">
-            {/* أسهم التنقل الذكية للفعاليات */}
             <div className="hidden md:flex items-center gap-1.5">
               <a 
                 href={isAr ? "#event-2" : "#event-0"} 
@@ -555,23 +543,18 @@ export default async function HomePage({
           </div>
         </div>
 
-        <div className="relative w-full">
+        <div className="w-full min-w-0 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <MotionDiv
             variants={stagger}
             initial="hidden"
             whileInView="show"
             viewport={{ once: true, amount: 0.1 }}
-            className="flex gap-4 overflow-x-auto pb-4 snap-x scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden w-full"
+            className="flex gap-4 w-max min-w-full"
           >
             {featuredEvents.length === 0 ? (
               <div className={cx("w-full p-6 text-sm shrink-0 snap-start", glass)}>
                 <div className="font-semibold text-zinc-900 dark:text-white">
                   {isAr ? "لا يوجد فعاليات مميزة حاليًا" : "No featured events yet"}
-                </div>
-                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  {isAr
-                    ? "من لوحة الإدارة فعّل Published و Show on Home."
-                    : "From admin, enable Published and Show on Home."}
                 </div>
               </div>
             ) : (
@@ -585,11 +568,10 @@ export default async function HomePage({
                 const cover = event.image1_url || event.image2_url;
 
                 return (
-                  <MotionDiv 
+                  <div 
                     key={event.id} 
                     id={`event-${index}`}
-                    variants={fadeUp}
-                    className="w-[290px] sm:w-[340px] md:w-[380px] shrink-0 snap-start"
+                    className="w-[280px] sm:w-[320px] md:w-[360px] shrink-0 snap-start"
                   >
                     <Link
                       href={href(`/events/${event.id}`)}
@@ -648,7 +630,7 @@ export default async function HomePage({
                         </div>
                       </div>
                     </Link>
-                  </MotionDiv>
+                  </div>
                 );
               })
             )}
@@ -656,7 +638,7 @@ export default async function HomePage({
         </div>
       </section>
 
-      <section className="grid gap-4">
+      <section className="grid gap-4 min-w-0">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -787,9 +769,7 @@ export default async function HomePage({
                       </div>
                       <div className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">
                         {bestHeadSector
-                          ? isAr
-                            ? bestHeadSector.name_ar
-                            : bestHeadSector.name_en
+                          ? isAr ? bestHeadSector.name_ar : bestHeadSector.name_en
                           : "—"}
                       </div>
                     </div>
@@ -819,9 +799,7 @@ export default async function HomePage({
                       </div>
                       <div className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">
                         {bestDeputySector
-                          ? isAr
-                            ? bestDeputySector.name_ar
-                            : bestDeputySector.name_en
+                          ? isAr ? bestDeputySector.name_ar : bestDeputySector.name_en
                           : "—"}
                       </div>
                     </div>
@@ -878,7 +856,7 @@ export default async function HomePage({
 
             <div className="mt-4 flex flex-wrap gap-3">
               <Link href={href("/join")} className={primaryBtn}>
-                {isAr ? "قدم طلب الانضمام الآن" : "Join us now"}
+                {isAr ? "انضم إلينا" : "Join us"}
               </Link>
 
               <Link href={href("/contact")} className={secondaryBtn}>
