@@ -30,6 +30,7 @@ export default function YouTubePlaylist({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string>("");
   const [activeId, setActiveId] = React.useState<string>("");
+  const [isFallbackMode, setIsFallbackMode] = React.useState(false);
 
   const isAr = locale === "ar";
 
@@ -39,10 +40,16 @@ export default function YouTubePlaylist({
     async function run() {
       setLoading(true);
       setError("");
+      setIsFallbackMode(false);
       try {
         const res = await fetch(`/api/youtube/playlist?playlistId=${encodeURIComponent(playlistId)}`);
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || "Failed to load playlist");
+        
+        // التقاط حالة الفولباك إذا كان المفتاح غائباً أو معطلاً بالسيرفر
+        if (json?.isFallback) {
+          setIsFallbackMode(true);
+          setError(json?.error || "Fallback active");
+        }
 
         const list = (json.items || []) as VideoItem[];
         if (!cancelled) {
@@ -50,7 +57,10 @@ export default function YouTubePlaylist({
           setActiveId(list[0]?.videoId || "");
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || "Error");
+        if (!cancelled) {
+          setIsFallbackMode(true);
+          setError(e?.message || "Error connecting to internal API");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -62,23 +72,28 @@ export default function YouTubePlaylist({
     };
   }, [playlistId]);
 
+  // الذكاء الهندسي: إذا كان لدينا فيديو محدد نشط، نعرضه. وإذا كنا في نمط الفولباك لعدم وجود مفتاح، نقوم بعمل Embed للبلاي ليست بأكملها مباشرة عبر نظام يوتيوب الأصلي التابع لجوجل
   const playerUrl = activeId
     ? `https://www.youtube.com/embed/${activeId}?rel=0&autoplay=0`
+    : playlistId
+    ? `https://www.youtube.com/embed/videoseries?list=${encodeURIComponent(playlistId)}&rel=0&autoplay=0`
     : "";
 
   return (
     <section className="grid gap-4">
-      {/* الترويسة العلوية للمكون */}
+      {/* هيدر ترويسة المكون */}
       <div className="flex items-end justify-between gap-2 border-b border-black/5 dark:border-white/5 pb-3">
         <h3 className="text-lg font-bold text-zinc-950 dark:text-white">
           {isAr ? "فيديوهات ومحاضرات المسار" : "Videos & Lectures"}
         </h3>
         <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-          {isAr ? "تشغيل مباشر داخل الموقع" : "In-page responsive player"}
+          {isFallbackMode 
+            ? (isAr ? "نمط التشغيل التلقائي المباشر للبلاي ليست" : "Native Playlist Player Mode")
+            : (isAr ? "تشغيل تفاعلي داخل الموقع" : "In-page responsive player")}
         </div>
       </div>
 
-      {/* إطار مشغل الفيديو مع انحناءات متناسقة وتحميل كسول */}
+      {/* إطار المشغل المطور */}
       <div className="overflow-hidden rounded-2xl border border-black/10 bg-zinc-950 shadow-inner">
         <div className="relative aspect-video w-full">
           {playerUrl ? (
@@ -93,28 +108,34 @@ export default function YouTubePlaylist({
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-zinc-400">
               {loading
-                ? isAr ? "جارٍ جلب وتجهيز قائمة الفيديوهات التدريبية…" : "Loading playlist data…"
+                ? isAr ? "جارِ جلب وتجهيز قائمة الفيديوهات التدريبية…" : "Loading playlist data…"
                 : isAr ? "لا توجد فيديوهات متاحة حاليًا" : "No video available"}
             </div>
           )}
         </div>
       </div>
 
-      {error ? (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-xs font-medium text-red-600 dark:text-red-400">
-          {error}
+      {/* إشعار ذكي للمسؤول والمطور يظهر فقط عند غياب المفتاح بدلاً من تدمير الشكل البصري بصناديق خطأ حمراء سيئة */}
+      {isFallbackMode && error ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] font-medium text-amber-700 dark:text-amber-400/90 leading-5">
+          {isAr 
+            ? "💡 تنبيه للمطور: لم يتم العثور على مفتاح YOUTUBE_API_KEY فعال في ملف المتغيرات .env.local؛ تم تفعيل المشغل المباشر الشامل للبلاي ليست بنجاح لضمان استمرار عمل الفيديو للزوار بدون انقطاع."
+            : "💡 Admin Note: YOUTUBE_API_KEY is missing or invalid. Flipped seamlessly to native playlist embed player to keep services running smoothly."}
         </div>
       ) : null}
 
-      {/* قائمة الفيديوهات السفلية مع إبراز حالة النشاط بلون الهوية */}
+      {/* قائمة الفيديوهات السفلية */}
       {loading ? (
         <div className="text-xs font-medium text-zinc-500 animate-pulse px-1">
           {isAr ? "جاري تحديث القائمة…" : "Loading track list…"}
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-black/10 p-4 text-xs font-medium text-zinc-500 dark:border-white/10">
-          {isAr ? "قائمة التشغيل الرقمية فارغة حالياً." : "No videos found in this playlist."}
-        </div>
+        // في نمط الفولباك نخفي القائمة السفلية لأنها لن تعود ببيانات ونكتفي بالمشغل المباشر الشامل بالأعلى
+        !isFallbackMode ? (
+          <div className="rounded-xl border border-black/10 p-4 text-xs font-medium text-zinc-500 dark:border-white/10">
+            {isAr ? "قائمة التشغيل الرقمية فارغة حالياً." : "No videos found in this playlist."}
+          </div>
+        ) : null
       ) : (
         <div className="grid gap-2 max-h-[360px] overflow-y-auto pr-1 pl-1 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800">
           {items.map((v) => {
@@ -132,7 +153,6 @@ export default function YouTubePlaylist({
                     : ""
                 ].join(" ")}
               >
-                {/* الصورة المصغرة للفيديو ومدة العرض */}
                 <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-black/10 dark:border-white/10 bg-zinc-100 dark:bg-zinc-900">
                   <img src={v.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
                   {v.durationSec ? (
@@ -142,7 +162,6 @@ export default function YouTubePlaylist({
                   ) : null}
                 </div>
 
-                {/* عنوان الفيديو ومعرّفه الفني */}
                 <div className="min-w-0 flex-1">
                   <div className={[
                     "line-clamp-2 text-xs font-semibold leading-relaxed transition-colors",
