@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { Languages, Menu, X } from "lucide-react";
 
 import ThemeToggle from "./theme-toggle";
@@ -34,8 +34,8 @@ const NAV_LABELS: Record<"ar" | "en", Record<NavKey, string>> = {
   }
 };
 
-// 🔹 إعدادات أنيميشن القائمة المحمولة (Framer Motion variants)
-const menuVariants = {
+// 🔹 تم تحديد النوع هنا كـ Variants لحل مشكلة الـ TypeScript في الـ Build تماماً
+const menuVariants: Variants = {
   hidden: { opacity: 0, height: 0 },
   visible: {
     opacity: 1,
@@ -54,7 +54,7 @@ const menuVariants = {
   }
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: -10 },
   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
 };
@@ -140,7 +140,6 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
                 />
               </>
             ) : (
-              // شل تباين الألوان الحاد واستبداله بمساحة متناسقة تمنع الـ Layout Shift
               <div className="h-full w-full rounded-xl bg-zinc-100 dark:bg-zinc-900" />
             )}
           </div>
@@ -179,7 +178,6 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
             })}
           </nav>
 
-          {/* زر انضم إلينا بالألوان الرسمية المعتمدة للهوية البصرية */}
           <Link
             href={`/${locale}/join`}
             className="whitespace-nowrap rounded-2xl bg-[#182B36] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:opacity-90 active:scale-[0.99] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:opacity-90"
@@ -237,7 +235,6 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
             className="overflow-hidden border-t border-zinc-200 bg-white/95 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 lg:hidden"
           >
             <div className="container-skillup grid gap-4 py-5">
-              {/* روابط التنقل - شبكة متناسقة بأنيميشن تدريجي */}
               <div className="grid grid-cols-2 gap-2">
                 {items.map((item) => {
                   const active = isActiveHref(item.href);
@@ -259,7 +256,6 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
                 })}
               </div>
 
-              {/* زر انضم إلينا في وضع المحمول بالألوان الرسمية المعتمدة */}
               <motion.div variants={itemVariants} className="w-full pt-1">
                 <Link
                   href={`/${locale}/join`}
