@@ -28,9 +28,10 @@ export async function GET(req: Request) {
 
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) {
+    // بدلاً من إرجاع خطأ 500 يكسر الواجهة، نرجع حالة 200 مع وضع علم الـ isFallback ليعمل المشغل الأصلي فوراً
     return NextResponse.json(
-      { items: [], error: "Missing YOUTUBE_API_KEY in .env.local" },
-      { status: 500 }
+      { items: [], isFallback: true, error: "Missing YOUTUBE_API_KEY" },
+      { status: 200 }
     );
   }
 
@@ -43,15 +44,16 @@ export async function GET(req: Request) {
     itemsUrl.searchParams.set("key", key);
 
     const itemsRes = await fetch(itemsUrl.toString(), {
-      // caching (اختياري)
+      // caching
       next: { revalidate: 300 }
     });
 
     const itemsJson = await itemsRes.json();
     if (!itemsRes.ok) {
+      // في حال فشل الطلب من سيرفرات جوجل (بسبب انتهاء كوتا الاستخدام مثلاً) نتحول لنمط الفولباك الآمن
       return NextResponse.json(
-        { items: [], error: itemsJson?.error?.message || "YouTube playlistItems failed" },
-        { status: 400 }
+        { items: [], isFallback: true, error: itemsJson?.error?.message || "YouTube API error or quota limit reached" },
+        { status: 200 }
       );
     }
 
@@ -76,7 +78,7 @@ export async function GET(req: Request) {
     }).filter((x: any) => x.videoId);
 
     if (base.length === 0) {
-      return NextResponse.json({ items: [] satisfies Item[] });
+      return NextResponse.json({ items: [], isFallback: false });
     }
 
     // 2) Get durations via videos endpoint
@@ -103,8 +105,11 @@ export async function GET(req: Request) {
       durationSec: durationMap.get(x.videoId) ?? 0
     }));
 
-    return NextResponse.json({ items: out });
+    return NextResponse.json({ items: out, isFallback: false });
   } catch (e: any) {
-    return NextResponse.json({ items: [], error: e?.message || "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { items: [], isFallback: true, error: e?.message || "Server error occurred" },
+      { status: 200 }
+    );
   }
 }
