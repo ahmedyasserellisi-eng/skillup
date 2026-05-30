@@ -115,15 +115,6 @@ export default function YouTubePlaylist({
         </div>
       </div>
 
-      {/* إشعار ذكي للمسؤول والمطور يظهر فقط عند غياب المفتاح بدلاً من تدمير الشكل البصري بصناديق خطأ حمراء سيئة */}
-      {isFallbackMode && error ? (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-[11px] font-medium text-amber-700 dark:text-amber-400/90 leading-5">
-          {isAr 
-            ? "💡 تنبيه للمطور: لم يتم العثور على مفتاح YOUTUBE_API_KEY فعال في ملف المتغيرات .env.local؛ تم تفعيل المشغل المباشر الشامل للبلاي ليست بنجاح لضمان استمرار عمل الفيديو للزوار بدون انقطاع."
-            : "💡 Admin Note: YOUTUBE_API_KEY is missing or invalid. Flipped seamlessly to native playlist embed player to keep services running smoothly."}
-        </div>
-      ) : null}
-
       {/* قائمة الفيديوهات السفلية */}
       {loading ? (
         <div className="text-xs font-medium text-zinc-500 animate-pulse px-1">
