@@ -5,6 +5,7 @@ import { setRequestLocale } from "next-intl/server";
 import { locales, type Locale } from "@/i18n";
 import { MotionSection, fadeUp } from "@/components/motion";
 import { supabaseServer } from "@/lib/supabase-server";
+import YouTubePlaylist from "@/components/youtube-playlist";
 
 type Program = {
   id: string;
@@ -45,7 +46,6 @@ function extractPlaylistId(input: string) {
 
 function formatDate(locale: "ar" | "en", value?: string | null) {
   if (!value) return "—";
-
   try {
     const d = new Date(value);
     return d.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", {
@@ -71,7 +71,6 @@ export async function generateMetadata({
   const safeLocale: "ar" | "en" = locale === "en" ? "en" : "ar";
 
   const sb = supabaseServer();
-
   const { data } = await sb
     .from("programs")
     .select("title_ar,title_en")
@@ -96,14 +95,12 @@ export default async function ProgramDetailsPage({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { locale, id } = await params;
-
   if (!locales.includes(locale as Locale)) notFound();
 
   const safeLocale = locale as Locale;
   const isAr = safeLocale === "ar";
 
   setRequestLocale(safeLocale);
-
   const sb = supabaseServer();
 
   const { data, error } = await sb
@@ -116,11 +113,9 @@ export default async function ProgramDetailsPage({
   if (error || !data) notFound();
 
   const program = data as Program;
-
   const title =
     pickText(safeLocale, program.title_ar, program.title_en) ||
     (isAr ? "برنامج تدريبي" : "Training Program");
-
   const description = pickText(
     safeLocale,
     program.description_ar,
@@ -131,32 +126,26 @@ export default async function ProgramDetailsPage({
   const playlistUrl = playlistId
     ? `https://www.youtube.com/playlist?list=${playlistId}`
     : "";
-  const playlistEmbedUrl = playlistId
-    ? `https://www.youtube.com/embed/videoseries?list=${playlistId}&rel=0`
-    : "";
 
   const createdAt = formatDate(safeLocale, program.created_at);
   const galleryImages = (program.extra_images ?? []).filter(Boolean);
-
   const href = (path: string) => `/${safeLocale}${path}`;
 
+  // توحيد الـ Design Tokens مع الهوية
   const glass =
     "rounded-[28px] border border-black/10 bg-white/78 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60";
-
   const softCard =
     "rounded-2xl border border-black/10 bg-white/90 dark:border-white/10 dark:bg-zinc-950/45";
-
   const pill =
-    "rounded-full border border-black/10 bg-white/90 px-3 py-1 text-xs font-medium text-zinc-700 dark:border-white/10 dark:bg-zinc-950/50 dark:text-zinc-200";
-
+    "rounded-full border border-black/10 bg-white/90 px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-white/10 dark:bg-zinc-950/50 dark:text-zinc-200";
   const primaryBtn =
-    "inline-flex items-center justify-center rounded-2xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-700 active:scale-[0.99] dark:bg-amber-400 dark:text-zinc-950 dark:hover:bg-amber-300";
-
+    "inline-flex items-center justify-center rounded-2xl bg-[#182B36] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#182B36]/90 active:scale-[0.99] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:bg-[#C8A448]/90";
   const secondaryBtn =
     "inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white/90 px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950 active:scale-[0.99] dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-100 dark:hover:bg-white/10 dark:hover:text-white";
 
   return (
     <div className="mx-auto grid max-w-5xl gap-8">
+      {/* البار العلوي وعناصر التحكم */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href={href("/programs")} className={secondaryBtn}>
           {isAr ? "الرجوع إلى البرامج" : "Back to programs"}
@@ -175,27 +164,28 @@ export default async function ProgramDetailsPage({
         </div>
       </div>
 
+      {/* كارت الهيرو المطور مضاف إليه تدرج ألوان الهوية الحيوية */}
       <MotionSection
         variants={fadeUp}
         initial="hidden"
         animate="show"
         className={cx("relative overflow-hidden p-7 md:p-8", glass)}
       >
-        <div className="absolute inset-0 -z-20 bg-grid opacity-50" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-36 bg-gradient-to-b from-sky-50/70 to-transparent dark:from-amber-400/5 dark:to-transparent" />
-        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-sky-100/40 blur-3xl dark:bg-amber-300/10" />
+        <div className="absolute inset-0 -z-20 bg-grid opacity-45" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-36 bg-gradient-to-b from-[#182B36]/5 to-transparent dark:from-[#C8A448]/5 dark:to-transparent" />
+        <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#182B36]/5 blur-3xl dark:bg-[#C8A448]/10" />
 
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="grid gap-4">
-            <div className={pill}>
-              {isAr ? "برنامج من SkillUp" : "A SkillUp Program"}
+            <div className={cx("inline-flex w-fit items-center gap-2", pill)}>
+              <span className="h-1.5 w-1.5 rounded-full bg-[#182B36] dark:bg-[#C8A448]" />
+              <span>{isAr ? "برنامج من SkillUp" : "A SkillUp Program"}</span>
             </div>
 
             <div className="grid gap-3">
               <h1 className="text-3xl font-extrabold leading-tight text-zinc-950 dark:text-white md:text-5xl">
                 {title}
               </h1>
-
               <p className="max-w-2xl text-sm leading-8 text-zinc-600 dark:text-zinc-300 md:text-base">
                 {isAr
                   ? "تجمع هذه الصفحة وصف البرنامج، المواد المرئية المرتبطة به، وأي صور إضافية متاحة."
@@ -205,12 +195,7 @@ export default async function ProgramDetailsPage({
 
             <div className="flex flex-wrap gap-3">
               {playlistUrl ? (
-                <a
-                  href={playlistUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={primaryBtn}
-                >
+                <a href={playlistUrl} target="_blank" rel="noreferrer" className={primaryBtn}>
                   {isAr ? "فتح قائمة التشغيل" : "Open playlist"}
                 </a>
               ) : (
@@ -253,12 +238,8 @@ export default async function ProgramDetailsPage({
               </div>
               <div className="mt-2 text-base font-bold text-zinc-950 dark:text-white">
                 {playlistUrl
-                  ? isAr
-                    ? "متاحة"
-                    : "Available"
-                  : isAr
-                    ? "غير متاحة حاليًا"
-                    : "Not available yet"}
+                  ? isAr ? "متاحة التفاعل" : "Available"
+                  : isAr ? "غير متاحة حاليًا" : "Not available yet"}
               </div>
             </div>
 
@@ -274,25 +255,20 @@ export default async function ProgramDetailsPage({
         </div>
       </MotionSection>
 
+      {/* صورة الغلاف الرئيسية */}
       <section className="grid gap-4">
         <div>
           <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
             {isAr ? "صورة البرنامج الرئيسية" : "Program Cover"}
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {isAr
-              ? "الصورة الأساسية المعروضة لهذا البرنامج."
-              : "The main cover image displayed for this program."}
+            {isAr ? "الصورة الأساسية المعروضة لهذا البرنامج." : "The main cover image displayed for this program."}
           </p>
         </div>
 
-        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[28px] border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
+        <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[28px] border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5 shadow-sm">
           {program.cover_url ? (
-            <img
-              src={program.cover_url}
-              alt={title}
-              className="h-full w-full object-cover"
-            />
+            <img src={program.cover_url} alt={title} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-zinc-500 dark:text-zinc-400">
               {isAr ? "لا توجد صورة متاحة" : "No image available"}
@@ -301,70 +277,40 @@ export default async function ProgramDetailsPage({
         </div>
       </section>
 
+      {/* وصف البرنامج مع ضبط الـ Line Height والخطوط الاحترافية */}
       <section id="description" className="grid gap-4">
         <div>
           <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
-            {isAr ? "وصف البرنامج" : "Program Description"}
+            {isAr ? "وصف البرنامج ومحاوره" : "Program Description"}
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {isAr
-              ? "تفاصيل البرنامج كما تم إعدادها داخل لوحة التحكم."
-              : "Program details as prepared in the admin dashboard."}
+            {isAr ? "تفاصيل البرنامج كما تم إعدادها داخل لوحة التحكم." : "Program details as prepared in the admin dashboard."}
           </p>
         </div>
 
-        <div className={cx("p-6", glass)}>
+        <div className={cx("p-6 md:p-8", glass)}>
           <div
-            className="prose max-w-none prose-zinc dark:prose-invert prose-p:leading-8 prose-headings:mb-3"
+            className="prose max-w-none prose-zinc dark:prose-invert prose-p:leading-8 prose-headings:font-bold prose-headings:mb-4 text-sm md:text-base text-zinc-800 dark:text-zinc-200"
             dangerouslySetInnerHTML={{
               __html:
                 description ||
-                `<p>${isAr ? "لا يوجد وصف متاح حاليًا." : "No description available yet."}</p>`
+                `<p>${isAr ? "لا يوجد وصف متاح حاليًا لهذا المسار." : "No description available yet for this track."}</p>`
             }}
           />
         </div>
       </section>
 
-      {playlistUrl ? (
+      {/* سيكشن مشغل قائمة تشغيل اليوتيوب التفاعلي المتكامل */}
+      {playlistId ? (
         <section id="videos" className="grid gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
-              {isAr ? "فيديوهات البرنامج" : "Program Videos"}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              {isAr
-                ? "يمكن مشاهدة قائمة التشغيل مباشرة من المشغل التالي أو فتحها على يوتيوب."
-                : "You can watch the playlist directly in the player below or open it on YouTube."}
-            </p>
-          </div>
-
-          <div className={cx("overflow-hidden p-3", glass)}>
-            <div className="overflow-hidden rounded-[24px] border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
-              <div className="relative aspect-video w-full">
-                <iframe
-                  src={playlistEmbedUrl}
-                  title={isAr ? "مشغل قائمة تشغيل يوتيوب" : "YouTube playlist player"}
-                  className="absolute inset-0 h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <a
-              href={playlistUrl}
-              target="_blank"
-              rel="noreferrer"
-              className={secondaryBtn}
-            >
-              {isAr ? "فتح القائمة على يوتيوب" : "Open playlist on YouTube"}
-            </a>
+          <div className={cx("p-5 md:p-6", glass)}>
+            {/* التكريك المباشر للمكون الذكي المرفق من قبلك */}
+            <YouTubePlaylist playlistId={playlistId} locale={safeLocale} />
           </div>
         </section>
       ) : null}
 
+      {/* معرض الصور الإضافية للفعاليات */}
       {galleryImages.length > 0 ? (
         <section id="images" className="grid gap-4">
           <div>
@@ -372,22 +318,20 @@ export default async function ProgramDetailsPage({
               {isAr ? "صور إضافية" : "Additional Images"}
             </h2>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              {isAr
-                ? "صور إضافية مرتبطة بالبرنامج أو أنشطته."
-                : "Additional images related to the program or its activities."}
+              {isAr ? "صور إضافية مرتبطة بالبرنامج أو أنشطته وحفلات تخرجه." : "Additional images related to the program or its activities."}
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {galleryImages.map((img) => (
               <div
                 key={img}
-                className="overflow-hidden rounded-[28px] border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5"
+                className="overflow-hidden rounded-[24px] border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5 aspect-[4/3] shadow-sm group"
               >
                 <img
                   src={img}
                   alt={title}
-                  className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]"
+                  className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                 />
               </div>
             ))}
@@ -395,19 +339,15 @@ export default async function ProgramDetailsPage({
         </section>
       ) : null}
 
-      <section className="flex flex-wrap gap-3">
+      {/* أزرار الإجراءات السفلية التوجيهية */}
+      <section className="flex flex-wrap gap-3 pt-2">
         <Link href={href("/programs")} className={secondaryBtn}>
           {isAr ? "الرجوع إلى كل البرامج" : "Back to all programs"}
         </Link>
 
         {playlistUrl ? (
-          <a
-            href={playlistUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={primaryBtn}
-          >
-            {isAr ? "فتح على يوتيوب" : "Open on YouTube"}
+          <a href={playlistUrl} target="_blank" rel="noreferrer" className={primaryBtn}>
+            {isAr ? "مشاهدة القائمة على يوتيوب ↗" : "Open on YouTube ↗"}
           </a>
         ) : null}
       </section>
