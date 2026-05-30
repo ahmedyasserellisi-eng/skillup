@@ -70,7 +70,6 @@ function safeArray(v: unknown): string[] {
 function extractPlaylistId(input: string) {
   const v = (input || "").trim();
   if (!v) return "";
-
   if (!v.includes("http") && !v.includes("youtube") && !v.includes("youtu.be")) {
     return v;
   }
@@ -112,6 +111,7 @@ export default function AdminProgramsPage() {
   const [form, setForm] = useState({ ...emptyForm });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [q, setQ] = useState("");
 
   const coverInputRef = useRef<HTMLInputElement | null>(null);
@@ -191,7 +191,6 @@ export default function AdminProgramsPage() {
     setEditing(p);
     setEditLang("ar");
     setMessage("");
-
     setForm({
       title_ar: p.title_ar ?? "",
       title_en: p.title_en ?? "",
@@ -204,7 +203,6 @@ export default function AdminProgramsPage() {
       is_featured_home: !!p.is_featured_home,
       featured_order: typeof p.featured_order === "number" ? p.featured_order : 1
     });
-
     setOpen(true);
   }
 
@@ -229,14 +227,15 @@ export default function AdminProgramsPage() {
   async function pickCover(file: File | null) {
     if (!file) return;
     setMessage("");
-
+    setMediaUploading(true);
     try {
       const url = await uploadToStorage(file);
       setForm((f) => ({ ...f, cover_url: url }));
-      setMessage("✅ Cover uploaded successfully.");
+      setMessage(isAr ? "✅ تم رفع الغلاف بنجاح." : "✅ Cover uploaded successfully.");
     } catch (e: any) {
       setMessage(`❌ ${e?.message || "Upload failed"}`);
     } finally {
+      setMediaUploading(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
     }
   }
@@ -255,6 +254,7 @@ export default function AdminProgramsPage() {
       return;
     }
 
+    setMediaUploading(true);
     try {
       const uploaded: string[] = [];
       for (const f of toUpload) {
@@ -266,11 +266,11 @@ export default function AdminProgramsPage() {
         ...prev,
         extra_images: [...(prev.extra_images || []), ...uploaded]
       }));
-
-      setMessage("✅ Extra images uploaded successfully.");
+      setMessage(isAr ? "✅ تم رفع الصور الإضافية." : "✅ Extra images uploaded successfully.");
     } catch (e: any) {
       setMessage(`❌ ${e?.message || "Upload failed"}`);
     } finally {
+      setMediaUploading(false);
       if (extraInputRef.current) extraInputRef.current.value = "";
     }
   }
@@ -285,7 +285,6 @@ export default function AdminProgramsPage() {
   async function save() {
     setMessage("");
     setSaving(true);
-
     try {
       const session = await requireAllowedSession();
       if (!session) {
@@ -298,12 +297,15 @@ export default function AdminProgramsPage() {
         return;
       }
 
+      // تحسين احترافي: تنظيف رابط اليوتيوب وحفظ الـ ID الصافي مباشرة لقاعدة البيانات
+      const cleanPlaylistId = extractPlaylistId(form.youtube_playlist);
+
       const payload = {
         title_ar: form.title_ar || null,
         title_en: form.title_en || null,
         description_ar: form.description_ar || null,
         description_en: form.description_en || null,
-        youtube_playlist: form.youtube_playlist || null,
+        youtube_playlist: cleanPlaylistId || null,
         cover_url: form.cover_url || null,
         extra_images: form.extra_images || [],
         is_published: !!form.is_published,
@@ -316,7 +318,6 @@ export default function AdminProgramsPage() {
           .from("programs")
           .update(payload)
           .eq("id", editing.id);
-
         if (error) throw error;
       } else {
         const { error } = await supabaseBrowser.from("programs").insert(payload);
@@ -336,7 +337,6 @@ export default function AdminProgramsPage() {
 
   async function remove(id: string, title?: string | null) {
     setMessage("");
-
     const ok = confirm(
       isAr
         ? `هل تريد حذف البرنامج؟\n\n${title || "بدون عنوان"}`
@@ -378,7 +378,6 @@ export default function AdminProgramsPage() {
       .from("programs")
       .update({ is_published: !p.is_published })
       .eq("id", p.id);
-
     if (error) {
       setMessage(`❌ ${error.message}`);
     } else {
@@ -410,7 +409,6 @@ export default function AdminProgramsPage() {
       .from("programs")
       .update(payload)
       .eq("id", p.id);
-
     if (error) {
       setMessage(`❌ ${error.message}`);
     } else {
@@ -499,9 +497,11 @@ export default function AdminProgramsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-sm font-medium">{isAr ? "لغة المحتوى" : "Content language"}</div>
                       <div className="flex gap-2">
+                        {/* أزرار اختيار اللغة مدمجة بألوان الهوية المعتمدة هندسياً */}
                         <Button
                           type="button"
                           variant={editLang === "ar" ? "default" : "secondary"}
+                          className={editLang === "ar" ? "bg-[#182B36] hover:bg-[#182B36]/90 text-white dark:bg-[#C8A448] dark:hover:bg-[#C8A448]/90 dark:text-zinc-950" : ""}
                           onClick={() => setEditLang("ar")}
                         >
                           عربي
@@ -509,6 +509,7 @@ export default function AdminProgramsPage() {
                         <Button
                           type="button"
                           variant={editLang === "en" ? "default" : "secondary"}
+                          className={editLang === "en" ? "bg-[#182B36] hover:bg-[#182B36]/90 text-white dark:bg-[#C8A448] dark:hover:bg-[#C8A448]/90 dark:text-zinc-950" : ""}
                           onClick={() => setEditLang("en")}
                         >
                           English
@@ -633,12 +634,12 @@ export default function AdminProgramsPage() {
                           variant="secondary"
                           type="button"
                           onClick={() => setOpen(false)}
-                          disabled={saving}
+                          disabled={saving || mediaUploading}
                         >
                           {isAr ? "إلغاء" : "Cancel"}
                         </Button>
 
-                        <Button type="button" onClick={save} disabled={saving}>
+                        <Button type="button" onClick={save} disabled={saving || mediaUploading}>
                           {saving ? (isAr ? "جارٍ الحفظ..." : "Saving...") : editing ? (isAr ? "حفظ" : "Save") : (isAr ? "إنشاء" : "Create")}
                         </Button>
                       </div>
@@ -673,13 +674,14 @@ export default function AdminProgramsPage() {
                             ref={coverInputRef}
                             type="file"
                             accept="image/*"
+                            disabled={mediaUploading || saving}
                             onChange={(e) => void pickCover(e.target.files?.[0] || null)}
                           />
                           <Button
                             type="button"
                             variant="secondary"
                             onClick={() => setForm((f) => ({ ...f, cover_url: "" }))}
-                            disabled={!form.cover_url}
+                            disabled={!form.cover_url || mediaUploading || saving}
                           >
                             {isAr ? "حذف" : "Remove"}
                           </Button>
@@ -705,6 +707,7 @@ export default function AdminProgramsPage() {
                               <button
                                 className="absolute right-2 top-2 rounded-lg bg-black/70 px-2 py-1 text-xs text-white"
                                 onClick={() => removeExtra(u)}
+                                disabled={mediaUploading || saving}
                                 type="button"
                               >
                                 {isAr ? "حذف" : "Remove"}
@@ -724,6 +727,7 @@ export default function AdminProgramsPage() {
                           type="file"
                           accept="image/*"
                           multiple
+                          disabled={mediaUploading || saving}
                           onChange={(e) => void pickExtras(e.target.files)}
                         />
                       </div>
@@ -798,7 +802,8 @@ export default function AdminProgramsPage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-black/10 dark:border-white/10">
+      {/* تحسين هندسي: إضافة حاوية التمرير الأفقي لحماية الجدول من الانكسار البصري */}
+      <div className="rounded-2xl border border-black/10 dark:border-white/10 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
