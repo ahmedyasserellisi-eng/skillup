@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-
-import { MotionDiv, MotionSection, fadeUp, stagger } from "@/components/motion";
+import { MotionDiv, MotionSection, fadeUp, stagger, ScrollReveal } from "@/components/motion";
 import { locales, type Locale } from "@/i18n";
 import { SECTORS } from "@/lib/sectors-data";
 import { supabaseServer } from "@/lib/supabase-server";
@@ -93,15 +92,12 @@ function formatDate(locale: "ar" | "en", value?: string | null) {
 
 function formatEventType(locale: "ar" | "en", value?: string | null) {
   const x = (value ?? "").toLowerCase().trim();
-
   if (x.includes("online") || x.includes("أونلاين")) {
     return locale === "ar" ? "أونلاين" : "Online";
   }
-
   if (x.includes("offline") || x.includes("أوفلاين")) {
     return locale === "ar" ? "أوفلاين" : "Offline";
   }
-
   return locale === "ar" ? "فعالية" : "Event";
 }
 
@@ -111,7 +107,6 @@ export default async function HomePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
-
   if (!locales.includes(locale as Locale)) notFound();
 
   const safeLocale = locale as Locale;
@@ -121,38 +116,32 @@ export default async function HomePage({
   const href = (path: string) => `/${safeLocale}${path}`;
   const t = await getTranslations("home");
 
-  const heroBadge = isAr ? "منظومة SkillUp" : "SkillUp Initiative";
+  const heroBadge = isAr ? "فريق SkillUp" : "SkillUp Team";
   const heroSub = isAr
-    ? "منظومة شبابية رائدة تسعى لتمكين الكوادر الشابة عبر نموذج تعلّم تطبيقي متكامل يحاكي بيئة العمل الحقيقية ويسد الفجوة مع متطلبات سوق العمل المعاصر."
-    : "A leading youth initiative dedicated to empowering young talents through an integrated, hands-on learning model that simulates real corporate environments and bridges the job market gap.";
-
-  // ثوابت التصميم المتناسقة مع هوية المبادرة (Navy #182B36 & Gold #C8A448)
+    ? "فريق شبابي يركز على تمكين الشباب من خلال تعلم تطبيقي يحاكي بيئة العمل ويقربهم من سوق العمل."
+    : "A youth team focused on empowering young people through practical learning that simulates real work environments and connects them to the job market.";
+  
+  // ── 🎨 تحسين الثيمات وتناسق الأبعاد الحركية والهوية البصرية ──
   const glass =
-    "rounded-[28px] border border-black/10 bg-white/75 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60";
-
+    "rounded-[28px] border border-black/10 bg-white/78 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60";
   const softCard =
-    "rounded-2xl border border-black/10 bg-white/85 dark:border-white/10 dark:bg-zinc-950/45";
-
+    "rounded-2xl border border-black/10 bg-white/88 dark:border-white/10 dark:bg-zinc-950/45";
   const cardHover =
-    "transition duration-300 will-change-transform hover:-translate-y-1 hover:border-[#182B36]/30 hover:shadow-xl hover:shadow-black/5 dark:hover:border-[#C8A448]/30 dark:hover:shadow-black/20";
-
+    "transition-all duration-300 will-change-transform hover:-translate-y-1.5 hover:border-black/15 hover:shadow-xl hover:shadow-black/5 dark:hover:border-white/15 dark:hover:shadow-black/30";
   const pill =
-    "rounded-full border border-black/10 bg-white/95 px-3.5 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm dark:border-white/10 dark:bg-zinc-950/55 dark:text-zinc-200";
-
+    "rounded-full border border-black/10 bg-white/95 px-3.5 py-1.5 text-xs font-medium text-zinc-700 shadow-sm dark:border-white/10 dark:bg-zinc-950/55 dark:text-zinc-200";
   const softPill =
-    "rounded-full border border-black/10 bg-white/90 px-3 py-1 text-[11px] font-medium dark:border-white/10 dark:bg-zinc-950/45";
-
+    "rounded-full border border-black/10 bg-white/90 px-3 py-1 dark:border-white/10 dark:bg-zinc-950/45";
+  
+  // ✨ تحديث الأزرار لتبني كحلي وذهبي SkillUp الرسمي مع Micro-interactions فخمة
   const primaryBtn =
-    "rounded-2xl bg-[#182B36] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#223d4d] active:scale-[0.99] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:bg-[#d9b552]";
-
+    "rounded-2xl bg-[#182B36] px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-[#182B36]/90 hover:-translate-y-0.5 active:scale-[0.98] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:bg-[#C8A448]/90 shadow-sm shadow-black/5";
   const secondaryBtn =
-    "rounded-2xl border border-black/10 bg-white/90 px-5 py-3.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50 hover:text-zinc-950 active:scale-[0.99] dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-100 dark:hover:bg-white/10 dark:hover:text-white";
-
+    "rounded-2xl border border-black/10 bg-white/90 px-5 py-3 text-sm font-semibold text-zinc-700 transition-all duration-200 hover:bg-zinc-50 hover:text-zinc-900 hover:-translate-y-0.5 active:scale-[0.98] dark:border-white/10 dark:bg-zinc-950/45 dark:text-zinc-100 dark:hover:bg-white/10 dark:hover:text-white shadow-sm";
   const ghostLink =
-    "text-sm font-bold text-[#182B36] transition hover:opacity-80 dark:text-[#C8A448]";
+    "text-sm font-semibold text-zinc-700 transition-all duration-200 hover:text-[#182B36] hover:translate-x-0.5 rtl:hover:-translate-x-0.5 dark:text-zinc-200 dark:hover:text-[#C8A448]";
 
   const sb = supabaseServer();
-
   const [{ data: programsData }, { data: eventsData }, { data: awardsRow }] =
     await Promise.all([
       sb
@@ -197,58 +186,51 @@ export default async function HomePage({
 
   const whyItems = [
     {
-      title: isAr ? "محاكاة واقعية لبيئة العمل" : "Realistic Workplace Simulation",
+      title: isAr ? "تجربة تحاكي بيئة العمل" : "Workplace-like experience",
       desc: isAr
-        ? "نعمل من خلال أدوار وظيفية فعلية، وتكامل مرن بين القطاعات التخصصية بمسؤوليات واضحة تحاكي الهياكل المؤسسية الحقيقية."
-        : "We operate through actual job roles and seamless integration across specialized sectors with clear institutional responsibilities."
+        ? "نتعلم من خلال أدوار فعلية، وتعاون بين القطاعات، ومسؤوليات واضحة."
+        : "Learn through real roles, cross-sector collaboration, and clear responsibilities."
     },
     {
-      title: isAr ? "اكتساب مهارات تطبيقية مطلوبة" : "In-Demand Practical Skills",
+      title: isAr ? "مهارات عملية قابلة للتطبيق" : "Practical skills",
       desc: isAr
-        ? "برامج تدريبية مكثفة ومشاريع حية تضمن تزويد الشباب بالمهارات التقنية والشخصية الأكثر طلباً في سوق العمل المعاصر."
-        : "Intensive training programs and live projects that equip youth with the most demanded technical and soft skills in today's market."
+        ? "برامج وأنشطة تساعد الشباب على اكتساب خبرة أقرب لسوق العمل."
+        : "Programs and activities that build skills closer to the job market."
     },
     {
-      title: isAr ? "بيئة تفاعلية ومجتمع ملهم" : "An Inspiring & Vibrant Community",
+      title: isAr ? "مجتمع شبابي وفرص مشاركة" : "Youth community",
       desc: isAr
-        ? "مساحة حيوية للنمو المستدام، بناء العلاقات المهنية المثمرة، وصناعة أثر ملموس من خلال مبادرات وفعاليات شبابية مبتكرة."
-        : "A dynamic space for sustainable growth, professional networking, and creating a tangible impact through innovative youth events."
+        ? "مساحة للنمو والمشاركة وصناعة أثر حقيقي من خلال الأنشطة والفعاليات."
+        : "A space for growth, participation, and real impact through activities and events."
     }
   ];
 
   const heroHighlights = [
-    {
-      title: t("highlights.h1Title"),
-      desc: t("highlights.h1Sub")
-    },
-    {
-      title: t("highlights.h2Title"),
-      desc: t("highlights.h2Sub")
-    },
-    {
-      title: t("highlights.h3Title"),
-      desc: t("highlights.h3Sub")
-    }
+    { title: t("highlights.h1Title"), desc: t("highlights.h1Sub") },
+    { title: t("highlights.h2Title"), desc: t("highlights.h2Sub") },
+    { title: t("highlights.h3Title"), desc: t("highlights.h3Sub") }
   ];
 
   return (
-    <div className="grid gap-12 min-w-0 w-full">
+    <div className="grid gap-16 py-4">
+      {/* ── 🚀 هيدر البطل (Hero Section) بقيم فيزياء ناعمة جداً ── */}
       <MotionSection
         variants={fadeUp}
         initial="hidden"
         animate="show"
         className={cx("relative overflow-hidden p-7 md:p-10", glass)}
       >
-        <div className="absolute inset-0 -z-20 bg-grid opacity-30" />
+        <div className="absolute inset-0 -z-20 bg-grid opacity-40" />
         <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-36 bg-gradient-to-b from-[#182B36]/5 to-transparent dark:from-[#C8A448]/5 dark:to-transparent" />
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#182B36]/10 blur-3xl dark:bg-[#C8A448]/10" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#182B36]/5 blur-3xl dark:bg-[#C8A448]/10" />
         <div className="pointer-events-none absolute -left-24 bottom-0 h-64 w-64 rounded-full bg-[#182B36]/5 blur-3xl dark:bg-[#C8A448]/5" />
 
         <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div className="relative">
-            <div className="absolute inset-0 -z-10 rounded-[30px] bg-white/70 shadow-sm dark:bg-zinc-950/28" />
+            <div className="absolute inset-0 -z-10 rounded-[30px] bg-white/72 shadow-sm dark:bg-zinc-950/28" />
 
             <div className="grid gap-6 rounded-[30px] p-1 md:p-2">
+              {/* تعديل لون النقطة ليعكس الهوية البصرية */}
               <div className={cx("inline-flex w-fit items-center gap-2", pill)}>
                 <span className="h-1.5 w-1.5 rounded-full bg-[#182B36] dark:bg-[#C8A448]" />
                 <span>{heroBadge}</span>
@@ -258,7 +240,6 @@ export default async function HomePage({
                 <h1 className="max-w-3xl text-3xl font-extrabold leading-tight text-zinc-950 dark:text-white md:text-5xl">
                   {t("headline")}
                 </h1>
-
                 <p className="max-w-2xl text-sm leading-8 text-zinc-600 dark:text-zinc-300 md:text-base">
                   {heroSub}
                 </p>
@@ -268,9 +249,8 @@ export default async function HomePage({
                 <Link href={href("/join")} className={primaryBtn}>
                   {isAr ? "انضم إلينا" : "Join us"}
                 </Link>
-
                 <Link href={href("/programs")} className={secondaryBtn}>
-                  {isAr ? "استكشف مساراتنا التدريبية" : "Explore programs"}
+                  {isAr ? "استكشف البرامج" : "Explore programs"}
                 </Link>
               </div>
 
@@ -282,15 +262,13 @@ export default async function HomePage({
                     className={cx("rounded-2xl p-4", softCard)}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 text-[11px] font-bold text-zinc-600 dark:border-white/10 dark:text-zinc-300">
+                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 text-[11px] font-semibold text-zinc-600 dark:border-white/10 dark:text-zinc-300">
                         {(index + 1).toString().padStart(2, "0")}
                       </span>
-
-                      <span className="text-sm font-bold text-zinc-900 dark:text-white">
+                      <span className="text-sm font-semibold text-zinc-900 dark:text-white">
                         {item.title}
                       </span>
                     </div>
-
                     <div className="mt-2 text-xs leading-6 text-zinc-500 dark:text-zinc-400">
                       {item.desc}
                     </div>
@@ -303,52 +281,45 @@ export default async function HomePage({
           <div className="grid gap-4">
             <div className={cx("p-5", softCard)}>
               <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                {isAr ? "رحلة التطوير والتميز" : "The SkillUp Journey"}
+                {isAr ? "رحلة SkillUp" : "SkillUp journey"}
               </div>
-
               <div className="mt-4 grid gap-3">
                 {[
-                  isAr ? "تأهيل احترافي وتطوير مستمر للمهارات" : "Professional qualification & skill development",
-                  isAr ? "تكامل مؤسسي مرن بين القطاعات التخصصية" : "Flexible corporate integration across sectors",
-                  isAr ? "إدارة مبادرات وفعاليات ذات أثر حقيقي" : "Managing initiatives & events with tangible impact"
+                  isAr ? "تدريب عملي يطور المهارات" : "Practical training that builds skills",
+                  isAr ? "تجربة تعاون بين القطاعات" : "Cross-sector collaboration experience",
+                  isAr ? "مشروعات وفعاليات تصنع أثرًا" : "Projects and events that create impact"
                 ].map((text, index) => (
                   <div
                     key={text}
                     className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white/90 p-3 text-sm text-zinc-700 dark:border-white/10 dark:bg-zinc-950/40 dark:text-zinc-200"
                   >
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 text-[11px] font-bold text-zinc-500 dark:border-white/10 dark:text-zinc-300">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-black/10 text-[11px] font-semibold text-zinc-500 dark:border-white/10 dark:text-zinc-300">
                       {(index + 1).toString().padStart(2, "0")}
                     </span>
                     <span>{text}</span>
                   </div>
                 ))}
               </div>
-
               <div className="mt-4 text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-                {isAr
-                  ? "اختر المسار المتوافق مع طموحك وشغفك، وابدأ رحلة تميزك المهني خطوة بخطوة."
-                  : "Choose the path aligned with your ambition and begin your professional journey step by step."}
+                {isAr ? "ابدأ من المكان الأنسب لك، وطور نفسك خطوة بخطوة." : "Start where you fit best and grow step by step."}
               </div>
             </div>
 
             <div className={cx("p-5", softCard)}>
               <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                {isAr ? "الخطوة التالية الموصى بها" : "Recommended next step"}
+                {isAr ? "الخطوة التالية" : "Next step"}
               </div>
-
               <div className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
                 {isAr
-                  ? "إذا كانت هذه زيارتك الأولى، ننصحك باستكشاف برامجنا الحالية والتعرف على قطاعاتنا التخصصية، ثم التقدم مباشرة للانضمام كعضو فاعل."
-                  : "If this is your first visit, we recommend exploring our active programs and specialized sectors, then applying directly to join as an active member."}
+                  ? "لو دي أول زيارة ليك، ابدأ بالبرامج أو القطاعات، وبعدها قدّم للانضمام."
+                  : "If this is your first visit, start with programs or sectors, then apply to join."}
               </div>
-
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link href={href("/sectors")} className={secondaryBtn}>
-                  {isAr ? "القطاعات التخصصية" : "Sectors"}
+                  {isAr ? "القطاعات" : "Sectors"}
                 </Link>
-
                 <Link href={href("/events")} className={secondaryBtn}>
-                  {isAr ? "أحدث الفعاليات" : "Events"}
+                  {isAr ? "الفعاليات" : "Events"}
                 </Link>
               </div>
             </div>
@@ -356,15 +327,14 @@ export default async function HomePage({
         </div>
       </MotionSection>
 
-      <section className="grid gap-4 min-w-0">
+      {/* ── 🤔 قسم لماذا تختارنا مدعوم بـ ScrollReveal الذكي ── */}
+      <ScrollReveal className="grid gap-4">
         <div>
           <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
-            {isAr ? "لماذا وجهتك القادمة هي SkillUp؟" : "Why SkillUp"}
+            {isAr ? "لماذا SkillUp" : "Why SkillUp"}
           </h2>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {isAr
-              ? "بيئة تفاعلية متكاملة تعتمد بالكامل على التعلم بالممارسة والمشاركة الحية."
-              : "An integrated ecosystem purely built on learning by doing and live engagement."}
+            {isAr ? "ليست مجرد متابعة، بل مساحة للتعلم بالممارسة والمشاركة." : "Not just observation, but a space for learning by doing."}
           </p>
         </div>
 
@@ -381,7 +351,7 @@ export default async function HomePage({
               variants={fadeUp}
               className={cx("p-5", glass, cardHover)}
             >
-              <div className="inline-flex rounded-full border border-black/10 px-3 py-1 text-[11px] font-bold text-zinc-500 dark:border-white/10 dark:text-zinc-300">
+              <div className="inline-flex rounded-full border border-black/10 px-3 py-1 text-[11px] font-semibold text-zinc-500 dark:border-white/10 dark:text-zinc-300">
                 {(index + 1).toString().padStart(2, "0")}
               </div>
               <div className="mt-3 text-lg font-bold text-zinc-900 dark:text-white">
@@ -393,10 +363,10 @@ export default async function HomePage({
             </MotionDiv>
           ))}
         </MotionDiv>
-      </section>
+      </ScrollReveal>
 
-      {/* قسم البرامج المميزة - تم حل مشكلة الاسكرول بالكامل */}
-      <section className="grid gap-4 min-w-0 overflow-hidden">
+      {/* ── 📚 قسم البرامج المميزة مدعوم بـ ScrollReveal وتغيير ألوان التفاصيل ── */}
+      <ScrollReveal className="grid gap-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -406,111 +376,81 @@ export default async function HomePage({
               {t("sections.programsDesc")}
             </p>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-1.5">
-              <a 
-                href={isAr ? "#program-2" : "#program-0"} 
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white/80 font-bold text-zinc-700 transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                {isAr ? "→" : "←"}
-              </a>
-              <a 
-                href={isAr ? "#program-0" : "#program-2"} 
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white/80 font-bold text-zinc-700 transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                {isAr ? "←" : "→"}
-              </a>
-            </div>
-
-            <Link href={href("/programs")} className={ghostLink}>
-              {t("sections.programsCta")} →
-            </Link>
-          </div>
+          <Link href={href("/programs")} className={ghostLink}>
+            {t("sections.programsCta")} →
+          </Link>
         </div>
 
-        <div className="w-full min-w-0 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <MotionDiv
-            variants={stagger}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.1 }}
-            className="flex gap-4 w-max min-w-full"
-          >
-            {featuredPrograms.length === 0 ? (
-              <div className={cx("w-full p-6 text-sm shrink-0 snap-start", glass)}>
-                <div className="font-semibold text-zinc-900 dark:text-white">
-                  {isAr ? "لا يوجد برامج مميزة حاليًا" : "No featured programs yet"}
-                </div>
+        <MotionDiv
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.15 }}
+          className="grid gap-4 lg:grid-cols-3"
+        >
+          {featuredPrograms.length === 0 ? (
+            <div className={cx("lg:col-span-3 p-6 text-sm", glass)}>
+              <div className="font-semibold text-zinc-900 dark:text-white">
+                {isAr ? "لا يوجد برامج مميزة حاليًا" : "No featured programs yet"}
               </div>
-            ) : (
-              featuredPrograms.map((program, index) => {
-                const title = pickText(isAr, program.title_ar, program.title_en) || "—";
-                const desc = stripHtml(
-                  pickText(isAr, program.description_ar, program.description_en)
-                ).slice(0, 130);
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {isAr ? "من لوحة الإدارة فعّل Published و Show on Home." : "From admin, enable Published and Show on Home."}
+              </div>
+            </div>
+          ) : (
+            featuredPrograms.map((program) => {
+              const title = pickText(isAr, program.title_ar, program.title_en) || "—";
+              const desc = stripHtml(pickText(isAr, program.description_ar, program.description_en)).slice(0, 130);
 
-                return (
-                  <div 
-                    key={program.id} 
-                    id={`program-${index}`}
-                    className="w-[280px] sm:w-[320px] md:w-[360px] shrink-0 snap-start"
+              return (
+                <MotionDiv key={program.id} variants={fadeUp}>
+                  <Link
+                    href={href(`/programs/${program.id}`)}
+                    className={cx("group block overflow-hidden", glass, cardHover)}
                   >
-                    <Link
-                      href={href(`/programs/${program.id}`)}
-                      className={cx(
-                        "group block overflow-hidden rounded-[28px] border border-black/10 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60 h-full",
-                        cardHover
+                    <div className="relative aspect-[16/10] w-full bg-zinc-50 dark:bg-white/5">
+                      {program.cover_url ? (
+                        <img
+                          src={program.cover_url}
+                          alt={title}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
+                          {isAr ? "صورة البرنامج" : "Program image"}
+                        </div>
                       )}
-                    >
-                      <div className="relative aspect-[16/10] w-full bg-zinc-50 dark:bg-white/5">
-                        {program.cover_url ? (
-                          <img
-                            src={program.cover_url}
-                            alt={title}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
-                            {isAr ? "صورة البرنامج" : "Program image"}
-                          </div>
-                        )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                          <div className="line-clamp-1 text-sm font-bold text-white">
-                            {title}
-                          </div>
-
-                          <div className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
-                            {program.youtube_playlist
-                              ? isAr ? "سلسلة فيديو" : "Playlist"
-                              : isAr ? "برنامج" : "Program"}
-                          </div>
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+                        <div className="line-clamp-1 text-sm font-bold text-white">
+                          {title}
+                        </div>
+                        <div className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
+                          {program.youtube_playlist ? (isAr ? "سلسلة فيديو" : "Playlist") : (isAr ? "برنامج" : "Program")}
                         </div>
                       </div>
+                    </div>
 
-                      <div className="grid min-h-[150px] gap-3 p-4">
-                        <p className="line-clamp-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-                          {desc || (isAr ? "وصف قيد الإعداد" : "Description coming soon")}
-                        </p>
-
-                        <div className="mt-auto text-sm font-bold text-[#182B36] underline underline-offset-4 group-hover:opacity-80 dark:text-[#C8A448]">
-                          {isAr ? "عرض التفاصيل" : "View details"}
-                        </div>
+                    <div className="grid min-h-[150px] gap-3 p-4">
+                      <p className="line-clamp-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                        {desc || (isAr ? "وصف قيد الإعداد" : "Description coming soon")}
+                      </p>
+                      {/* ربط ألوان الروابط بالهوية */}
+                      <div className="mt-auto text-sm font-semibold text-[#182B36] underline underline-offset-4 group-hover:text-[#182B36]/80 dark:text-[#C8A448] dark:group-hover:text-[#C8A448]/80">
+                        {isAr ? "عرض التفاصيل" : "View details"}
                       </div>
-                    </Link>
-                  </div>
-                );
-              })
-            )}
-          </MotionDiv>
-        </div>
-      </section>
+                    </div>
+                  </Link>
+                </MotionDiv>
+              );
+            })
+          )}
+        </MotionDiv>
+      </ScrollReveal>
 
-      {/* قسم أحدث الفعاليات - تم حل مشكلة الاسكرول بالكامل */}
-      <section className="grid gap-4 min-w-0 overflow-hidden">
+      {/* ── 🗓️ قسم الفعاليات المميزة مدعوم بـ ScrollReveal ── */}
+      <ScrollReveal className="grid gap-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -520,125 +460,96 @@ export default async function HomePage({
               {t("sections.eventsDesc")}
             </p>
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-1.5">
-              <a 
-                href={isAr ? "#event-2" : "#event-0"} 
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white/80 font-bold text-zinc-700 transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                {isAr ? "→" : "←"}
-              </a>
-              <a 
-                href={isAr ? "#event-0" : "#event-2"} 
-                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white/80 font-bold text-zinc-700 transition hover:bg-white active:scale-95 dark:border-white/10 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                {isAr ? "←" : "→"}
-              </a>
-            </div>
-
-            <Link href={href("/events")} className={ghostLink}>
-              {t("sections.eventsCta")} →
-            </Link>
-          </div>
+          <Link href={href("/events")} className={ghostLink}>
+            {t("sections.eventsCta")} →
+          </Link>
         </div>
 
-        <div className="w-full min-w-0 overflow-x-auto pb-4 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <MotionDiv
-            variants={stagger}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.1 }}
-            className="flex gap-4 w-max min-w-full"
-          >
-            {featuredEvents.length === 0 ? (
-              <div className={cx("w-full p-6 text-sm shrink-0 snap-start", glass)}>
-                <div className="font-semibold text-zinc-900 dark:text-white">
-                  {isAr ? "لا يوجد فعاليات مميزة حاليًا" : "No featured events yet"}
-                </div>
+        <MotionDiv
+          variants={stagger}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.15 }}
+          className="grid gap-4 lg:grid-cols-3"
+        >
+          {featuredEvents.length === 0 ? (
+            <div className={cx("lg:col-span-3 p-6 text-sm", glass)}>
+              <div className="font-semibold text-zinc-900 dark:text-white">
+                {isAr ? "لا يوجد فعاليات مميزة حاليًا" : "No featured events yet"}
               </div>
-            ) : (
-              featuredEvents.map((event, index) => {
-                const title = pickText(isAr, event.title_ar, event.title_en) || "—";
-                const desc = stripHtml(
-                  pickText(isAr, event.description_ar, event.description_en)
-                ).slice(0, 130);
-                const tag = formatEventType(safeLocale, event.event_type);
-                const dateText = formatDate(safeLocale, event.event_date);
-                const cover = event.image1_url || event.image2_url;
+              <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                {isAr ? "من لوحة الإدارة فعّل Published و Show on Home." : "From admin, enable Published and Show on Home."}
+              </div>
+            </div>
+          ) : (
+            featuredEvents.map((event) => {
+              const title = pickText(isAr, event.title_ar, event.title_en) || "—";
+              const desc = stripHtml(pickText(isAr, event.description_ar, event.description_en)).slice(0, 130);
+              const tag = formatEventType(safeLocale, event.event_type);
+              const dateText = formatDate(safeLocale, event.event_date);
+              const cover = event.image1_url || event.image2_url;
 
-                return (
-                  <div 
-                    key={event.id} 
-                    id={`event-${index}`}
-                    className="w-[280px] sm:w-[320px] md:w-[360px] shrink-0 snap-start"
+              return (
+                <MotionDiv key={event.id} variants={fadeUp}>
+                  <Link
+                    href={href(`/events/${event.id}`)}
+                    className={cx("group block overflow-hidden", glass, cardHover)}
                   >
-                    <Link
-                      href={href(`/events/${event.id}`)}
-                      className={cx(
-                        "group block overflow-hidden rounded-[28px] border border-black/10 bg-white/75 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/60 h-full",
-                        cardHover
+                    <div className="relative aspect-[16/10] w-full bg-zinc-50 dark:bg-white/5">
+                      {cover ? (
+                        <img
+                          src={cover}
+                          alt={title}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
+                          {isAr ? "صورة الفعالية" : "Event image"}
+                        </div>
                       )}
-                    >
-                      <div className="relative aspect-[16/10] w-full bg-zinc-50 dark:bg-white/5">
-                        {cover ? (
-                          <img
-                            src={cover}
-                            alt={title}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center text-xs text-zinc-500 dark:text-zinc-400">
-                            {isAr ? "صورة الفعالية" : "Event image"}
-                          </div>
-                        )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-                        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                          <div className="line-clamp-1 text-sm font-bold text-white">
-                            {title}
-                          </div>
-
-                          <div className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
-                            {tag}
-                          </div>
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+                        <div className="line-clamp-1 text-sm font-bold text-white">
+                          {title}
+                        </div>
+                        <div className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs text-white backdrop-blur">
+                          {tag}
                         </div>
                       </div>
+                    </div>
 
-                      <div className="grid min-h-[170px] gap-3 p-4">
-                        <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
-                          {dateText ? (
-                            <span className={softPill}>
-                              {isAr ? "التاريخ" : "Date"}: {dateText}
-                            </span>
-                          ) : null}
-
-                          {event.location ? (
-                            <span className={softPill}>
-                              {isAr ? "المكان" : "Location"}: {event.location}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <p className="line-clamp-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-                          {desc || (isAr ? "تفاصيل قيد الإعداد" : "Details coming soon")}
-                        </p>
-
-                        <div className="mt-auto text-sm font-bold text-[#182B36] underline underline-offset-4 group-hover:opacity-80 dark:text-[#C8A448]">
-                          {isAr ? "عرض التفاصيل" : "View details"}
-                        </div>
+                    <div className="grid min-h-[170px] gap-3 p-4">
+                      <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                        {dateText ? (
+                          <span className={softPill}>
+                            {isAr ? "التاريخ" : "Date"}: {dateText}
+                          </span>
+                        ) : null}
+                        {event.location ? (
+                          <span className={softPill}>
+                            {isAr ? "المكان" : "Location"}: {event.location}
+                          </span>
+                        ) : null}
                       </div>
-                    </Link>
-                  </div>
-                );
-              })
-            )}
-          </MotionDiv>
-        </div>
-      </section>
 
-      <section className="grid gap-4 min-w-0">
+                      <p className="line-clamp-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                        {desc || (isAr ? "تفاصيل قيد الإعداد" : "Details coming soon")}
+                      </p>
+                      <div className="mt-auto text-sm font-semibold text-[#182B36] underline underline-offset-4 group-hover:text-[#182B36]/80 dark:text-[#C8A448] dark:group-hover:text-[#C8A448]/80">
+                        {isAr ? "عرض التفاصيل" : "View details"}
+                      </div>
+                    </div>
+                  </Link>
+                </MotionDiv>
+              );
+            })
+          )}
+        </MotionDiv>
+      </ScrollReveal>
+
+      {/* ── 🛡️ قسم القطاعات والمنظومة مدعوم بـ ScrollReveal ── */}
+      <ScrollReveal className="grid gap-4">
         <div className="flex items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
@@ -648,7 +559,6 @@ export default async function HomePage({
               {t("sections.sectorsDesc")}
             </p>
           </div>
-
           <Link href={href("/sectors")} className={ghostLink}>
             {t("sections.sectorsCta")} →
           </Link>
@@ -658,27 +568,23 @@ export default async function HomePage({
           variants={stagger}
           initial="hidden"
           whileInView="show"
-          viewport={{ once: true, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.15 }}
           className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
         >
           {SECTORS.slice(0, 6).map((sector) => (
             <MotionDiv key={sector.slug} variants={fadeUp}>
-              <Link
-                href={href(`/sectors/${sector.slug}`)}
-                className={cx("block p-5 h-full", glass, cardHover)}
-              >
+              <Link href={href(`/sectors/${sector.slug}`)} className={cx("block p-5", glass, cardHover)}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                    <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
                       {sector.short}
                     </div>
                     <div className="mt-1 text-lg font-bold text-zinc-900 dark:text-white">
                       {isAr ? sector.name_ar : sector.name_en}
                     </div>
                   </div>
-
-                  <div className={cx("shrink-0", pill)}>
-                    {isAr ? "استكشف" : "View"}
+                  <div className={cx("shrink-0 transition-colors group-hover:bg-zinc-100 dark:group-hover:bg-white/10", pill)}>
+                    {isAr ? "عرض" : "View"}
                   </div>
                 </div>
 
@@ -687,8 +593,8 @@ export default async function HomePage({
                 </p>
 
                 <div className="mt-4 line-clamp-2 text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-                  <span className="font-bold text-zinc-700 dark:text-zinc-200">
-                    {isAr ? "القيمة المضافة: " : "Key benefit: "}
+                  <span className="font-semibold text-zinc-700 dark:text-zinc-200">
+                    {isAr ? "أبرز فائدة: " : "Key benefit: "}
                   </span>
                   {isAr ? sector.benefits_ar : sector.benefits_en}
                 </div>
@@ -696,33 +602,24 @@ export default async function HomePage({
             </MotionDiv>
           ))}
         </MotionDiv>
-      </section>
+      </ScrollReveal>
 
-      <MotionSection
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.2 }}
-      >
+      {/* ── 🏆 لوحة تكريمات الشهر مدعومة بـ ScrollReveal وربط الألوان ── */}
+      <ScrollReveal>
         <div className={cx(glass, "p-6")}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-zinc-950 dark:text-white">
-                {isAr ? "لوحة شرف وتكريمات الشهر" : "Monthly awards"}
+                {isAr ? "تكريمات الشهر" : "Monthly awards"}
               </h2>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                 {latestAwards
-                  ? isAr
-                    ? "لمحة سريعة عن الكوادر المتميزة لهذا الشهر، والتفاصيل الكاملة داخل صفحة التكريمات."
-                    : "A quick preview of this month's top performers, with full details on the awards page."
-                  : isAr
-                    ? "لا يوجد تكريمات منشورة حاليًا لهذا الشهر."
-                    : "No published awards yet for this month."}
+                  ? (isAr ? "لمحة سريعة عن أفضل أداء هذا الشهر، والتفاصيل الكاملة داخل صفحة التكريمات." : "A quick preview of this month's top performance, with full details on the awards page.")
+                  : (isAr ? "لا توجد تكريمات منشورة حاليًا." : "No published awards yet.")}
               </p>
             </div>
-
             <Link href={href("/highlights")} className={secondaryBtn}>
-              {isAr ? "تصفح لوحة الشرف كاملة" : "View awards"}
+              {isAr ? "عرض التكريمات" : "View awards"}
             </Link>
           </div>
 
@@ -731,13 +628,12 @@ export default async function HomePage({
               <div className={cx("p-4", softCard)}>
                 <div className="flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span className={softPill}>
-                    {isAr ? "دورة التكريم" : "Month"}: {monthText || (isAr ? "الشهر الحالي" : "Current")}
+                    {isAr ? "الشهر" : "Month"}: {monthText || (isAr ? "الحالي" : "Current")}
                   </span>
-
                   {bestSector ? (
                     <span className={softPill}>
-                      {isAr ? "القطاع المثالي" : "Best sector"}:{" "}
-                      <span className="font-bold">
+                      {isAr ? "أفضل قطاع" : "Best sector"}:{" "}
+                      <span className="font-bold text-[#182B36] dark:text-[#C8A448]">
                         {isAr ? bestSector.name_ar : bestSector.name_en}
                       </span>
                     </span>
@@ -745,6 +641,7 @@ export default async function HomePage({
                 </div>
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {/* رئيس القطاع */}
                   <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-zinc-950/40">
                     <div className="h-12 w-12 overflow-hidden rounded-xl border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
                       {latestAwards.best_head_photo_url ? (
@@ -759,7 +656,6 @@ export default async function HomePage({
                         </div>
                       )}
                     </div>
-
                     <div className="min-w-0">
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">
                         {isAr ? "أفضل رئيس قطاع" : "Best head"}
@@ -767,14 +663,13 @@ export default async function HomePage({
                       <div className="line-clamp-1 text-sm font-bold text-zinc-900 dark:text-white">
                         {latestAwards.best_head_name || "—"}
                       </div>
-                      <div className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {bestHeadSector
-                          ? isAr ? bestHeadSector.name_ar : bestHeadSector.name_en
-                          : "—"}
+                      <div className="line-clamp-1 text-xs text-[#182B36]/80 dark:text-[#C8A448]/80">
+                        {bestHeadSector ? (isAr ? bestHeadSector.name_ar : bestHeadSector.name_en) : "—"}
                       </div>
                     </div>
                   </div>
 
+                  {/* النائب */}
                   <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-white/90 p-3 dark:border-white/10 dark:bg-zinc-950/40">
                     <div className="h-12 w-12 overflow-hidden rounded-xl border border-black/10 bg-zinc-50 dark:border-white/10 dark:bg-white/5">
                       {latestAwards.best_deputy_photo_url ? (
@@ -789,101 +684,88 @@ export default async function HomePage({
                         </div>
                       )}
                     </div>
-
                     <div className="min-w-0">
                       <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {isAr ? "أفضل نائب رئيس قطاع" : "Best deputy"}
+                        {isAr ? "أفضل نائب" : "Best deputy"}
                       </div>
                       <div className="line-clamp-1 text-sm font-bold text-zinc-900 dark:text-white">
                         {latestAwards.best_deputy_name || "—"}
                       </div>
-                      <div className="line-clamp-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        {bestDeputySector
-                          ? isAr ? bestDeputySector.name_ar : bestDeputySector.name_en
-                          : "—"}
+                      <div className="line-clamp-1 text-xs text-[#182B36]/80 dark:text-[#C8A448]/80">
+                        {bestDeputySector ? (isAr ? bestDeputySector.name_ar : bestDeputySector.name_en) : "—"}
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-3 text-xs leading-6 text-zinc-500 dark:text-zinc-400">
-                  {isAr
-                    ? "تستعرض صفحة التكريمات التفاصيل الكاملة، بما فيها الكوادر والأعضاء المتميزين في كافة القطاعات."
-                    : "The awards page shows the full picture, including the top performers and active members across all sectors."}
+                  {isAr ? "صفحة التكريمات تعرض الصورة الكاملة، بما فيها أفضل عضوين من كل قطاع." : "The awards page shows the full picture, including the top two members in each sector."}
                 </div>
               </div>
 
-              <div className={cx("p-4", softCard)}>
-                <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                  {isAr ? "لوحة التكريم الكاملة" : "See full awards"}
+              <div className={cx("p-4 flex flex-col justify-between", softCard)}>
+                <div>
+                  <div className="text-sm font-bold text-zinc-900 dark:text-white">
+                    {isAr ? "استعرض التكريمات كاملة" : "See full awards"}
+                  </div>
+                  <div className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                    {isAr ? "اعرض الفائزين، أفضل قطاع، وأفضل أعضاء الشهر بشكل كامل ومنظم." : "Explore the winners, best sector, and top performers in a dedicated page."}
+                  </div>
                 </div>
-
-                <div className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-                  {isAr
-                    ? "تابع المتميزين وأبرز إنجازات قطاعاتنا لهذا الشهر في شاشة مخصصة تحتفي بالجهود الحقيقية."
-                    : "Explore the winners, best sector, and top performers in a dedicated page that celebrates true hard work."}
-                </div>
-
-                <Link href={href("/highlights")} className={cx("mt-4 inline-flex", primaryBtn)}>
-                  {isAr ? "افتح شاشة لوحة الشرف" : "Open awards"}
+                <Link href={href("/highlights")} className={cx("mt-4 inline-flex w-full justify-center", primaryBtn)}>
+                  {isAr ? "افتح التكريمات" : "Open awards"}
                 </Link>
               </div>
             </div>
           ) : null}
         </div>
-      </MotionSection>
+      </ScrollReveal>
 
-      <MotionSection
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.2 }}
-        className={cx("relative overflow-hidden p-7 md:p-8", glass)}
-      >
-        <div className="absolute inset-0 -z-10 bg-grid opacity-30" />
+      {/* ── 🏁 سكشن ختام الصفحة (Call-To-Action) مدعوم بـ ScrollReveal وربط الألوان الرسمية ── */}
+      <ScrollReveal>
+        <div className={cx("relative overflow-hidden p-7 md:p-8", glass)}>
+          <div className="absolute inset-0 -z-10 bg-grid opacity-30" />
 
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <h2 className="text-2xl font-extrabold text-zinc-950 dark:text-white">
-              {isAr ? "جاهز لتبدأ رحلة التميز المهني مع SkillUp؟" : "Ready to start with SkillUp?"}
-            </h2>
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            <div>
+              <h2 className="text-2xl font-extrabold text-zinc-950 dark:text-white">
+                {isAr ? "جاهز تبدأ رحلتك مع SkillUp؟" : "Ready to start with SkillUp?"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-8 text-zinc-600 dark:text-zinc-300">
+                {isAr
+                  ? "استكشف البرامج، تعرّف على القطاعات، وابدأ أول خطوة نحو تجربة عملية أقرب لسوق العمل."
+                  : "Explore programs, discover sectors, and take your first step toward a more practical experience."}
+              </p>
 
-            <p className="mt-2 max-w-2xl text-sm leading-8 text-zinc-600 dark:text-zinc-300">
-              {isAr
-                ? "استكشف برامجنا التخصصية، تعرف على قطاعاتنا التفاعلية، واتخذ خطوتك الأولى نحو تجربة مهارية حية تقربك أكثر من أي وقت مضى لسوق العمل."
-                : "Explore our intensive programs, discover specialized sectors, and take your first step toward a practical experience that brings you closer to the job market."}
-            </p>
-
-            <div className="mt-4 flex flex-wrap gap-3">
-              <Link href={href("/join")} className={primaryBtn}>
-                {isAr ? "انضم إلينا" : "Join us"}
-              </Link>
-
-              <Link href={href("/contact")} className={secondaryBtn}>
-                {isAr ? "تواصل معنا مباشرة" : "Contact us"}
-              </Link>
-
-              <Link
-                href="https://www.youtube.com/channel/UCGtdtBzfVIcJZCrwZC3d6sw"
-                target="_blank"
-                rel="noreferrer"
-                className={secondaryBtn}
-              >
-                {isAr ? "قناتنا على اليوتيوب" : "YouTube channel"}
-              </Link>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href={href("/join")} className={primaryBtn}>
+                  {isAr ? "انضم إلينا" : "Join us"}
+                </Link>
+                <Link href={href("/contact")} className={secondaryBtn}>
+                  {isAr ? "تواصل معنا" : "Contact us"}
+                </Link>
+                <Link
+                  href="https://www.youtube.com/channel/UCGtdtBzfVIcJZCrwZC3d6sw"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={secondaryBtn}
+                >
+                  {isAr ? "قناة يوتيوب" : "YouTube channel"}
+                </Link>
+              </div>
             </div>
-          </div>
 
-          <div className={cx("p-4 text-sm", softCard)}>
-            <div className="font-bold text-zinc-900 dark:text-white">
-              {isAr ? "البريد الإلكتروني الرسمي" : "Official email"}
-            </div>
-            <div className="mt-2 text-zinc-600 dark:text-zinc-300">
-              skillupyouth.eg@gmail.com
+            <div className={cx("p-4 text-sm self-start lg:self-center", softCard)}>
+              <div className="font-bold text-zinc-900 dark:text-white">
+                {isAr ? "البريد الرسمي" : "Official email"}
+              </div>
+              <div className="mt-2 text-[#182B36] font-medium dark:text-[#C8A448] select-all">
+                skillupyouth.eg@gmail.com
+              </div>
             </div>
           </div>
         </div>
-      </MotionSection>
+      </ScrollReveal>
     </div>
   );
 }
