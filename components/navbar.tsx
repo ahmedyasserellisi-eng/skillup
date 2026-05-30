@@ -16,13 +16,56 @@ function cx(...classes: Array<string | false | null | undefined>) {
 type NavKey = "programs" | "events" | "sectors" | "highlights" | "contact";
 type NavItem = { key: NavKey; href: string };
 
+// 🔹 نقل النصوص خارج المكون لتحسين الأداء ونظافة الكود
+const NAV_LABELS: Record<"ar" | "en", Record<NavKey, string>> = {
+  ar: {
+    programs: "البرامج",
+    events: "الفعاليات",
+    sectors: "القطاعات",
+    highlights: "التكريمات",
+    contact: "تواصل"
+  },
+  en: {
+    programs: "Programs",
+    events: "Events",
+    sectors: "Sectors",
+    highlights: "Awards",
+    contact: "Contact"
+  }
+};
+
+// 🔹 إعدادات أنيميشن القائمة المحمولة (Framer Motion variants)
+const menuVariants = {
+  hidden: { opacity: 0, height: 0 },
+  visible: {
+    opacity: 1,
+    height: "auto",
+    transition: {
+      duration: 0.25,
+      ease: "easeInOut",
+      staggerChildren: 0.05,
+      when: "beforeChildren"
+    }
+  },
+  exit: {
+    opacity: 0,
+    height: 0,
+    transition: { duration: 0.2, ease: "easeInOut" }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: -10 },
+  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+};
+
 export default function Navbar({ locale }: { locale: "ar" | "en" }) {
   const pathname = usePathname() ?? "";
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // ✅ نضمن إن الـ logo يظهر بعد الـ hydration
+  // نضمن إن الـ logo والتفاعلات تظهر بعد الـ hydration بأمان
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -42,10 +85,12 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
     [locale]
   );
 
+  // إغلاق القائمة عند تغيير الصفحة تلقائياً
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
+  // إغلاق القائمة عند الضغط على زر Escape لدعم الوصولية (Accessibility)
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -58,38 +103,16 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
   const isActiveHref = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
-  const getLabel = (key: NavKey) => {
-    if (locale === "ar") {
-      const ar: Record<NavKey, string> = {
-        programs: "البرامج",
-        events: "الفعاليات",
-        sectors: "القطاعات",
-        highlights: "التكريمات",
-        contact: "تواصل"
-      };
-      return ar[key];
-    }
-    const en: Record<NavKey, string> = {
-      programs: "Programs",
-      events: "Events",
-      sectors: "Sectors",
-      highlights: "Awards",
-      contact: "Contact"
-    };
-    return en[key];
-  };
-
   return (
-    <header className="sticky top-0 z-50 border-b border-black/10 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/80">
+    <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/80 backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-950/80">
       <div className="container-skillup flex items-center justify-between py-3">
 
         {/* ── Logo ── */}
         <Link
           href={`/${locale}`}
-          className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 transition hover:bg-black/5 dark:hover:bg-white/5"
+          className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 transition hover:bg-zinc-100 dark:hover:bg-zinc-900"
           aria-label="SkillUp home"
         >
-          {/* ✅ الـ logo دايماً يظهر — لو الصورة مش موجودة بيظهر fallback */}
           <div className="relative h-11 w-11 shrink-0 overflow-hidden">
             {mounted ? (
               <>
@@ -117,8 +140,8 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
                 />
               </>
             ) : (
-              // ✅ Placeholder قبل الـ hydration عشان مفيش layout shift
-              <div className="h-full w-full rounded-xl bg-sky-100 dark:bg-zinc-800" />
+              // شل تباين الألوان الحاد واستبداله بمساحة متناسقة تمنع الـ Layout Shift
+              <div className="h-full w-full rounded-xl bg-zinc-100 dark:bg-zinc-900" />
             )}
           </div>
 
@@ -129,7 +152,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
 
         {/* ── Desktop Nav ── */}
         <div className="hidden items-center gap-2 lg:flex">
-          <nav className="flex items-center gap-1 rounded-2xl border border-black/10 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-900/60">
+          <nav className="flex items-center gap-1 rounded-2xl border border-zinc-200/80 bg-white/75 p-1 shadow-sm backdrop-blur dark:border-zinc-800/50 dark:bg-zinc-900/60">
             {items.map((item) => {
               const active = isActiveHref(item.href);
               return (
@@ -139,26 +162,27 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
                   className={cx(
                     "relative whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition duration-200",
                     active
-                      ? "text-zinc-950 dark:text-white"
-                      : "text-zinc-700 hover:bg-black/5 hover:text-zinc-950 dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white"
+                      ? "text-[#182B36] dark:text-[#C8A448]"
+                      : "text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-white"
                   )}
                 >
                   {active ? (
                     <motion.span
                       layoutId="desktop-nav-active-pill"
-                      className="absolute inset-0 rounded-xl border border-black/10 bg-black/[0.04] shadow-sm dark:border-white/10 dark:bg-white/[0.06]"
+                      className="absolute inset-0 rounded-xl border border-zinc-200 bg-zinc-100/80 shadow-sm dark:border-zinc-700/60 dark:bg-zinc-800/70"
                       transition={{ type: "spring", stiffness: 380, damping: 30 }}
                     />
                   ) : null}
-                  <span className="relative z-10">{getLabel(item.key)}</span>
+                  <span className="relative z-10">{NAV_LABELS[locale][item.key]}</span>
                 </Link>
               );
             })}
           </nav>
 
+          {/* زر انضم إلينا بالألوان الرسمية المعتمدة للهوية البصرية */}
           <Link
             href={`/${locale}/join`}
-            className="whitespace-nowrap rounded-2xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 active:scale-[0.99] dark:bg-amber-400 dark:text-zinc-950 dark:hover:bg-amber-300"
+            className="whitespace-nowrap rounded-2xl bg-[#182B36] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:opacity-90 active:scale-[0.99] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:opacity-90"
           >
             {locale === "ar" ? "انضم إلينا" : "Join Us"}
           </Link>
@@ -166,7 +190,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
           <button
             type="button"
             onClick={() => router.push(otherHref)}
-            className="inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-white/75 px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-black/5 hover:text-zinc-950 active:scale-[0.99] dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white"
+            className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white/75 px-3 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 active:scale-[0.99] dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-white"
             aria-label="Switch language"
           >
             <Languages className="h-4 w-4" />
@@ -183,7 +207,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
           <button
             type="button"
             onClick={() => router.push(otherHref)}
-            className="inline-flex items-center gap-1.5 rounded-2xl border border-black/10 bg-white/75 px-2.5 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-black/5 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-zinc-200 bg-white/75 px-2.5 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800"
             aria-label="Switch language"
           >
             <Languages className="h-4 w-4" />
@@ -193,7 +217,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center justify-center rounded-2xl border border-black/10 bg-white/75 p-2.5 text-zinc-700 transition hover:bg-black/5 active:scale-[0.99] dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white/75 p-2.5 text-zinc-600 transition hover:bg-zinc-100 active:scale-[0.99] dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
           >
@@ -206,41 +230,44 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
       <AnimatePresence>
         {open ? (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden border-t border-black/10 bg-white/90 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/90 lg:hidden"
+            variants={menuVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="overflow-hidden border-t border-zinc-200 bg-white/95 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-950/95 lg:hidden"
           >
-            <div className="container-skillup grid gap-3 py-4">
-              {/* Nav links - 2 columns */}
+            <div className="container-skillup grid gap-4 py-5">
+              {/* روابط التنقل - شبكة متناسقة بأنيميشن تدريجي */}
               <div className="grid grid-cols-2 gap-2">
                 {items.map((item) => {
                   const active = isActiveHref(item.href);
                   return (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      className={cx(
-                        "rounded-2xl border px-4 py-3 text-center text-sm font-semibold transition",
-                        active
-                          ? "border-black/10 bg-black/[0.04] text-zinc-950 dark:border-white/10 dark:bg-white/[0.06] dark:text-white"
-                          : "border-transparent text-zinc-700 hover:border-black/10 hover:bg-black/[0.04] hover:text-zinc-950 dark:text-zinc-200 dark:hover:border-white/10 dark:hover:bg-white/10 dark:hover:text-white"
-                      )}
-                    >
-                      {getLabel(item.key)}
-                    </Link>
+                    <motion.div key={item.key} variants={itemVariants}>
+                      <Link
+                        href={item.href}
+                        className={cx(
+                          "block rounded-2xl border px-4 py-3 text-center text-sm font-semibold transition-all duration-200",
+                          active
+                            ? "border-zinc-200 bg-zinc-100 text-[#182B36] font-bold dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-[#C8A448]"
+                            : "border-transparent text-zinc-600 hover:border-zinc-200 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:border-zinc-800 dark:hover:bg-zinc-900"
+                        )}
+                      >
+                        {NAV_LABELS[locale][item.key]}
+                      </Link>
+                    </motion.div>
                   );
                 })}
               </div>
 
-              {/* Join button - full width */}
-              <Link
-                href={`/${locale}/join`}
-                className="inline-flex items-center justify-center rounded-2xl bg-sky-600 px-4 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 active:scale-[0.99] dark:bg-amber-400 dark:text-zinc-950 dark:hover:bg-amber-300"
-              >
-                {locale === "ar" ? "انضم إلينا" : "Join Us"}
-              </Link>
+              {/* زر انضم إلينا في وضع المحمول بالألوان الرسمية المعتمدة */}
+              <motion.div variants={itemVariants} className="w-full pt-1">
+                <Link
+                  href={`/${locale}/join`}
+                  className="flex w-full items-center justify-center rounded-2xl bg-[#182B36] px-4 py-3.5 text-center text-sm font-bold text-white shadow-sm transition hover:opacity-90 active:scale-[0.99] dark:bg-[#C8A448] dark:text-zinc-950 dark:hover:opacity-90"
+                >
+                  {locale === "ar" ? "انضم إلينا" : "Join Us"}
+                </Link>
+              </motion.div>
             </div>
           </motion.div>
         ) : null}
