@@ -3,6 +3,8 @@ import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { google } from "googleapis"; // 👈 إضافة مكتبة جوجل
+import { Readable } from "stream";   // 👈 إضافة الـ Streams لمعالجة بافر الصورة
 
 // إعداد حماية الـ Rate Limiting اختيارياً لعدم تعطيل السيرفر إذا لم تكن المفاتيح جاهزة في الـ .env
 let ratelimit: Ratelimit | null = null;
@@ -20,6 +22,48 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
   } catch (e) {
     console.error("Rate limiting failed to initialize, skipping safely:", e);
   }
+}
+
+// 👈 دالة رفع الصورة إلى جوجل درايف وتحويلها لرابط مباشر
+async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Promise<string> {
+  const matches = base64DataUri.match(/^data:(.+);base64,(.+)$/);
+  if (!matches) throw new Error("صيغة الصورة غير صالحة");
+  
+  const mimeType = matches[1];
+  const base64Data = matches[2];
+  const buffer = Buffer.from(base64Data, "base64");
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    },
+    scopes: ["https://www.googleapis.com/auth/drive.file"],
+  });
+
+  const drive = google.drive({ version: "v3", auth });
+
+  const fileMetadata = {
+    name: fileName,
+    parents: process.env.GOOGLE_DRIVE_FOLDER_ID ? [process.env.GOOGLE_DRIVE_FOLDER_ID] : [],
+  };
+
+  const file = await drive.files.create({
+    requestBody: fileMetadata,
+    media: { mimeType, body: Readable.from(buffer) },
+    fields: "id",
+  });
+
+  const fileId = file.data.id;
+  if (!fileId) throw new Error("فشل الرفع إلى جوجل درايف");
+
+  // جعل الملف مرئيًا لأي شخص يملك الرابط ليفتح في لوحة الإدارة بنجاح
+  await drive.permissions.create({
+    fileId: fileId,
+    requestBody: { role: "reader", type: "anyone" },
+  });
+
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
 function safeStr(value: unknown) {
@@ -87,7 +131,6 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => null);
-
     if (!body || typeof body !== "object") {
       return NextResponse.json(
         { ok: false, error: "Invalid request body" },
@@ -107,12 +150,12 @@ export async function POST(req: Request) {
     const consent = Boolean(body.consent);
     const phone = safeStr(body.phone);
     const national_id = safeStr(body.national_id);
-    const address = safeStr(body.address); // 👈 1. تم استخراج حقل العنوان هنا
+    const address = safeStr(body.address);
 
-    // 3. التحقق من الحقول الإلزامية في الخلفية (تم إضافة العنوان كحقل إجباري)
+    // 3. التحقق من الحقول الإلزامية في الخلفية
     if (
       !full_name || !email || !sector_key || !message || !consent ||
-      !national_id || !phone || !safeStr(body.city) || !address || // 👈 2. التأكد من وجود العنوان
+      !national_id || !phone || !safeStr(body.city) || !address || 
       !safeStr(body.member_status) || !safeStr(body.leadership_interest) ||
       !safeStr(body.education) || !safeStr(body.grade) || !safeStr(body.university) ||
       !safeStr(body.faculty) || !safeStr(body.department) || !safeStr(body.profile_picture_url) ||
@@ -172,7 +215,6 @@ export async function POST(req: Request) {
     const supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json(
         { ok: false, error: "Supabase environment variables are missing" },
@@ -208,6 +250,26 @@ export async function POST(req: Request) {
       );
     }
 
+    // 👈 [تعديل هام]: اعتراض الصورة ورفعها على جوجل درايف إذا كانت بصيغة Base64
+    let finalProfilePictureUrl = safeStr(body.profile_picture_url);
+    if (finalProfilePictureUrl.startsWith("data:image/")) {
+      try {
+        const timestamp = Date.now();
+        // تنظيف الاسم لاستخدامه كاسم للملف المرفوع
+        const sanitizedName = full_name.replace(/[^a-zA-Z0-9أ-ي]/g, "_");
+        const fileName = `skillup_${sanitizedName}_${timestamp}`;
+        
+        // استدعاء دالة الرفع واستبدال الرابط بالنص القديم
+        finalProfilePictureUrl = await uploadBase64ToDrive(body.profile_picture_url, fileName);
+      } catch (driveError) {
+        console.error("Google Drive Upload Error:", driveError);
+        return NextResponse.json(
+          { ok: false, error: "Failed to upload profile picture to Google Drive." },
+          { status: 500 }
+        );
+      }
+    }
+
     // 11. بناء كتل الـ Payload الكامل لـ 27 حقل بالتسميات الموحدة والآمنة للتخزين
     const payload = {
       full_name,
@@ -215,7 +277,7 @@ export async function POST(req: Request) {
       phone: nullableStr(body.phone),
       national_id: nullableStr(body.national_id),
       city: nullableStr(body.city),
-      address: nullableStr(body.address), // 👈 3. إضافة حقل العنوان للـ Payload الذاهب لـ Supabase
+      address: nullableStr(body.address), 
       age,
       member_status: nullableStr(body.member_status),
       leadership_interest: nullableStr(body.leadership_interest),
@@ -226,7 +288,7 @@ export async function POST(req: Request) {
       department: nullableStr(body.department),
       postgrad_info: nullableStr(body.postgrad_info), // اختياري
       graduation_year,
-      profile_picture_url: nullableStr(body.profile_picture_url),
+      profile_picture_url: nullableStr(finalProfilePictureUrl), // 👈 استخدام الرابط الجديد بعد الرفع
       sector_key,
       preferred_role: nullableStr(body.preferred_role),
       availability: nullableStr(body.availability),
@@ -244,7 +306,6 @@ export async function POST(req: Request) {
 
     // 12. إدراج الطلب داخل جدول سوبابيز
     const { error: dbError } = await supabase.from("join_requests").insert(payload);
-
     if (dbError) {
       return NextResponse.json(
         { ok: false, error: dbError.message },
@@ -255,9 +316,8 @@ export async function POST(req: Request) {
     // 13. إرسال الإشعارات عبر Resend
     const resendKey = process.env.RESEND_API_KEY;
     const toEmail = process.env.CONTACT_TO_EMAIL || "skillupyouth.eg@gmail.com";
-    const fromEmail =
-      process.env.CONTACT_FROM_EMAIL || "SkillUp <onboarding@resend.dev>";
-
+    const fromEmail = process.env.CONTACT_FROM_EMAIL || "SkillUp <onboarding@resend.dev>";
+    
     if (!resendKey) {
       return NextResponse.json({
         ok: true,
@@ -278,7 +338,8 @@ export async function POST(req: Request) {
           ${renderField("Email", email)}
           ${renderField("Phone", payload.phone)}
           ${renderField("City", payload.city)}
-          ${renderField("Address", payload.address)} ${renderField("Age", payload.age)}
+          ${renderField("Address", payload.address)} 
+          ${renderField("Age", payload.age)}
           ${renderField("Membership Status", payload.member_status)}
           ${renderField("Leadership Interest", payload.leadership_interest)}
           ${renderField("Education Status", payload.education)}
@@ -364,9 +425,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Server error";
-
+    const message = error instanceof Error ? error.message : "Server error";
     return NextResponse.json(
       { ok: false, error: message },
       { status: 500 }

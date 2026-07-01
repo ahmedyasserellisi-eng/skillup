@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// إعداد عميل Supabase للتحقق من حالة فتح أو غلق الاستمارة برمجياً
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 type Props = {
   locale: "ar" | "en";
@@ -13,7 +19,7 @@ type FormState = {
   phone: string;
   national_id: string;
   city: string;
-  address: string; // <-- تم إضافة العنوان هنا
+  address: string; 
   age: string;
   gender: string;
   member_status: string; 
@@ -97,7 +103,33 @@ function getSafeSectorKey(value: string) {
 
 export default function JoinForm({ locale, presetSector }: Props) {
   const isAr = locale === "ar";
+  
+  // حالة التحكم في فتح وغلق الفورم جلبًا من قاعدة البيانات (null تعني جاري الفحص المبدئي)
+  const [isFormOpen, setIsFormOpen] = useState<boolean | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // فحص حالة الفورم من Supabase عند تحميل المكون
+  useEffect(() => {
+    async function checkFormStatus() {
+      try {
+        const { data, error } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "is_join_form_open")
+          .maybeSingle();
+
+        if (!error && data) {
+          setIsFormOpen(data.value);
+        } else {
+          setIsFormOpen(true); 
+        }
+      } catch (err) {
+        console.error("Error fetching form status:", err);
+        setIsFormOpen(true); 
+      }
+    }
+    checkFormStatus();
+  }, []);
 
   const t = useMemo(() => {
     const ar = {
@@ -112,7 +144,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       phone: "رقم الهاتف",
       nationalId: "الرقم القومي (14 رقم)",
       city: "المحافظة",
-      address: "العنوان بالتفصيل", // <-- ترجمة العنوان عربي
+      address: "العنوان بالتفصيل", 
       age: "العمر",
       gender: "النوع",
       memberStatus: "صفة العضوية",
@@ -160,7 +192,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         name: "اكتب اسمك الرباعي كما هو في البطاقة الشخصية",
         id: "14 رقم مكتوب بالبطاقة",
         phone: "01xxxxxxxxx",
-        address: "اكتب العنوان الحالي بالتفصيل (المركز / المدينة / الشارع)", // <-- Placeholder عربي
+        address: "اكتب العنوان الحالي بالتفصيل (المركز / المدينة / الشارع)", 
         university: "مثال: جامعة القاهرة / معهد ...",
         faculty: "مثال: كلية الهندسة / كلية التجارة",
         department: "مثال: قسم حاسبات / قسم محاسبة / عام",
@@ -186,7 +218,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       phone: "Phone Number",
       nationalId: "National ID (14 digits)",
       city: "Governorate",
-      address: "Detailed Address", // <-- ترجمة العنوان إنجليزي
+      address: "Detailed Address", 
       age: "Age",
       gender: "Gender",
       memberStatus: "Membership Status",
@@ -234,7 +266,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         name: "Enter your full legal name",
         id: "14 digits National ID",
         phone: "01xxxxxxxxx",
-        address: "Enter your current detailed address (City/Street/District)", // <-- Placeholder إنجليزي
+        address: "Enter your current detailed address (City/Street/District)", 
         university: "e.g., Cairo University / Institute",
         faculty: "e.g., Faculty of Engineering",
         department: "e.g., Computers Department / Accounting / General",
@@ -251,7 +283,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
   }, [isAr]);
 
   const [form, setForm] = useState<FormState>({
-    full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تعيين قيمة افتراضية للعنوان
+    full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", 
     member_status: "", leadership_interest: "", education: "", grade: "",
     university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
     profile_picture_url: "", sector_key: getSafeSectorKey(presetSector),
@@ -325,7 +357,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
     if (currentStep === 1) {
       if (
         !form.full_name.trim() || !form.email.trim() || !form.phone.trim() ||
-        !form.national_id.trim() || !form.city || !form.address.trim() || !form.age.trim() || !form.gender || // <-- إضافة الـ address في التحقق
+        !form.national_id.trim() || !form.city || !form.address.trim() || !form.age.trim() || !form.gender || 
         !form.member_status || !form.leadership_interest || !form.education ||
         !form.profile_picture_url.trim()
       ) {
@@ -408,7 +440,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           email: form.email.trim(),
           phone: form.phone.trim(),
           national_id: form.national_id.trim(),
-          address: form.address.trim(), // <-- إرسال حقل العنوان مع الداتا
+          address: form.address.trim(), 
           age: Number(form.age),
           gender: form.gender,
           university: form.university.trim(),
@@ -445,7 +477,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       setCurrentStep(1);
       window.scrollTo({ top: 0, behavior: "smooth" });
       setForm({
-        full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", // <-- تصفير حقل العنوان بعد النجاح
+        full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", 
         member_status: "", leadership_interest: "", education: "", grade: "",
         university: "", faculty: "", department: "", postgrad_info: "", graduation_year: "",
         profile_picture_url: "", sector_key: form.sector_key,
@@ -458,6 +490,43 @@ export default function JoinForm({ locale, presetSector }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  // 1. شاشة فحص النظام والاتصال بقاعدة البيانات لـ Supabase
+  if (isFormOpen === null) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center" dir={isAr ? "rtl" : "ltr"}>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-900 border-t-transparent dark:border-white"></div>
+          <span className="text-xs font-medium text-zinc-400 font-mono">
+            {isAr ? "جاري التحقق من نظام التقديم..." : "Checking application status..."}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. شاشة إغلاق الاستمارة الإداري بقرار من الـ MEAL
+  if (isFormOpen === false) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center" dir={isAr ? "rtl" : "ltr"}>
+        <div className="rounded-[32px] border border-black/10 bg-white/80 p-10 shadow-sm backdrop-blur dark:border-white/10 dark:bg-zinc-950/50">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-zinc-950 dark:text-white mb-3">
+            {isAr ? "باب الانضمام مغلق حالياً" : "Applications are Currently Closed"}
+          </h2>
+          <p className="text-sm leading-7 text-zinc-600 dark:text-zinc-400 max-w-md mx-auto">
+            {isAr 
+              ? "نشكرك على اهتمامك العالي بالانضمام إلى مبادرة SkillUp. التقديم مغلق حالياً بقرار إداري، انتظرونا في جولات وجلسات التقديم القادمة قريباً!" 
+              : "Thank you for your interest in joining SkillUp. Registration is currently closed by the management. Stay tuned for future application rounds!"}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -554,7 +623,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       ))}
                     </select>
                   </div>
-                  {/* حقل العنوان الجديد مضاف هنا بتصميم متناسق */}
                   <div>
                     <label htmlFor="address" className={labelClass}>{t.address} <span className="text-red-500">*</span></label>
                     <input id="address" type="text" className={inputClass} placeholder={t.placeholders.address} value={form.address} onChange={(e) => updateField("address", e.target.value)} required />
@@ -754,7 +822,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
               )}
             </div>
 
-            {/* عرض رسائل الخطأ إن وجدت */}
+            {/* عرض رسائل الخطأ إن وجدت من الـ MEAL */}
             <div aria-live="polite" className="grid gap-3 mt-2">
               {errorMsg && (
                 <div className="rounded-2xl border border-red-500/30 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-950/20 dark:text-red-400 font-medium">
