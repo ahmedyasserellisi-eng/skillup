@@ -114,7 +114,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
         const { data, error } = await supabase
           .from("site_settings")
           .select("value")
-          .eq("key", "is_join_form_open")
+          .eq("key", "is_form_open")
           .maybeSingle();
 
         if (!error && data) {
