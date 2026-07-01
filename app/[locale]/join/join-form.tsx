@@ -31,7 +31,7 @@ type FormState = {
   department: string; 
   postgrad_info: string;
   graduation_year: string;
-  profile_picture_url: string; 
+  profile_picture_url: string; // سيخزن هنا كود الـ Base64 مؤقتاً للإرسال
   sector_key: string;
   preferred_role: string;
   availability: string;
@@ -104,11 +104,10 @@ function getSafeSectorKey(value: string) {
 export default function JoinForm({ locale, presetSector }: Props) {
   const isAr = locale === "ar";
   
-  // حالة التحكم في فتح وغلق الفورم جلبًا من قاعدة البيانات (null تعني جاري الفحص المبدئي)
   const [isFormOpen, setIsFormOpen] = useState<boolean | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
 
-  // فحص حالة الفورم من Supabase عند تحميل المكون
+  // فحص حالة الاستمارة من نفس الـ Key والجدول المعتمدين في الـ Supabase
   useEffect(() => {
     async function checkFormStatus() {
       try {
@@ -156,7 +155,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       department: "القسم",
       postgradInfo: "بيانات الدراسات العليا (إن وجد)",
       graduation: "سنة التخرج",
-      profilePicture: "رابط الصورة الشخصية (يرجى رفعها على Drive ووضع الرابط)",
+      profilePicture: "الصورة الشخصية الرسمية", // تم تحديث النص
       sector: "القطاع المراد الانضمام إليه",
       role: "الدور أو المسؤولية المفضلة",
       availability: "الوقت المتاح أسبوعياً",
@@ -173,7 +172,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       next: "التالي",
       prev: "السابق",
       stepOf: "خطوة {step} من 4",
-      sending: "جاري إرسال البيانات...",
+      sending: "جاري إرسال البيانات ورفع المرفقات...",
       ok: "تم تسجيل البيانات بنجاح وهنتواصل معاك قريباً.",
       anotherResponse: "إرسال رد آخر (فورم جديد)",
       errRequired: "برجاء استكمال جميع الحقول الإجبارية المعلّمة بنجمة (*).",
@@ -230,7 +229,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       department: "Department",
       postgradInfo: "Postgraduate Info (Optional)",
       graduation: "Graduation Year",
-      profilePicture: "Profile Picture Link (Please upload to Drive and paste link)",
+      profilePicture: "Official Profile Picture",
       sector: "Sector You Wish to Join",
       role: "Preferred Role / Responsibility",
       availability: "Weekly Availability",
@@ -247,7 +246,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       next: "Next",
       prev: "Back",
       stepOf: "Step {step} of 4",
-      sending: "Submitting data...",
+      sending: "Submitting data and uploading attachments...",
       ok: "Data registered successfully! We will contact you soon.",
       anotherResponse: "Submit another response",
       errRequired: "Please complete all mandatory fields marked with an asterisk (*).",
@@ -300,23 +299,19 @@ export default function JoinForm({ locale, presetSector }: Props) {
     setForm((prev) => ({ ...prev, sector_key: getSafeSectorKey(presetSector) }));
   }, [presetSector]);
 
-  // التحليل التلقائي الذكي للرقم القومي المصري فور اكتمال الـ 14 رقماً
+  // التحليل التلقائي الذكي للرقم القومي المصري
   useEffect(() => {
     if (/^\d{14}$/.test(form.national_id)) {
       const id = form.national_id;
-
-      // 1. استخراج النوع (الرقم الـ 13 فردي = ذكر، زوجي = أنثى)
       const genderDigit = parseInt(id.charAt(12), 10);
       const extractedGender = genderDigit % 2 === 1 ? "male" : "female";
 
-      // 2. استخراج تاريخ الميلاد وحساب العمر البرمي الدقيق لعام 2026
       const centuryDigit = id.charAt(0);
       const yearPart = id.substring(1, 3);
       const birthYear = parseInt((centuryDigit === "3" ? "20" : "19") + yearPart, 10);
       const currentYear = 2026;
       const calculatedAge = currentYear - birthYear;
 
-      // 3. خريطة تكويد المحافظات الرسمية في جمهورية مصر العربية
       const govCode = id.substring(7, 9);
       const govMap: Record<string, string> = {
         "01": "Cairo", "02": "Alexandria", "03": "Port Said", "04": "Suez",
@@ -448,7 +443,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           department: form.department.trim(),
           postgrad_info: form.postgrad_info.trim() || null,
           graduation_year: Number(form.graduation_year),
-          profile_picture_url: form.profile_picture_url.trim(),
+          profile_picture_url: form.profile_picture_url.trim(), // سترسل كـ Base64 هنا والباك اند سيتعامل معها
           preferred_role: form.preferred_role.trim(),
           availability: form.availability.trim(),
           skills: form.skills.trim(),
@@ -492,7 +487,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
     }
   }
 
-  // 1. شاشة فحص النظام والاتصال بقاعدة البيانات لـ Supabase
   if (isFormOpen === null) {
     return (
       <div className="flex min-h-[400px] items-center justify-center" dir={isAr ? "rtl" : "ltr"}>
@@ -506,7 +500,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
     );
   }
 
-  // 2. شاشة إغلاق الاستمارة الإداري بقرار من الـ MEAL
   if (isFormOpen === false) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center" dir={isAr ? "rtl" : "ltr"}>
@@ -665,9 +658,44 @@ export default function JoinForm({ locale, presetSector }: Props) {
                       <option value="school" className="bg-white text-zinc-900 dark:bg-zinc-900 dark:text-white">{t.educationOptions.school}</option>
                     </select>
                   </div>
+
+                  {/* تعديل خانة الصورة هنا لتكون منطقة رفع ملفات حقيقية واحترافية */}
                   <div className="md:col-span-2">
-                    <label htmlFor="profile_picture_url" className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
-                    <input id="profile_picture_url" type="url" className={inputClass} placeholder={t.placeholders.url} value={form.profile_picture_url} onChange={(e) => updateField("profile_picture_url", e.target.value)} required />
+                    <label className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
+                    <div className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-6 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition relative">
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 5 * 1024 * 1024) {
+                              setErrorMsg(isAr ? "حجم الصورة يجب ألا يتجاوز 5 ميجابايت" : "Image size must not exceed 5MB");
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              updateField("profile_picture_url", reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <div className="text-center pointer-events-none">
+                        <span className="text-3xl mb-2 block">🖼️</span>
+                        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                          {form.profile_picture_url ? (isAr ? "✅ تم اختيار صورة بنجاح" : "✅ Image selected successfully") : (isAr ? "اضغط هنا لرفع الصورة الشخصية الرسمية" : "Click here to upload your official profile picture")}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">PNG, JPG, JPEG (Max 5MB)</p>
+                      </div>
+                    </div>
+                    {/* عرض معاينة مصغرة للصورة بمجرد الرفع */}
+                    {form.profile_picture_url && form.profile_picture_url.startsWith("data:image") && (
+                      <div className="mt-3 flex justify-center">
+                        <img src={form.profile_picture_url} alt="Profile Preview" className="h-20 w-20 rounded-full object-cover border border-zinc-200 dark:border-zinc-800 shadow-sm" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -822,7 +850,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
               )}
             </div>
 
-            {/* عرض رسائل الخطأ إن وجدت من الـ MEAL */}
             <div aria-live="polite" className="grid gap-3 mt-2">
               {errorMsg && (
                 <div className="rounded-2xl border border-red-500/30 bg-red-50 p-4 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-950/20 dark:text-red-400 font-medium">

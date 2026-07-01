@@ -53,7 +53,9 @@ import {
   MapPin,
   ShieldAlert,
   Compass,
-  Info
+  Info,
+  Lock,
+  Unlock
 } from "lucide-react";
 
 // قاموس حماية مركزي لضمان ترجمة كافة القطاعات للعربية حتى لو اختلف التكويد بالخلفية
@@ -130,15 +132,13 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function getSectorLabel(sectorKey: any): string {
-  if (!sectorKey) return "غير مححدد";
+  if (!sectorKey) return "غير محدد";
   const cleanKey = String(sectorKey).trim().toLowerCase();
   
-  // الفحص الأول: من قاموس الحماية الداخلي لتفادي مشاكل الـ Slugs الإنجليزية
   if (SECTORS_TRANSLATION_MAP[cleanKey]) {
     return SECTORS_TRANSLATION_MAP[cleanKey];
   }
 
-  // الفحص الثاني: محاولة جلب الاسم من الملف الخارجي الممرر
   const sector = SECTORS.find((s: any) => 
     String(s.slug).toLowerCase() === cleanKey || String(s.id).toLowerCase() === cleanKey
   ) as any;
@@ -152,7 +152,7 @@ function getSectorLabel(sectorKey: any): string {
 function getLeadershipInterestLabel(value: any): string {
   if (value === null || value === undefined) return "غير محدد";
   const str = String(value).trim().toLowerCase();
-  if (str === "") return "غير محدد";
+  if (str === "") return "غير مححدد";
   if (str === "yes" || str === "true" || str === "نعم" || value === true) return "نعم";
   if (str === "no" || str === "false" || str === "لا" || value === false) return "لا";
   return str;
@@ -251,6 +251,10 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "warning" | "">("");
   
+  // استدعاءات التحكم في حالة فتح وقفل الاستمارة
+  const [isFormOpen, setIsFormOpen] = useState<boolean>(true);
+  const [togglingForm, setTogglingForm] = useState<boolean>(false);
+
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [sector, setSector] = useState<string>("all");
@@ -296,6 +300,17 @@ export default function AdminJoinRequestsPage() {
 
       setIsAuthorized(true);
 
+      // جلب حالة الاستمارة من جدول الإعدادات الافتراضي
+      const { data: settingsData, error: settingsError } = await supabaseBrowser
+        .from("system_settings")
+        .select("value")
+        .eq("key", "is_form_open")
+        .single();
+
+      if (!settingsError && settingsData) {
+        setIsFormOpen(settingsData.value === "true" || settingsData.value === true);
+      }
+
       const { data: requests, error } = await supabaseBrowser
         .from("join_requests")
         .select("*")
@@ -318,6 +333,33 @@ export default function AdminJoinRequestsPage() {
   useEffect(() => {
     void verifyAuthAndLoad();
   }, [verifyAuthAndLoad]);
+
+  // دالة التحكم بفتح وغلق الاستمارة برمجياً
+  async function toggleFormStatus() {
+    setTogglingForm(true);
+    const nextState = !isFormOpen;
+    
+    try {
+      const { error } = await supabaseBrowser
+        .from("system_settings")
+        .update({ value: String(nextState) })
+        .eq("key", "is_form_open");
+
+      if (error) {
+        showNotification(`❌ فشل تحديث حالة الاستمارة: ${error.message}`, "error");
+      } else {
+        setIsFormOpen(nextState);
+        showNotification(
+          nextState ? "🔓 تم فتح باب التسجيل واستقبال الطلبات بنجاح." : "🔒 تم إغلاق باب التسجيل ووقف استقبال الطلبات.", 
+          "success"
+        );
+      }
+    } catch (err: any) {
+      showNotification(`❌ حدث خطأ غير متوقع: ${err?.message}`, "error");
+    } finally {
+      setTogglingForm(false);
+    }
+  }
 
   const cityOptions = useMemo(() => {
     return Array.from(
@@ -459,7 +501,7 @@ export default function AdminJoinRequestsPage() {
         "الحالة التعليمية": EDUCATION_LABEL[r.education ?? ""] ?? cleanCell(r.education),
         "الجامعة / المعهد": cleanCell(r.university),
         "الكلية": cleanCell(r.faculty),
-        "القسم / التخصص": cleanCell(r.department),
+        "القسم / التخصص الداخلي": cleanCell(r.department),
         "الفرقة الدراسية": cleanCell(r.grade),
         "سنة التخرج": cleanCell(r.graduation_year),
         "القطاع المستهدف": getSectorLabel(r.sector_key),
@@ -540,7 +582,22 @@ export default function AdminJoinRequestsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 self-end lg:self-auto">
+        <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
+          {/* زر التحكم المركزي لفتح وغلق فورم التسجيل */}
+          <Button 
+            onClick={toggleFormStatus} 
+            disabled={togglingForm || loading} 
+            variant={isFormOpen ? "outline" : "destructive"}
+            className={`h-10 rounded-xl gap-2 font-semibold transition-all ${
+              isFormOpen 
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900" 
+                : "shadow-sm animate-pulse hover:animate-none"
+            }`}
+          >
+            {isFormOpen ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            {isFormOpen ? "الفورم: مفتوح استقبال الطلبات" : "الفورم: مغلق حالياً"}
+          </Button>
+
           <Button onClick={verifyAuthAndLoad} disabled={loading} variant="outline" className="h-10 rounded-xl gap-2 font-semibold border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> تحديث البيانات
           </Button>
@@ -638,7 +695,7 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* الجدول المركزي بعد ربط ضغطة السطر بالكامل مع عزل أحداث القائمة المنسدلة */}
+      {/* الجدول المركزي */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm overflow-hidden">
         <div className="p-4 bg-zinc-50/60 dark:bg-zinc-900/60 border-b dark:border-zinc-800 font-bold text-xs text-zinc-600 dark:text-zinc-400 flex items-center justify-between">
           <span>جدول فرز طلبات المتقدمين المركزي (اضغط على أي مكان بالسطر لعرض التفاصيل بالكامل)</span>
@@ -702,7 +759,6 @@ export default function AdminJoinRequestsPage() {
                     <TableCell>
                       {getStatusBadge(row.admin_status)}
                     </TableCell>
-                    {/* عزل حدث فتح المودال لمنع Ghost Clicks عند استخدام القائمة المنسدلة للإجراءات السريعة */}
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -744,11 +800,10 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* نافذة المودال الاحترافية لتقييم المتقدم (Premium HR Evaluation Dashboard Layout) */}
+      {/* نافذة المودال لتقييم المتقدم */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl p-0 font-sans border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 shadow-2xl block" dir="rtl">
           
-          {/* هيدر المودال الثابت */}
           <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 p-5 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-t-2xl">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
@@ -772,7 +827,7 @@ export default function AdminJoinRequestsPage() {
           {selected && (
             <div className="p-6 space-y-6">
               
-              {/* القسم الأول: البيانات الشخصية */}
+              {/* البيانات الشخصية */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
                 <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
                   <User className="w-4 h-4" /> البيانات الشخصية والاتصال
@@ -812,7 +867,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الثاني: المسار الأكاديمي والتعليمي */}
+              {/* الحالة الأكاديمية */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
                 <h3 className="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
                   <GraduationCap className="w-4 h-4" /> الحالة الأكاديمية والتعليمية
@@ -849,7 +904,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الثالث: خيارات التطوع ورغبات الهيكلة */}
+              {/* تفضيلات التعيين */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
                 <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
                   <Briefcase className="w-4 h-4" /> تفضيلات التعيين ورغبات الهيكلة التابعة للمبادرة
@@ -888,7 +943,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الرابع: تحليل المهارات والخبرات */}
+              {/* المهارات والخبرات */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
                 <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
                   <FileText className="w-4 h-4" /> القدرات التقنية والتحليل السلوكي للخبرات
@@ -917,7 +972,7 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* القسم الخامس: الملفات والمرفقات الخارجية */}
+              {/* المرفقات والروابط (رابط الصورة الشخصية يقرأ الآن من Google Drive) */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
                 <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
                   <Link2 className="w-4 h-4" /> المرفقات الرقمية والروابط الموثقة للملف الشخصي
@@ -950,13 +1005,13 @@ export default function AdminJoinRequestsPage() {
                   )}
                   {selected.profile_picture_url && (
                     <a href={selected.profile_picture_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 p-2.5 bg-amber-50 hover:bg-amber-100/70 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50 rounded-xl border border-amber-100 dark:border-amber-900/40 transition sm:col-span-2">
-                      🖼️ فتح وعرض الصورة الشخصية الرسمية المرفقة
+                      🖼️ فتح وعرض الصورة الشخصية الرسمية المرفقة (Google Drive)
                     </a>
                   )}
                 </div>
               </div>
 
-              {/* القسم السادس والأخير: اتخاذ القرار الإداري والملاحظات */}
+              {/* اتخاذ القرار الإداري والملاحظات */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-300 dark:border-zinc-800 p-5 shadow-md space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
