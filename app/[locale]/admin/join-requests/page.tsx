@@ -304,7 +304,7 @@ export default function AdminJoinRequestsPage() {
       const { data: settingsData, error: settingsError } = await supabaseBrowser
         .from("site_settings")
         .select("value")
-        .eq("key", "is_form_open")
+        .eq("key", "is_join_form_open")
         .single();
 
       if (!settingsError && settingsData) {
@@ -343,7 +343,7 @@ export default function AdminJoinRequestsPage() {
       const { error } = await supabaseBrowser
         .from("site_settings")
         .update({ value: String(nextState) })
-        .eq("key", "is_form_open");
+        .eq("key", "is_join_form_open");
 
       if (error) {
         showNotification(`❌ فشل تحديث حالة الاستمارة: ${error.message}`, "error");
