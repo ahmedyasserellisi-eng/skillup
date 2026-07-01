@@ -258,20 +258,23 @@ export async function POST(req: Request) {
     }
 
     // 👈 [تعديل هام]: اعتراض الصورة ورفعها على جوجل درايف إذا كانت بصيغة Base64
+   // 👈 اعتراض الصورة ورفعها على جوجل درايف وإظهار تفاصيل الخطأ الحقيقي
     let finalProfilePictureUrl = safeStr(body.profile_picture_url);
     if (finalProfilePictureUrl.startsWith("data:image/")) {
       try {
         const timestamp = Date.now();
-        // تنظيف الاسم لاستخدامه كاسم للملف المرفوع
         const sanitizedName = full_name.replace(/[^a-zA-Z0-9أ-ي]/g, "_");
         const fileName = `skillup_${sanitizedName}_${timestamp}`;
         
-        // استدعاء دالة الرفع واستبدال الرابط بالنص القديم
         finalProfilePictureUrl = await uploadBase64ToDrive(body.profile_picture_url, fileName);
-      } catch (driveError) {
-        console.error("Google Drive Upload Error:", driveError);
+      } catch (driveError: any) {
+        console.error("Google Drive Upload Error Details:", driveError);
+        
+        // استخراج رسالة الخطأ الصادرة من سيرفرات جوجل مباشرة وعرضها في الفرونت إند
+        const googleMessage = driveError?.message || (driveError?.errors?.[0]?.message) || "Unknown Google Error";
+        
         return NextResponse.json(
-          { ok: false, error: "Failed to upload profile picture to Google Drive." },
+          { ok: false, error: `Google Drive Error: ${googleMessage}` },
           { status: 500 }
         );
       }
