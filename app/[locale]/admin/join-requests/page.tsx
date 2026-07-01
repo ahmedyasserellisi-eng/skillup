@@ -152,7 +152,7 @@ function getSectorLabel(sectorKey: any): string {
 function getLeadershipInterestLabel(value: any): string {
   if (value === null || value === undefined) return "غير محدد";
   const str = String(value).trim().toLowerCase();
-  if (str === "") return "غير مححدد";
+  if (str === "") return "غير محدد";
   if (str === "yes" || str === "true" || str === "نعم" || value === true) return "نعم";
   if (str === "no" || str === "false" || str === "لا" || value === false) return "لا";
   return str;
@@ -300,9 +300,9 @@ export default function AdminJoinRequestsPage() {
 
       setIsAuthorized(true);
 
-      // جلب حالة الاستمارة من جدول الإعدادات الافتراضي
+      // تم تعديل اسم الجدول هنا ليكون مطاطقاً لـ site_settings لمنع الـ Schema cache error
       const { data: settingsData, error: settingsError } = await supabaseBrowser
-        .from("system_settings")
+        .from("site_settings")
         .select("value")
         .eq("key", "is_form_open")
         .single();
@@ -350,7 +350,7 @@ export default function AdminJoinRequestsPage() {
       } else {
         setIsFormOpen(nextState);
         showNotification(
-          nextState ? "🔓 تم فتح باب التسجيل واستقبال الطلبات بنجاح." : "🔒 تم إغلاق باب التسجيل ووقف استقبال الطلبات.", 
+          nextState ? "🔓 تم فتح باب التسجيل واستقبل الطلبات بنجاح." : "🔒 تم إغلاق باب التسجيل ووقف استقبال الطلبات.", 
           "success"
         );
       }
