@@ -25,7 +25,6 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 }
 
 // 👈 دالة رفع الصورة إلى جوجل درايف وتحويلها لرابط مباشر
-// دالة رفع الصورة إلى جوجل درايف وتحويلها لرابط مباشر مع تنظيف صارم للمفتاح
 async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Promise<string> {
   const matches = base64DataUri.match(/^data:(.+);base64,(.+)$/);
   if (!matches) throw new Error("صيغة الصورة غير صالحة");
@@ -34,19 +33,14 @@ async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Pro
   const base64Data = matches[2];
   const buffer = Buffer.from(base64Data, "base64");
 
-  // تنظيف المفتاح الخاص لمنع أي كسر بسبب علامات التنصيص في السيرفرات أو ملفات الـ env
-  let privateKey = process.env.GOOGLE_PRIVATE_KEY || "";
-  if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-    privateKey = privateKey.slice(1, -1);
-  }
-  privateKey = privateKey.replace(/\\n/g, "\n");
+  // الاتصال بجوجل درايف عبر حسابك الشخصي مباشرة باستخدام الـ Tokens الجديدة
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+  );
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: privateKey,
-    },
-    scopes: ["https://www.googleapis.com/auth/drive"],
+  auth.setCredentials({
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
   });
 
   const drive = google.drive({ version: "v3", auth });
@@ -65,7 +59,7 @@ async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Pro
   const fileId = file.data.id;
   if (!fileId) throw new Error("سيرفر جوجل لم يقم بإرجاع ID للملف");
 
-  // جعل الملف مرئيًا لأي شخص يملك الرابط
+  // جعل الملف مرئيًا لأي شخص يملك الرابط ليفتح في لوحة الإدارة بنجاح
   await drive.permissions.create({
     fileId: fileId,
     requestBody: { role: "reader", type: "anyone" },
