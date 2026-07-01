@@ -107,7 +107,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
   const [isFormOpen, setIsFormOpen] = useState<boolean | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(1);
 
-  // فحص حالة الاستمارة من نفس الـ Key والجدول المعتمدين في الـ Supabase
+  // فحص حالة الاستمارة ومطابقتها بشكل مرن وآمن مع قيم الأدمن في قاعدة البيانات
   useEffect(() => {
     async function checkFormStatus() {
       try {
@@ -118,7 +118,9 @@ export default function JoinForm({ locale, presetSector }: Props) {
           .maybeSingle();
 
         if (!error && data) {
-          setIsFormOpen(data.value);
+          // التحقق مما إذا كانت القيمة تساوي true كـ Boolean أو كـ String نصي لمنع مشاكل التعارض
+          const isOpen = data.value === true || data.value === "true" || data.value === 1 || data.value === "1";
+          setIsFormOpen(isOpen);
         } else {
           setIsFormOpen(true); 
         }
@@ -155,7 +157,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       department: "القسم",
       postgradInfo: "بيانات الدراسات العليا (إن وجد)",
       graduation: "سنة التخرج",
-      profilePicture: "الصورة الشخصية الرسمية", // تم تحديث النص
+      profilePicture: "الصورة الشخصية الرسمية",
       sector: "القطاع المراد الانضمام إليه",
       role: "الدور أو المسؤولية المفضلة",
       availability: "الوقت المتاح أسبوعياً",
@@ -172,7 +174,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       next: "التالي",
       prev: "السابق",
       stepOf: "خطوة {step} من 4",
-      sending: "جاري إرسال البيانات ورفع المرفقات...",
+      sending: "جاري إرسال البيانات ورفع Mرفقات...",
       ok: "تم تسجيل البيانات بنجاح وهنتواصل معاك قريباً.",
       anotherResponse: "إرسال رد آخر (فورم جديد)",
       errRequired: "برجاء استكمال جميع الحقول الإجبارية المعلّمة بنجمة (*).",
@@ -281,6 +283,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
     return isAr ? ar : en;
   }, [isAr]);
 
+  // تعيين حقل القطاع الأولي دون تفعيل الـ UseEffect المسبب للمشاكل
   const [form, setForm] = useState<FormState>({
     full_name: "", email: "", phone: "", national_id: "", city: "", address: "", age: "", gender: "", 
     member_status: "", leadership_interest: "", education: "", grade: "",
@@ -295,10 +298,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
   const [done, setDone] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    setForm((prev) => ({ ...prev, sector_key: getSafeSectorKey(presetSector) }));
-  }, [presetSector]);
-
   // التحليل التلقائي الذكي للرقم القومي المصري
   useEffect(() => {
     if (/^\d{14}$/.test(form.national_id)) {
@@ -309,7 +308,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
       const centuryDigit = id.charAt(0);
       const yearPart = id.substring(1, 3);
       const birthYear = parseInt((centuryDigit === "3" ? "20" : "19") + yearPart, 10);
-      const currentYear = 2026;
+      const currentYear = new Date().getFullYear(); // أصبح ديناميكياً بالكامل
       const calculatedAge = currentYear - birthYear;
 
       const govCode = id.substring(7, 9);
@@ -443,7 +442,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
           department: form.department.trim(),
           postgrad_info: form.postgrad_info.trim() || null,
           graduation_year: Number(form.graduation_year),
-          profile_picture_url: form.profile_picture_url.trim(), // سترسل كـ Base64 هنا والباك اند سيتعامل معها
+          profile_picture_url: form.profile_picture_url.trim(), 
           preferred_role: form.preferred_role.trim(),
           availability: form.availability.trim(),
           skills: form.skills.trim(),
@@ -659,7 +658,7 @@ export default function JoinForm({ locale, presetSector }: Props) {
                     </select>
                   </div>
 
-                  {/* تعديل خانة الصورة هنا لتكون منطقة رفع ملفات حقيقية واحترافية */}
+                  {/* خانة رفع الصورة الشخصية */}
                   <div className="md:col-span-2">
                     <label className={labelClass}>{t.profilePicture} <span className="text-red-500">*</span></label>
                     <div className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-2xl p-6 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition relative">
@@ -690,7 +689,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
                         <p className="text-xs text-zinc-400 mt-1">PNG, JPG, JPEG (Max 5MB)</p>
                       </div>
                     </div>
-                    {/* عرض معاينة مصغرة للصورة بمجرد الرفع */}
                     {form.profile_picture_url && form.profile_picture_url.startsWith("data:image") && (
                       <div className="mt-3 flex justify-center">
                         <img src={form.profile_picture_url} alt="Profile Preview" className="h-20 w-20 rounded-full object-cover border border-zinc-200 dark:border-zinc-800 shadow-sm" />
