@@ -25,6 +25,7 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 }
 
 // 👈 دالة رفع الصورة إلى جوجل درايف وتحويلها لرابط مباشر
+// 👈 دالة رفع الصورة إلى جوجل درايف وتحويلها لرابط مباشر بعد تعديل الـ Scope
 async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Promise<string> {
   const matches = base64DataUri.match(/^data:(.+);base64,(.+)$/);
   if (!matches) throw new Error("صيغة الصورة غير صالحة");
@@ -38,7 +39,7 @@ async function uploadBase64ToDrive(base64DataUri: string, fileName: string): Pro
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
       private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     },
-    scopes: ["https://www.googleapis.com/auth/drive.file"],
+    scopes: ["https://www.googleapis.com/auth/drive"], // 👈 التعديل هنا: تم تغيير drive.file إلى drive لمنح صلاحية الكتابة داخل الفولدر المشترك
   });
 
   const drive = google.drive({ version: "v3", auth });
