@@ -108,13 +108,14 @@ export default function JoinForm({ locale, presetSector }: Props) {
   const [currentStep, setCurrentStep] = useState<number>(1);
 
   // فحص حالة الاستمارة ومطابقتها بشكل مرن وآمن مع قيم الأدمن في قاعدة البيانات
+// فحص حالة الاستمارة ومطابقتها بشكل مرن وآمن مع قيم الأدمن في قاعدة البيانات
   useEffect(() => {
     async function checkFormStatus() {
       try {
         const { data, error } = await supabase
           .from("site_settings")
           .select("value")
-          .eq("key", "is_form_open")
+          .eq("key", "is_join_form_open")
           .maybeSingle();
 
         if (!error && data) {
@@ -122,7 +123,11 @@ export default function JoinForm({ locale, presetSector }: Props) {
           const isOpen = data.value === true || data.value === "true" || data.value === 1 || data.value === "1";
           setIsFormOpen(isOpen);
         } else {
-          setIsFormOpen(true); 
+          // لو فيه خطأ صلاحيات أو RLS هيظهرلك في الكونسول فوراً
+          if (error) {
+            console.error("Supabase Form Status Error (Check RLS Policies):", error);
+          }
+          setIsFormOpen(true); //Fallback
         }
       } catch (err) {
         console.error("Error fetching form status:", err);
@@ -131,7 +136,6 @@ export default function JoinForm({ locale, presetSector }: Props) {
     }
     checkFormStatus();
   }, []);
-
   const t = useMemo(() => {
     const ar = {
       title: "انضم إلى فريق SkillUp",
