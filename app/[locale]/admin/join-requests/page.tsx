@@ -216,10 +216,7 @@ function formatDateTime(value: string) {
   }
 }
 
-function cleanCell(value: unknown) {
-  return value ?? "";
-}
-
+// دالة لتعديل اللون الذهبي بناءً على الثيم المختار للهوية
 function formatGovernorate(city?: string | null) {
   if (!city) return "غير محدد";
   const cleaned = city.trim().toLowerCase();
@@ -243,6 +240,10 @@ function getGenderText(nationalId?: string | null, genderField?: string | null) 
   return genderDigit % 2 === 0 ? "أنثى" : "ذكر";
 }
 
+function cleanCell(value: unknown) {
+  return value ?? "";
+}
+
 export default function AdminJoinRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -251,7 +252,6 @@ export default function AdminJoinRequestsPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "warning" | "">("");
   
-  // استدعاءات التحكم في حالة فتح وقفل الاستمارة
   const [isFormOpen, setIsFormOpen] = useState<boolean>(true);
   const [togglingForm, setTogglingForm] = useState<boolean>(false);
 
@@ -300,7 +300,6 @@ export default function AdminJoinRequestsPage() {
 
       setIsAuthorized(true);
 
-      // تم تعديل اسم الجدول هنا ليكون مطاطقاً لـ site_settings لمنع الـ Schema cache error
       const { data: settingsData, error: settingsError } = await supabaseBrowser
         .from("site_settings")
         .select("value")
@@ -334,7 +333,6 @@ export default function AdminJoinRequestsPage() {
     void verifyAuthAndLoad();
   }, [verifyAuthAndLoad]);
 
-  // دالة التحكم بفتح وغلق الاستمارة برمجياً
   async function toggleFormStatus() {
     setTogglingForm(true);
     const nextState = !isFormOpen;
@@ -488,6 +486,8 @@ export default function AdminJoinRequestsPage() {
       const XLSX = await import("xlsx");
       const data = filtered.map((r, index) => ({
         "م": index + 1,
+        "تاريخ وساعة التقديم": formatDateTime(r.created_at),
+        "حالة الطلب الإدارية": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
         "الاسم الكامل": cleanCell(r.full_name),
         "الرقم القومي (14 رقم)": cleanCell(r.national_id),
         "النوع": getGenderText(r.national_id, r.gender),
@@ -514,19 +514,17 @@ export default function AdminJoinRequestsPage() {
         "رابط Facebook": cleanCell(r.facebook),
         "رابط معرض الأعمال Portfolio": cleanCell(r.portfolio),
         "رسالة المتقدم": cleanCell(r.message),
-        "حالة الطلب الإدارية": STATUS_LABEL[getStatusValue(r.admin_status)] ?? getStatusValue(r.admin_status),
-        "ملاحظات لجنة الفرز والتقييم الداخلي": cleanCell(r.admin_notes),
-        "تاريخ وساعة التقديم": formatDateTime(r.created_at)
+        "ملاحظات لجنة الفرز والتقييم الداخلي": cleanCell(r.admin_notes)
       }));
 
       const ws = XLSX.utils.json_to_sheet(data, { skipHeader: false });
       ws["!dir"] = "rtl"; 
       ws["!cols"] = [
-        { wch: 6 }, { wch: 28 }, { wch: 22 }, { wch: 12 }, { wch: 15 }, { wch: 15 },
-        { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 30 }, { wch: 8 }, { wch: 18 }, 
-        { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 30 }, 
-        { wch: 20 }, { wch: 28 }, { wch: 20 }, { wch: 40 }, { wch: 40 }, { wch: 30 }, 
-        { wch: 30 }, { wch: 30 }, { wch: 45 }, { wch: 18 }, { wch: 35 }, { wch: 24 }
+        { wch: 6 }, { wch: 24 }, { wch: 18 }, { wch: 28 }, { wch: 22 }, { wch: 12 },
+        { wch: 15 }, { wch: 15 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 30 },
+        { wch: 8 }, { wch: 18 }, { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 16 },
+        { wch: 14 }, { wch: 30 }, { wch: 20 }, { wch: 28 }, { wch: 20 }, { wch: 40 },
+        { wch: 40 }, { wch: 30 }, { wch: 30 }, { wch: 30 }, { wch: 45 }, { wch: 35 }
       ];
 
       const wb = XLSX.utils.book_new();
@@ -534,7 +532,7 @@ export default function AdminJoinRequestsPage() {
       const dateStr = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `SkillUp-Join-Requests-${dateStr}.xlsx`);
       
-      showNotification("✅ تم إنشاء وتنزيل تقرير Excel بنجاح وتوحيد كافة البيانات بالعربية.", "success");
+      showNotification("✅ تم إنشاء وتنزيل تقرير Excel بنجاح وتوحيد كافة البيانات بالعربية بالترتيب الجديد.", "success");
     } catch (e: any) {
       showNotification(`❌ حدث خطأ غير متوقع أثناء تصدير الملف: ${e?.message}`, "error");
     }
@@ -569,21 +567,20 @@ export default function AdminJoinRequestsPage() {
   return (
     <div className="grid gap-6 p-4 md:p-6 max-w-[1700px] mx-auto font-sans text-zinc-900 dark:text-zinc-100" dir="rtl">
       
-      {/* رأس الصفحة والإجراءات العامة */}
+      {/* رأس الصفحة والإجراءات العامة المصممة بالهوية الرسمية */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-600 rounded-xl text-white shadow-md shadow-emerald-600/10">
+          <div className="p-2.5 bg-[#182b36] border border-[#C8A448]/30 rounded-xl text-[#C8A448] shadow-md shadow-zinc-900/10">
             <Layers className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-zinc-900 dark:text-zinc-50">إدارة طلبات الانضمام</h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-[#182b36] dark:text-zinc-50">إدارة طلبات الانضمام</h1>
             <p className="text-xs md:text-sm text-zinc-500 dark:text-zinc-400 mt-1 font-medium">
               عرض وفرز المتقدمين لمبادرة SkillUp بنظام فرز مركزي مؤمن. (مطابق: {stats.filtered} من أصل {stats.total})
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 self-end lg:self-auto flex-wrap">
-          {/* زر التحكم المركزي لفتح وغلق فورم التسجيل */}
           <Button 
             onClick={toggleFormStatus} 
             disabled={togglingForm || loading} 
@@ -601,8 +598,8 @@ export default function AdminJoinRequestsPage() {
           <Button onClick={verifyAuthAndLoad} disabled={loading} variant="outline" className="h-10 rounded-xl gap-2 font-semibold border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> تحديث البيانات
           </Button>
-          <Button onClick={exportExcel} disabled={loading || filtered.length === 0} className="h-10 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 rounded-xl gap-2 font-semibold shadow-sm">
-            <Download className="w-4 h-4" /> تصدير Excel
+          <Button onClick={exportExcel} disabled={loading || filtered.length === 0} className="h-10 bg-[#182b36] border border-[#C8A448]/30 hover:bg-[#182b36]/90 text-[#C8A448] rounded-xl gap-2 font-bold shadow-sm">
+            <Download className="w-4 h-4 text-[#C8A448]" /> تصدير Excel
           </Button>
         </div>
       </div>
@@ -639,10 +636,10 @@ export default function AdminJoinRequestsPage() {
         ))}
       </div>
 
-      {/* أدوات الفرز والتصفية المتقدمة */}
+      {/* أدوات الفرز والتصفية المتقدمة بالهوية المحدثة */}
       <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm grid gap-4">
-        <div className="flex items-center gap-1.5 text-zinc-800 dark:text-zinc-200 font-bold text-sm border-b dark:border-zinc-800 pb-2.5">
-          <Filter className="w-4 h-4 text-zinc-500 dark:text-zinc-400" />
+        <div className="flex items-center gap-1.5 text-[#182b36] dark:text-[#C8A448] font-black text-sm border-b dark:border-zinc-800 pb-2.5">
+          <Filter className="w-4 h-4 text-[#C8A448]" />
           <span>أدوات الفرز والتصفية المتقدمة</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -695,25 +692,26 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* الجدول المركزي */}
+      {/* الجدول المركزي المنظم بالهوية البصرية والترتيب الجديد */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 shadow-sm overflow-hidden">
-        <div className="p-4 bg-zinc-50/60 dark:bg-zinc-900/60 border-b dark:border-zinc-800 font-bold text-xs text-zinc-600 dark:text-zinc-400 flex items-center justify-between">
-          <span>جدول فرز طلبات المتقدمين المركزي (اضغط على أي مكان بالسطر لعرض التفاصيل بالكامل)</span>
-          <span className="bg-zinc-200/60 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-2.5 py-1 rounded-md">{filtered.length} طلب مطابق</span>
+        <div className="p-4 bg-[#182b36] border-b border-[#C8A448]/20 font-bold text-xs text-white flex items-center justify-between">
+          <span>جدول فرز طلبات المتقدمين الموحد (اضغط على السطر لعرض الاستمارة كاملة)</span>
+          <span className="bg-[#C8A448] text-[#182b36] px-2.5 py-1 rounded-md font-black">{filtered.length} طلب مطابق</span>
         </div>
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-zinc-50/40 dark:bg-zinc-900/40">
-              <TableRow className="border-b border-zinc-100 dark:border-zinc-800">
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">الاسم الكامل</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">القطاع المستهدف</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">المحافظة</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">السن / النوع</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">صفة العضوية</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">رغبة قيادية</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">تاريخ التقديم</TableHead>
-                <TableHead className="text-right text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11">حالة الطلب</TableHead>
-                <TableHead className="text-center text-xs font-bold text-zinc-500 dark:text-zinc-400 h-11 w-[70px]">إجراءات</TableHead>
+            <TableHeader className="bg-zinc-50/80 dark:bg-zinc-900/80 border-b dark:border-zinc-800">
+              <TableRow className="hover:bg-transparent">
+                {/* تم تعديل الترتيب هنا لتصبح التواريخ والحالات في البداية تماماً كـ جوجل فورم */}
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">تاريخ وساعة التقديم</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">حالة الطلب الإدارية</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">الاسم الكامل</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">القطاع المستهدف</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">المحافظة</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">السن / النوع</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">صفة العضوية</TableHead>
+                <TableHead className="text-right text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12">رغبة قيادية</TableHead>
+                <TableHead className="text-center text-xs font-black text-[#182b36] dark:text-[#C8A448] h-12 w-[70px]">إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -730,35 +728,54 @@ export default function AdminJoinRequestsPage() {
                   <TableRow 
                     key={row.id} 
                     onClick={() => openDetails(row)}
-                    className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30 transition-colors cursor-pointer select-none"
+                    className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors cursor-pointer select-none border-b border-zinc-100 dark:border-zinc-800"
                   >
-                    <TableCell className="py-3 font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                      <Eye className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>{row.full_name}</span>
+                    {/* 1. تاريخ ووقت التقديم */}
+                    <TableCell className="text-xs text-zinc-600 dark:text-zinc-400 font-mono font-bold">
+                      {formatDateTime(row.created_at)}
                     </TableCell>
-                    <TableCell className="text-xs font-black text-zinc-700 dark:text-zinc-300">
+
+                    {/* 2. حالة الطلب */}
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {getStatusBadge(row.admin_status)}
+                    </TableCell>
+
+                    {/* 3. الاسم الكامل */}
+                    <TableCell className="py-3 font-bold text-zinc-900 dark:text-zinc-50">
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                        <span>{row.full_name}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* 4. القطاع المستهدف */}
+                    <TableCell className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
                       {getSectorLabel(row.sector_key)}
                     </TableCell>
+
+                    {/* 5. المحافظة */}
                     <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">
                       {formatGovernorate(row.city)}
                     </TableCell>
+
+                    {/* 6. السن / النوع */}
                     <TableCell className="text-xs text-zinc-500 dark:text-zinc-400">
                       {row.age ? `${row.age} سنة` : "غير محدد"} / {getGenderText(row.national_id, row.gender)}
                     </TableCell>
+
+                    {/* 7. صفة العضوية */}
                     <TableCell className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
                       {getMemberStatusLabel(row.member_status)}
                     </TableCell>
+
+                    {/* 8. رغبة قيادية */}
                     <TableCell className="text-xs font-bold">
-                      <span className={getLeadershipInterestLabel(row.leadership_interest) === "نعم" ? "text-amber-600 dark:text-amber-400 font-black" : "text-zinc-400"}>
+                      <span className={getLeadershipInterestLabel(row.leadership_interest) === "نعم" ? "text-[#C8A448] font-black" : "text-zinc-400"}>
                         {getLeadershipInterestLabel(row.leadership_interest)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                      {formatDateTime(row.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(row.admin_status)}
-                    </TableCell>
+
+                    {/* 9. الإجراءات المنسدلة */}
                     <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -800,17 +817,17 @@ export default function AdminJoinRequestsPage() {
         </div>
       </div>
 
-      {/* نافذة المودال لتقييم المتقدم */}
+      {/* نافذة عرض الملف التفصيلية المنظمة بأقسام واضحة وملونة بالهوية */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-2xl p-0 font-sans border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 shadow-2xl block" dir="rtl">
           
           <div className="sticky top-0 bg-white dark:bg-zinc-900 border-b border-zinc-200/80 dark:border-zinc-800 p-5 z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-t-2xl">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+              <div className="p-2 bg-[#182b36] border border-[#C8A448]/30 text-[#C8A448] rounded-xl">
                 <User className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-black tracking-tight text-zinc-900 dark:text-zinc-50">
+                <DialogTitle className="text-lg font-black tracking-tight text-[#182b36] dark:text-zinc-50">
                   {selected?.full_name}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-zinc-400 dark:text-zinc-500 font-medium mt-0.5">
@@ -827,10 +844,10 @@ export default function AdminJoinRequestsPage() {
           {selected && (
             <div className="p-6 space-y-6">
               
-              {/* البيانات الشخصية */}
+              {/* قسم البيانات الشخصية */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
-                <h3 className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
-                  <User className="w-4 h-4" /> البيانات الشخصية والاتصال
+                <h3 className="text-xs font-black text-white bg-[#182b36] px-3 py-2 rounded-xl border-r-4 border-[#C8A448] flex items-center gap-2">
+                  <User className="w-4 h-4 text-[#C8A448]" /> البيانات الشخصية والاتصال
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
                   <div>
@@ -867,10 +884,10 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* الحالة الأكاديمية */}
+              {/* قسم الحالة الأكاديمية */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
-                <h3 className="text-xs font-black text-blue-600 dark:text-blue-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
-                  <GraduationCap className="w-4 h-4" /> الحالة الأكاديمية والتعليمية
+                <h3 className="text-xs font-black text-white bg-[#182b36] px-3 py-2 rounded-xl border-r-4 border-[#C8A448] flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-[#C8A448]" /> الحالة الأكاديمية والتعليمية
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
                   <div>
@@ -904,15 +921,15 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* تفضيلات التعيين */}
+              {/* قسم تفضيلات التعيين ورغبات الهيكلة */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
-                <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
-                  <Briefcase className="w-4 h-4" /> تفضيلات التعيين ورغبات الهيكلة التابعة للمبادرة
+                <h3 className="text-xs font-black text-white bg-[#182b36] px-3 py-2 rounded-xl border-r-4 border-[#C8A448] flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-[#C8A448]" /> تفضيلات التعيين ورغبات الهيكلة التابعة لمبادرة SkillUp
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-xs">
-                  <div className="sm:col-span-2 md:col-span-1 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/40">
-                    <span className="text-emerald-700 dark:text-emerald-400 block mb-0.5 font-medium">القطاع المستهدف والمختار:</span>
-                    <span className="font-black text-emerald-800 dark:text-emerald-300 text-sm">{getSectorLabel(selected.sector_key)}</span>
+                  <div className="sm:col-span-2 md:col-span-1 bg-zinc-50 dark:bg-zinc-950 p-2.5 rounded-xl border border-zinc-200/40 dark:border-zinc-800">
+                    <span className="text-zinc-400 block mb-0.5 font-medium">القطاع المستهدف والمختار:</span>
+                    <span className="font-black text-[#C8A448] text-sm">{getSectorLabel(selected.sector_key)}</span>
                   </div>
                   <div>
                     <span className="text-zinc-400 block mb-0.5">الدور أو المسؤولية المفضلة:</span>
@@ -943,10 +960,10 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* المهارات والخبرات */}
+              {/* قسم المهارات والخبرات */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
-                <h3 className="text-xs font-black text-purple-600 dark:text-purple-400 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
-                  <FileText className="w-4 h-4" /> القدرات التقنية والتحليل السلوكي للخبرات
+                <h3 className="text-xs font-black text-white bg-[#182b36] px-3 py-2 rounded-xl border-r-4 border-[#C8A448] flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#C8A448]" /> القدرات التقنية والتحليل السلوكي للخبرات
                 </h3>
                 <div className="space-y-3 text-xs">
                   <div>
@@ -972,10 +989,10 @@ export default function AdminJoinRequestsPage() {
                 </div>
               </div>
 
-              {/* المرفقات والروابط (رابط الصورة الشخصية يقرأ الآن من Google Drive) */}
+              {/* قسم المرفقات والروابط */}
               <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 p-5 shadow-sm space-y-4">
-                <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-300 flex items-center gap-2 border-b dark:border-zinc-800 pb-2">
-                  <Link2 className="w-4 h-4" /> المرفقات الرقمية والروابط الموثقة للملف الشخصي
+                <h3 className="text-xs font-black text-white bg-[#182b36] px-3 py-2 rounded-xl border-r-4 border-[#C8A448] flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-[#C8A448]" /> المرفقات الرقمية والروابط الموثقة للملف الشخصي
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-semibold">
                   {selected.resume_url ? (
