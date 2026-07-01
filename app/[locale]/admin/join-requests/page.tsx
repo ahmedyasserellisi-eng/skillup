@@ -341,7 +341,7 @@ export default function AdminJoinRequestsPage() {
     
     try {
       const { error } = await supabaseBrowser
-        .from("system_settings")
+        .from("site_settings")
         .update({ value: String(nextState) })
         .eq("key", "is_form_open");
 
