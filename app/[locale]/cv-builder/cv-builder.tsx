@@ -974,9 +974,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const isSectionStep = (step: WizardStep): step is SectionId => Object.prototype.hasOwnProperty.call(SECTION_META, step);
   const visibleActiveSection: SectionId = isSectionStep(wizardStep) ? wizardStep : orderedSections[0] ?? "experience";
   const wizardSteps: WizardStep[] = ["template", "profile", "education", "sections", ...orderedSections, "review"];
-  const visibleWizardSteps = wizardSteps.filter((step) => step !== "template");
+  // Exclude the initial template picker from the numbered progress steps.
+  // The explicit type guard narrows the array element type for TypeScript.
+  const visibleWizardSteps: Exclude<WizardStep, "template">[] = wizardSteps.filter(
+    (step): step is Exclude<WizardStep, "template"> => step !== "template"
+  );
   const currentWizardIndex = Math.max(0, wizardSteps.indexOf(wizardStep));
-  const currentVisibleStepIndex = visibleWizardSteps.indexOf(wizardStep);
+  const currentVisibleStepIndex =
+    wizardStep === "template" ? -1 : visibleWizardSteps.indexOf(wizardStep);
 
   const readiness = [
     { done: Boolean(cv.fullName.trim() && (cv.email.trim() || cv.phone.trim())), text: t.checkContact },
