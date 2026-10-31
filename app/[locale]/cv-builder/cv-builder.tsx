@@ -18,6 +18,7 @@ import {
   Lightbulb,
   Maximize2,
   Plus,
+  Pencil,
   RotateCcw,
   Sparkles,
   Trash2,
@@ -145,7 +146,43 @@ const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(
 const cx = (...classes: Array<string | false | undefined | null>) => classes.filter(Boolean).join(" ");
 
 function listText(value: string): string[] {
-  return value.split(/[\n,،;؛]+/).map((item) => item.trim()).filter(Boolean);
+  const result: string[] = [];
+  const lines = value.split(/\r?\n/);
+
+  for (const line of lines) {
+    let current = "";
+    let depth = 0;
+    let quote = "";
+
+    const pushCurrent = () => {
+      const cleaned = current.trim().replace(/^(?:[-*•▪◦]|\d+[.)])\s*/, "").trim();
+      if (cleaned) result.push(cleaned);
+      current = "";
+    };
+
+    for (const char of line) {
+      if (quote) {
+        current += char;
+        if (char === quote) quote = "";
+        continue;
+      }
+      if (char === "\"" || char === "'") {
+        quote = char;
+        current += char;
+        continue;
+      }
+      if (char === "(" || char === "[" || char === "{") depth += 1;
+      if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
+      if (depth === 0 && /[,،;؛]/.test(char)) {
+        pushCurrent();
+      } else {
+        current += char;
+      }
+    }
+    pushCurrent();
+  }
+
+  return result;
 }
 
 function Field({ label, children, hint, required }: { label: string; children: ReactNode; hint?: string; required?: boolean }) {
@@ -251,6 +288,7 @@ function CVDocument({ cv }: { cv: CVData }) {
     languages: ar ? "اللغات" : "Languages",
     expected: ar ? "التخرج المتوقع" : "Expected Graduation",
     graduated: ar ? "سنة التخرج" : "Graduation",
+    present: ar ? "حتى الآن" : "Present",
     studyYear: ar ? "السنة الدراسية" : "Study year",
     gpa: ar ? "التقدير" : "Grade",
   };
@@ -276,7 +314,7 @@ function CVDocument({ cv }: { cv: CVData }) {
         minHeight: 1123,
         boxSizing: "border-box",
         padding: compact ? "38px 46px" : "48px 56px",
-        fontFamily: "Cairo, Arial, 'Segoe UI', Tahoma, sans-serif"
+        fontFamily: "var(--font-sans-app), Arial, 'Segoe UI', Tahoma, sans-serif"
       }}
     >
       <header className="cv-document-header">
@@ -305,7 +343,7 @@ function CVDocument({ cv }: { cv: CVData }) {
               {cv.yearLevel && !["أخرى", "Other"].includes(cv.yearLevel) && cv.educationStatus !== "graduated" ? <p className="cv-muted-line">{t.studyYear}: {cv.yearLevel}</p> : null}
             </div>
             <div className="cv-education-meta">
-              {cv.startYear && cv.graduationYear ? <p>{[cv.startYear, cv.graduationYear].join(" – ")}</p> : null}
+              {cv.startYear ? <p>{cv.startYear}{cv.graduationYear ? ` – ${cv.graduationYear}` : cv.educationStatus === "studying" ? ` – ${t.present}` : ""}</p> : null}
               {!cv.startYear && cv.graduationYear ? <p>{cv.educationStatus === "graduated" ? t.graduated : t.expected}: {cv.graduationYear}</p> : null}
               {cv.gpa ? <p>{t.gpa}: {cv.gpa}</p> : null}
             </div>
@@ -537,6 +575,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     sectionsSub: "الأقسام دي اخترتها لمسارك. افتح أي قسم لإضافة بياناتك، وتقدر تضيف أكتر من تجربة أو مشروع.",
     preview: "معاينة السيرة",
     edit: "تعديل البيانات",
+    editItem: "تعديل العنصر",
     add: "إضافة",
     save: "حفظ البيانات",
     cancel: "إلغاء",
@@ -611,7 +650,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     saved: "يتم الحفظ تلقائيًا على هذا الجهاز",
     savedInfo: "بياناتك لا تُرسل إلى خادم SkillUp في هذه المرحلة.",
     reset: "مسح كل البيانات",
-    resetConfirm: "هل تريد مسح كل بيانات السيرة المحفوظة على هذا الجهاز؟",
+    resetConfirm: "هل تريد مسح السيرة الحالية ونسختها الاحتياطية من هذا الجهاز؟ لا يمكن التراجع عن ذلك.",
     checklist: "مراجعة قبل التحميل",
     checkContact: "أضف اسمك ووسيلة تواصل واحدة على الأقل.",
     checkEducation: "أضف الجامعة أو الكلية والتخصص.",
@@ -651,6 +690,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     sectionsSub: "These sections fit the student path. Open any section to add details. You can add multiple experiences or projects.",
     preview: "CV preview",
     edit: "Edit details",
+    editItem: "Edit item",
     add: "Add",
     save: "Save details",
     cancel: "Cancel",
@@ -725,7 +765,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     saved: "Automatically saved on this device",
     savedInfo: "Your information is not sent to SkillUp servers at this stage.",
     reset: "Clear all data",
-    resetConfirm: "Clear all saved CV data from this device?",
+    resetConfirm: "Clear the CV and its local safety backup from this device? This cannot be undone.",
     checklist: "Before you download",
     checkContact: "Add your name and at least one contact method.",
     checkEducation: "Add your university or faculty and major.",
@@ -782,14 +822,30 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           // Do not block loading the user's existing CV if storage has no room for a backup.
         }
         const parsed = JSON.parse(raw) as Partial<CVData>;
+        const validSectionIds = Object.keys(SECTION_META) as SectionId[];
+        const savedOrder = Array.isArray(parsed.sectionOrder)
+          ? parsed.sectionOrder.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
+          : [];
+        const normalizedOrder = [...new Set(savedOrder)];
+        const mergedOrder = [
+          ...normalizedOrder,
+          ...EMPTY_CV.sectionOrder.filter((id) => !normalizedOrder.includes(id))
+        ];
+        const savedSelected = Array.isArray(parsed.selectedSections)
+          ? parsed.selectedSections.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
+          : [...EMPTY_CV.selectedSections];
+        const normalizedSelected = [...new Set(savedSelected)];
+
         setCv({
           ...EMPTY_CV,
           ...parsed,
           qualification: parsed.qualification ?? "",
           educationStatus: parsed.educationStatus ?? "studying",
           template: parsed.template === "modern" || parsed.template === "compact" ? parsed.template : "classic",
-          sectionOrder: Array.isArray(parsed.sectionOrder) ? parsed.sectionOrder : EMPTY_CV.sectionOrder,
-          selectedSections: Array.isArray(parsed.selectedSections) ? parsed.selectedSections : EMPTY_CV.selectedSections,
+          sectionOrder: mergedOrder,
+          // selectedSections represents the user's intentional visibility choices.
+          // Keep hidden sections hidden; every section remains available in the section manager.
+          selectedSections: normalizedSelected.length ? normalizedSelected : [...EMPTY_CV.selectedSections],
           cvLanguage: parsed.cvLanguage ?? locale
         });
       } else {
@@ -812,6 +868,8 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
 
   const update = <K extends keyof CVData>(key: K, value: CVData[K]) => setCv((previous) => ({ ...previous, [key]: value }));
   const isActive = (id: SectionId) => cv.selectedSections.includes(id);
+  const orderedSections = cv.sectionOrder.filter((id) => isActive(id));
+  const visibleActiveSection = isActive(activeSection) ? activeSection : orderedSections[0] ?? "experience";
 
   const readiness = [
     { done: Boolean(cv.fullName.trim() && (cv.email.trim() || cv.phone.trim())), text: t.checkContact },
@@ -830,11 +888,13 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const beginAdd = () => {
+    const section = visibleActiveSection;
+    if (section === "skills") return;
     setEditingId(null);
-    setExperienceDraft({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
-    setProjectDraft({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
-    setActivityDraft({ id: "", organization: "", role: "", period: "", description: "" });
-    setCourseDraft({ id: "", name: "", provider: "", date: "", certificateUrl: "" });
+    if (section === "experience") setExperienceDraft({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
+    if (section === "projects") setProjectDraft({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
+    if (section === "activities") setActivityDraft({ id: "", organization: "", role: "", period: "", description: "" });
+    if (section === "courses") setCourseDraft({ id: "", name: "", provider: "", date: "", certificateUrl: "" });
     setFormOpen(true);
   };
 
@@ -864,35 +924,51 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const editItem = (id: string) => {
+    const section = visibleActiveSection;
+    if (section === "experience") {
+      const item = cv.experiences.find((entry) => entry.id === id);
+      if (!item) return;
+      setExperienceDraft({ ...item });
+    } else if (section === "projects") {
+      const item = cv.projects.find((entry) => entry.id === id);
+      if (!item) return;
+      setProjectDraft({ ...item });
+    } else if (section === "activities") {
+      const item = cv.activities.find((entry) => entry.id === id);
+      if (!item) return;
+      setActivityDraft({ ...item });
+    } else if (section === "courses") {
+      const item = cv.courses.find((entry) => entry.id === id);
+      if (!item) return;
+      setCourseDraft({ ...item });
+    } else {
+      return;
+    }
     setEditingId(id);
-    if (activeSection === "experience") setExperienceDraft({ ...cv.experiences.find((item) => item.id === id)! });
-    if (activeSection === "projects") setProjectDraft({ ...cv.projects.find((item) => item.id === id)! });
-    if (activeSection === "activities") setActivityDraft({ ...cv.activities.find((item) => item.id === id)! });
-    if (activeSection === "courses") setCourseDraft({ ...cv.courses.find((item) => item.id === id)! });
     setFormOpen(true);
   };
 
   const removeItem = (id: string) => {
-    if (activeSection === "experience") update("experiences", cv.experiences.filter((item) => item.id !== id));
-    if (activeSection === "projects") update("projects", cv.projects.filter((item) => item.id !== id));
-    if (activeSection === "activities") update("activities", cv.activities.filter((item) => item.id !== id));
-    if (activeSection === "courses") update("courses", cv.courses.filter((item) => item.id !== id));
+    const section = visibleActiveSection;
+    if (section === "experience") update("experiences", cv.experiences.filter((item) => item.id !== id));
+    if (section === "projects") update("projects", cv.projects.filter((item) => item.id !== id));
+    if (section === "activities") update("activities", cv.activities.filter((item) => item.id !== id));
+    if (section === "courses") update("courses", cv.courses.filter((item) => item.id !== id));
   };
 
   const toggleSection = (id: SectionId) => {
     if (isActive(id)) {
       if (cv.selectedSections.length === 1) return;
       const next = cv.selectedSections.filter((item) => item !== id);
+      const nextOrdered = cv.sectionOrder.filter((sectionId) => next.includes(sectionId));
       update("selectedSections", next);
-      if (activeSection === id) setActiveSection(next[0]);
+      if (activeSection === id) setActiveSection(nextOrdered[0] ?? "experience");
       setFormOpen(false);
     } else {
       update("selectedSections", [...cv.selectedSections, id]);
       setActiveSection(id);
     }
   };
-
-  const orderedSections = cv.sectionOrder.filter((id) => isActive(id));
   const moveSection = (id: SectionId, direction: -1 | 1) => {
     const order = [...cv.sectionOrder];
     const index = order.indexOf(id);
@@ -931,10 +1007,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const renderSectionForm = () => {
-    if (activeSection === "experience") {
+    if (visibleActiveSection === "experience") {
       return (
         <form onSubmit={saveExperience} className="grid gap-4">
-          <Field label={t.kind}><select value={experienceDraft.kind} onChange={(event) => setExperienceDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="internship">{t.internship}</option><option value="summer">{t.summer}</option><option value="part-time">{t.partTime}</option><option value="freelance">{t.freelance}</option><option value="work">{t.work}</option></select></Field>
+          <Field label={t.kind}><select aria-label={t.kind} value={experienceDraft.kind} onChange={(event) => setExperienceDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="internship">{t.internship}</option><option value="summer">{t.summer}</option><option value="part-time">{t.partTime}</option><option value="freelance">{t.freelance}</option><option value="work">{t.work}</option></select></Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.role}><TextInput value={experienceDraft.role} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, role: value }))} placeholder={isAr ? "مثال: HR Intern" : "e.g. HR Intern"} /></Field>
             <Field label={t.organization}><TextInput value={experienceDraft.organization} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, organization: value }))} /></Field>
@@ -948,12 +1024,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         </form>
       );
     }
-    if (activeSection === "projects") {
+    if (visibleActiveSection === "projects") {
       return (
         <form onSubmit={saveProject} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.projectName}><TextInput value={projectDraft.name} onChange={(value) => setProjectDraft((draft) => ({ ...draft, name: value }))} /></Field>
-            <Field label={t.projectKind}><select value={projectDraft.kind} onChange={(event) => setProjectDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="academic">{t.academic}</option><option value="personal">{t.personal}</option><option value="graduation">{t.graduation}</option></select></Field>
+            <Field label={t.projectKind}><select aria-label={t.projectKind} value={projectDraft.kind} onChange={(event) => setProjectDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="academic">{t.academic}</option><option value="personal">{t.personal}</option><option value="graduation">{t.graduation}</option></select></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.projectRole}><TextInput value={projectDraft.role} onChange={(value) => setProjectDraft((draft) => ({ ...draft, role: value }))} /></Field>
@@ -966,7 +1042,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         </form>
       );
     }
-    if (activeSection === "activities") {
+    if (visibleActiveSection === "activities") {
       return (
         <form onSubmit={saveActivity} className="grid gap-4">
           <Field label={t.activityName}><TextInput value={activityDraft.organization} onChange={(value) => setActivityDraft((draft) => ({ ...draft, organization: value }))} /></Field>
@@ -979,7 +1055,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         </form>
       );
     }
-    if (activeSection === "courses") {
+    if (visibleActiveSection === "courses") {
       return (
         <form onSubmit={saveCourse} className="grid gap-4">
           <Field label={t.courseName}><TextInput value={courseDraft.name} onChange={(value) => setCourseDraft((draft) => ({ ...draft, name: value }))} /></Field>
@@ -1003,11 +1079,11 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const renderSectionItems = () => {
-    if (activeSection === "skills") {
+    if (visibleActiveSection === "skills") {
       const total = listText(cv.skills).length + listText(cv.tools).length + listText(cv.languages).length;
       return total ? <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-7 dark:border-zinc-700 dark:bg-zinc-900"><p><strong>{t.skills}: </strong>{listText(cv.skills).join("، ") || "—"}</p><p className="mt-2"><strong>{t.technical}: </strong>{listText(cv.tools).join("، ") || "—"}</p><p className="mt-2"><strong>{t.languages}: </strong>{listText(cv.languages).join("، ") || "—"}</p></div> : <EmptyState t={t} />;
     }
-    const items = activeSection === "experience" ? cv.experiences : activeSection === "projects" ? cv.projects : activeSection === "activities" ? cv.activities : cv.courses;
+    const items = visibleActiveSection === "experience" ? cv.experiences : visibleActiveSection === "projects" ? cv.projects : visibleActiveSection === "activities" ? cv.activities : cv.courses;
     if (!items.length) return <EmptyState t={t} />;
     return (
       <div className="grid gap-2.5">
@@ -1033,7 +1109,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
                 {description ? <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs leading-5 text-zinc-600 dark:text-zinc-300">{description}</p> : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                <button type="button" onClick={() => editItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white" aria-label={t.edit}><FileText className="h-4 w-4" /></button>
+                <button type="button" onClick={() => editItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white" aria-label={t.editItem}><Pencil className="h-4 w-4" /></button>
                 <button type="button" onClick={() => removeItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30" aria-label={t.delete}><Trash2 className="h-4 w-4" /></button>
               </div>
             </div>
@@ -1043,7 +1119,6 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     );
   };
 
-  const visibleActiveSection = isActive(activeSection) ? activeSection : orderedSections[0] ?? "experience";
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
 
   return (
@@ -1095,13 +1170,43 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         }
         @media print {
           @page { size: A4; margin: 12mm; }
-          html, body { background: white !important; color: #20252b !important; }
+          html, body {
+            display: block !important;
+            width: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: #fff !important;
+            color: #20252b !important;
+          }
+          /* The print portal is a direct child of body. This hides the Next.js app root,
+             Navbar/Footer, and any preview modal portal, leaving only the print document. */
           body > *:not(#skillup-cv-print-root) { display: none !important; }
-          #skillup-cv-print-root { display: block !important; position: absolute !important; inset: 0 !important; width: 100% !important; }
-          #skillup-cv-print-root .cv-document { width: 100% !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; }
-          #skillup-cv-print-root .cv-section { break-inside: auto; }
-          #skillup-cv-print-root .cv-entry { break-inside: avoid; }
-          #skillup-cv-print-root .cv-bullets { break-inside: auto; }
+          #skillup-cv-print-root {
+            display: block !important;
+            position: static !important;
+            inset: auto !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+          #skillup-cv-print-root .cv-document {
+            display: block !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+          }
+          #skillup-cv-print-root .cv-section { break-inside: auto; page-break-inside: auto; }
+          #skillup-cv-print-root .cv-entry { break-inside: avoid; page-break-inside: avoid; }
+          #skillup-cv-print-root .cv-bullets { break-inside: auto; page-break-inside: auto; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
@@ -1161,8 +1266,8 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <Field label={t.college}><TextInput value={cv.college} onChange={(value) => update("college", value)} /></Field>
               <Field label={t.qualification}><TextInput value={cv.qualification} onChange={(value) => update("qualification", value)} placeholder={isAr ? "مثال: بكالوريوس تجارة" : "e.g. Bachelor of Commerce"} /></Field>
               <Field label={t.major} required><TextInput value={cv.major} onChange={(value) => update("major", value)} /></Field>
-              <Field label={t.educationStatus}><select value={cv.educationStatus} onChange={(event) => update("educationStatus", event.target.value as EducationStatus)} className="cv-select"><option value="studying">{t.studying}</option><option value="graduated">{t.graduated}</option></select></Field>
-              {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{(isAr ? ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "دراسات عليا", "أخرى"] : ["First year", "Second year", "Third year", "Fourth year", "Postgraduate", "Other"]).map((value) => <option key={value}>{value}</option>)}</select></Field> : <div />}
+              <Field label={t.educationStatus}><select aria-label={t.educationStatus} value={cv.educationStatus} onChange={(event) => update("educationStatus", event.target.value as EducationStatus)} className="cv-select"><option value="studying">{t.studying}</option><option value="graduated">{t.graduated}</option></select></Field>
+              {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select aria-label={t.yearLevel} value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{(isAr ? ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "دراسات عليا", "أخرى"] : ["First year", "Second year", "Third year", "Fourth year", "Postgraduate", "Other"]).map((value) => <option key={value}>{value}</option>)}</select></Field> : null}
               <Field label={t.startYear}><TextInput value={cv.startYear} onChange={(value) => update("startYear", value)} placeholder="2023" /></Field>
               <Field label={t.graduationYear}><TextInput value={cv.graduationYear} onChange={(value) => update("graduationYear", value)} placeholder={cv.educationStatus === "studying" ? "2027" : "2025"} /></Field>
               <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isAr ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
