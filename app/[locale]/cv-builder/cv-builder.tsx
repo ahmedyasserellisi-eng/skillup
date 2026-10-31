@@ -16,18 +16,23 @@ import {
   FolderKanban,
   GraduationCap,
   Lightbulb,
+  Maximize2,
   Plus,
   RotateCcw,
   Sparkles,
   Trash2,
   Users,
   Wrench,
-  X
+  X,
+  ZoomIn,
+  ZoomOut
 } from "lucide-react";
 
 import type { Locale } from "@/i18n";
 
 type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
+type CVTemplate = "classic" | "modern" | "compact";
+type EducationStatus = "studying" | "graduated";
 type Experience = {
   id: string;
   kind: string;
@@ -70,6 +75,8 @@ type CVData = {
   linkedin: string;
   summary: string;
   university: string;
+  qualification: string;
+  educationStatus: EducationStatus;
   college: string;
   major: string;
   yearLevel: string;
@@ -86,6 +93,7 @@ type CVData = {
   sectionOrder: SectionId[];
   selectedSections: SectionId[];
   cvLanguage: "ar" | "en";
+  template: CVTemplate;
 };
 
 type LocaleCopy = {
@@ -112,6 +120,8 @@ const EMPTY_CV: CVData = {
   linkedin: "",
   summary: "",
   university: "",
+  qualification: "",
+  educationStatus: "studying",
   college: "",
   major: "",
   yearLevel: "",
@@ -127,7 +137,8 @@ const EMPTY_CV: CVData = {
   languages: "",
   sectionOrder: ["experience", "projects", "activities", "courses", "skills"],
   selectedSections: ["experience", "projects", "activities", "courses", "skills"],
-  cvLanguage: "ar"
+  cvLanguage: "ar",
+  template: "classic"
 };
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -197,21 +208,51 @@ function TextArea({
   );
 }
 
+function uniqueText(values: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  return values.map((value) => (value ?? "").trim()).filter((value) => {
+    if (!value) return false;
+    const key = value.toLocaleLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function descriptionLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*•▪◦‣]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function CVDescription({ value }: { value: string }) {
+  const lines = descriptionLines(value);
+  if (!lines.length) return null;
+  return (
+    <ul className="cv-bullets">
+      {lines.map((line, index) => <li key={`${index}-${line.slice(0, 24)}`}>{line}</li>)}
+    </ul>
+  );
+}
+
 function CVDocument({ cv }: { cv: CVData }) {
   const ar = cv.cvLanguage === "ar";
+  const template = cv.template ?? "classic";
   const t = {
     summary: ar ? "الملخص المهني" : "Professional Summary",
     education: ar ? "التعليم" : "Education",
-    experience: ar ? "التدريبات والخبرات" : "Experience & Internships",
+    experience: ar ? "الخبرات العملية والتدريب" : "Professional Experience",
     projects: ar ? "المشاريع" : "Projects",
-    activities: ar ? "التطوع والأنشطة" : "Volunteering & Activities",
+    activities: ar ? "التطوع والأنشطة" : "Leadership & Volunteering",
     courses: ar ? "الكورسات والشهادات" : "Courses & Certifications",
     skills: ar ? "المهارات" : "Skills",
     tools: ar ? "الأدوات والتقنيات" : "Tools & Technologies",
     languages: ar ? "اللغات" : "Languages",
-    expected: ar ? "متوقع التخرج" : "Expected graduation",
-    year: ar ? "السنة الدراسية" : "Study year",
-    gpa: ar ? "التقدير" : "GPA"
+    expected: ar ? "التخرج المتوقع" : "Expected Graduation",
+    graduated: ar ? "سنة التخرج" : "Graduation",
+    studyYear: ar ? "السنة الدراسية" : "Study year",
+    gpa: ar ? "التقدير" : "Grade",
   };
   const contact = [cv.email, cv.phone, cv.city, cv.linkedin].filter(Boolean);
   const experience = cv.experiences.filter((item) => item.role || item.organization || item.description);
@@ -221,45 +262,51 @@ function CVDocument({ cv }: { cv: CVData }) {
   const skills = listText(cv.skills);
   const tools = listText(cv.tools);
   const languages = listText(cv.languages);
-  const hasEducation = [cv.university, cv.college, cv.major].some(Boolean);
+  const educationLines = uniqueText([cv.qualification, cv.major, cv.college, cv.university]);
+  const hasEducation = educationLines.length > 0 || Boolean(cv.startYear || cv.graduationYear || cv.gpa);
+  const compact = template === "compact";
 
   return (
     <article
-      className="cv-document mx-auto bg-white text-[#20252b]"
+      className={`cv-document cv-template-${template} mx-auto bg-white text-[#20252b]`}
       dir={ar ? "rtl" : "ltr"}
       lang={cv.cvLanguage}
-      style={{ width: PAGE_WIDTH, minHeight: 1123, boxSizing: "border-box", padding: "54px 58px", fontFamily: "Cairo, Arial, 'Segoe UI', Tahoma, sans-serif" }}
+      style={{
+        width: PAGE_WIDTH,
+        minHeight: 1123,
+        boxSizing: "border-box",
+        padding: compact ? "38px 46px" : "48px 56px",
+        fontFamily: "Cairo, Arial, 'Segoe UI', Tahoma, sans-serif"
+      }}
     >
-      <header className="border-b-2 border-[#182B36] pb-5">
-        <h1 className="break-words text-[30px] font-bold leading-tight text-[#182B36]">{cv.fullName || (ar ? "الاسم بالكامل" : "Full Name")}</h1>
-        {cv.targetRole ? <p className="mt-1 text-[15px] font-semibold text-[#475569]">{cv.targetRole}</p> : null}
+      <header className="cv-document-header">
+        <h1 className="cv-name">{cv.fullName || (ar ? "الاسم بالكامل" : "Full Name")}</h1>
+        {cv.targetRole ? <p className="cv-target-role">{cv.targetRole}</p> : null}
         {contact.length ? (
-          <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-5 text-[#475569]" dir="ltr">
-            {contact.map((value, index) => <span key={`${value}-${index}`} className="break-all">{value}{index < contact.length - 1 ? "  |  " : ""}</span>)}
+          <p className="cv-contact" dir="ltr">
+            {contact.map((value, index) => <span key={`${value}-${index}`}>{value}{index < contact.length - 1 ? "  |  " : ""}</span>)}
           </p>
         ) : null}
       </header>
 
       {cv.summary.trim() ? (
-        <section className="cv-section mt-5">
+        <section className="cv-section">
           <h2>{t.summary}</h2>
-          <p className="whitespace-pre-line">{cv.summary}</p>
+          <p className="cv-summary-text">{cv.summary.trim()}</p>
         </section>
       ) : null}
 
       {hasEducation ? (
-        <section className="cv-section mt-5">
+        <section className="cv-section">
           <h2>{t.education}</h2>
-          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-            <div>
-              <p className="font-bold">{cv.major || cv.college}</p>
-              {cv.college ? <p className="mt-0.5">{cv.college}</p> : null}
-              {cv.university ? <p className="mt-0.5 text-[#4b5563]">{cv.university}</p> : null}
-              {cv.yearLevel ? <p className="mt-0.5 text-[#4b5563]">{t.year}: {cv.yearLevel}</p> : null}
+          <div className="cv-education-layout">
+            <div className="cv-education-details">
+              {educationLines.map((line, index) => <p key={`${line}-${index}`} className={index === 0 ? "cv-entry-title" : "cv-muted-line"}>{line}</p>)}
+              {cv.yearLevel && !["أخرى", "Other"].includes(cv.yearLevel) && cv.educationStatus !== "graduated" ? <p className="cv-muted-line">{t.studyYear}: {cv.yearLevel}</p> : null}
             </div>
-            <div className="text-start text-[11px] text-[#4b5563]">
-              {cv.startYear || cv.graduationYear ? <p>{[cv.startYear, cv.graduationYear].filter(Boolean).join(" – ")}</p> : null}
-              {cv.graduationYear ? <p>{t.expected}: {cv.graduationYear}</p> : null}
+            <div className="cv-education-meta">
+              {cv.startYear && cv.graduationYear ? <p>{[cv.startYear, cv.graduationYear].join(" – ")}</p> : null}
+              {!cv.startYear && cv.graduationYear ? <p>{cv.educationStatus === "graduated" ? t.graduated : t.expected}: {cv.graduationYear}</p> : null}
               {cv.gpa ? <p>{t.gpa}: {cv.gpa}</p> : null}
             </div>
           </div>
@@ -269,16 +316,16 @@ function CVDocument({ cv }: { cv: CVData }) {
       {cv.sectionOrder.filter((id) => cv.selectedSections.includes(id)).map((sectionId) => {
         if (sectionId === "experience" && experience.length) {
           return (
-            <section className="cv-section mt-5" key={sectionId}>
+            <section className="cv-section" key={sectionId}>
               <h2>{t.experience}</h2>
               {experience.map((item) => (
                 <div className="cv-entry" key={item.id}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <p className="font-bold">{item.role || item.kind}</p>
-                    {item.period ? <p className="text-[11px] text-[#64748b]">{item.period}</p> : null}
+                  <div className="cv-entry-heading">
+                    <p className="cv-entry-title">{item.role || item.kind}</p>
+                    {item.period ? <p className="cv-entry-date">{item.period}</p> : null}
                   </div>
-                  {item.organization ? <p className="mt-0.5 font-semibold text-[#475569]">{item.organization}{item.location ? ` · ${item.location}` : ""}</p> : null}
-                  {item.description ? <p className="mt-1 whitespace-pre-line">{item.description}</p> : null}
+                  {item.organization || item.location ? <p className="cv-entry-subtitle">{[item.organization, item.location].filter(Boolean).join(" · ")}</p> : null}
+                  <CVDescription value={item.description} />
                 </div>
               ))}
             </section>
@@ -286,18 +333,18 @@ function CVDocument({ cv }: { cv: CVData }) {
         }
         if (sectionId === "projects" && projects.length) {
           return (
-            <section className="cv-section mt-5" key={sectionId}>
+            <section className="cv-section" key={sectionId}>
               <h2>{t.projects}</h2>
               {projects.map((item) => (
                 <div className="cv-entry" key={item.id}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <p className="font-bold">{item.name}</p>
-                    {item.date ? <p className="text-[11px] text-[#64748b]">{item.date}</p> : null}
+                  <div className="cv-entry-heading">
+                    <p className="cv-entry-title">{item.name}</p>
+                    {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
                   </div>
-                  {item.role || item.kind ? <p className="mt-0.5 font-semibold text-[#475569]">{[item.role, item.kind].filter(Boolean).join(" · ")}</p> : null}
-                  {item.description ? <p className="mt-1 whitespace-pre-line">{item.description}</p> : null}
-                  {item.tools ? <p className="mt-1"><strong>{t.tools}: </strong>{item.tools}</p> : null}
-                  {item.url ? <p className="mt-1 break-all text-[#475569]" dir="ltr">{item.url}</p> : null}
+                  {item.role || item.kind ? <p className="cv-entry-subtitle">{[item.role, item.kind].filter(Boolean).join(" · ")}</p> : null}
+                  <CVDescription value={item.description} />
+                  {item.tools ? <p className="cv-entry-detail"><strong>{t.tools}: </strong>{item.tools}</p> : null}
+                  {item.url ? <p className="cv-entry-link" dir="ltr">{item.url}</p> : null}
                 </div>
               ))}
             </section>
@@ -305,16 +352,16 @@ function CVDocument({ cv }: { cv: CVData }) {
         }
         if (sectionId === "activities" && activities.length) {
           return (
-            <section className="cv-section mt-5" key={sectionId}>
+            <section className="cv-section" key={sectionId}>
               <h2>{t.activities}</h2>
               {activities.map((item) => (
                 <div className="cv-entry" key={item.id}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <p className="font-bold">{item.role || item.organization}</p>
-                    {item.period ? <p className="text-[11px] text-[#64748b]">{item.period}</p> : null}
+                  <div className="cv-entry-heading">
+                    <p className="cv-entry-title">{item.role || item.organization}</p>
+                    {item.period ? <p className="cv-entry-date">{item.period}</p> : null}
                   </div>
-                  {item.organization && item.role ? <p className="mt-0.5 font-semibold text-[#475569]">{item.organization}</p> : null}
-                  {item.description ? <p className="mt-1 whitespace-pre-line">{item.description}</p> : null}
+                  {item.organization && item.role ? <p className="cv-entry-subtitle">{item.organization}</p> : null}
+                  <CVDescription value={item.description} />
                 </div>
               ))}
             </section>
@@ -322,16 +369,16 @@ function CVDocument({ cv }: { cv: CVData }) {
         }
         if (sectionId === "courses" && courses.length) {
           return (
-            <section className="cv-section mt-5" key={sectionId}>
+            <section className="cv-section" key={sectionId}>
               <h2>{t.courses}</h2>
               {courses.map((item) => (
                 <div className="cv-entry" key={item.id}>
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <p className="font-bold">{item.name}</p>
-                    {item.date ? <p className="text-[11px] text-[#64748b]">{item.date}</p> : null}
+                  <div className="cv-entry-heading">
+                    <p className="cv-entry-title">{item.name}</p>
+                    {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
                   </div>
-                  {item.provider ? <p className="mt-0.5 text-[#475569]">{item.provider}</p> : null}
-                  {item.certificateUrl ? <p className="mt-1 break-all text-[#475569]" dir="ltr">{item.certificateUrl}</p> : null}
+                  {item.provider ? <p className="cv-entry-subtitle">{item.provider}</p> : null}
+                  {item.certificateUrl ? <p className="cv-entry-link" dir="ltr">{item.certificateUrl}</p> : null}
                 </div>
               ))}
             </section>
@@ -339,11 +386,11 @@ function CVDocument({ cv }: { cv: CVData }) {
         }
         if (sectionId === "skills" && (skills.length || tools.length || languages.length)) {
           return (
-            <section className="cv-section mt-5" key={sectionId}>
+            <section className="cv-section" key={sectionId}>
               <h2>{t.skills}</h2>
               {skills.length ? <p>{skills.join(" · ")}</p> : null}
-              {tools.length ? <p className="mt-1"><strong>{t.tools}: </strong>{tools.join(" · ")}</p> : null}
-              {languages.length ? <p className="mt-1"><strong>{t.languages}: </strong>{languages.join(" · ")}</p> : null}
+              {tools.length ? <p className="cv-skill-group"><strong>{t.tools}: </strong>{tools.join(" · ")}</p> : null}
+              {languages.length ? <p className="cv-skill-group"><strong>{t.languages}: </strong>{languages.join(" · ")}</p> : null}
             </section>
           );
         }
@@ -353,37 +400,128 @@ function CVDocument({ cv }: { cv: CVData }) {
   );
 }
 
-function LivePreview({ cv, isAr }: { cv: CVData; isAr: boolean }) {
-  const boxRef = useRef<HTMLDivElement | null>(null);
+function CVPreviewModal({
+  cv,
+  isAr,
+  onClose,
+  onPrint,
+  onTemplateChange
+}: {
+  cv: CVData;
+  isAr: boolean;
+  onClose: () => void;
+  onPrint: () => void;
+  onTemplateChange: (template: CVTemplate) => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const [boxWidth, setBoxWidth] = useState(500);
+  const [viewportWidth, setViewportWidth] = useState(900);
   const [sheetHeight, setSheetHeight] = useState(1123);
-  const scale = Math.min(1, boxWidth / PAGE_WIDTH);
+  const [zoom, setZoom] = useState(1);
+  const fitScale = Math.min(1, Math.max(0.2, viewportWidth / PAGE_WIDTH));
+  const scale = fitScale * zoom;
+  const templateOptions: Array<{ id: CVTemplate; title: string; description: string }> = isAr
+    ? [
+        { id: "classic", title: "Classic", description: "رسمي ومتوازن" },
+        { id: "modern", title: "Modern", description: "عصري بلمسات SkillUp" },
+        { id: "compact", title: "Compact", description: "محتوى أكثر بمسافات أقل" }
+      ]
+    : [
+        { id: "classic", title: "Classic", description: "Formal and balanced" },
+        { id: "modern", title: "Modern", description: "Modern SkillUp accents" },
+        { id: "compact", title: "Compact", description: "More content, tighter spacing" }
+      ];
 
   useEffect(() => {
-    const box = boxRef.current;
+    const viewport = viewportRef.current;
     const sheet = sheetRef.current;
-    if (!box || !sheet) return;
-    const observer = new ResizeObserver(() => {
-      setBoxWidth(box.clientWidth);
+    if (!viewport || !sheet) return;
+    const measureViewport = () => {
+      const horizontalPadding = window.matchMedia("(min-width: 640px)").matches ? 48 : 24;
+      setViewportWidth(Math.max(240, (viewport.clientWidth || 900) - horizontalPadding));
       setSheetHeight(sheet.offsetHeight || 1123);
-    });
-    observer.observe(box);
+    };
+    const observer = new ResizeObserver(measureViewport);
+    observer.observe(viewport);
     observer.observe(sheet);
-    setBoxWidth(box.clientWidth);
-    setSheetHeight(sheet.offsetHeight || 1123);
-    return () => observer.disconnect();
+    measureViewport();
+    window.addEventListener("resize", measureViewport);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measureViewport);
+    };
   }, []);
 
-  return (
-    <div className="overflow-hidden rounded-2xl bg-zinc-200/80 p-2 dark:bg-zinc-950" ref={boxRef}>
-      <div style={{ width: PAGE_WIDTH * scale, height: sheetHeight * scale, marginInline: "auto" }}>
-        <div ref={sheetRef} style={{ width: PAGE_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left", boxShadow: "0 8px 28px rgba(0,0,0,.14)" }}>
-          <CVDocument cv={cv} />
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
+  const currentTemplate = cv.template ?? "classic";
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-[#e9edf2] text-zinc-900" dir={isAr ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isAr ? "معاينة السيرة الذاتية" : "CV preview"}>
+      <header className="z-10 shrink-0 border-b border-zinc-200 bg-white shadow-sm">
+        <div className="flex min-h-16 items-center justify-between gap-3 px-3 py-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#182B36] text-white"><FileText className="h-5 w-5" /></div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-extrabold sm:text-base">{isAr ? "معاينة السيرة الذاتية" : "CV Preview"}</h2>
+              <p className="text-[11px] text-zinc-500">{isAr ? "المعاينة تتحدث تلقائيًا مع كل تعديل" : "Preview updates automatically as you edit"}</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={onPrint} className="inline-flex items-center gap-2 rounded-xl bg-[#182B36] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] sm:px-4 sm:text-sm">
+              <Download className="h-4 w-4" /><span className="hidden sm:inline">{isAr ? "تحميل PDF" : "Download PDF"}</span><span className="sm:hidden">PDF</span>
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-zinc-200 p-2.5 text-zinc-600 transition hover:bg-zinc-100" aria-label={isAr ? "إغلاق المعاينة" : "Close preview"}><X className="h-5 w-5" /></button>
+          </div>
         </div>
-      </div>
-      <p className="px-2 pb-1 pt-3 text-center text-[11px] text-zinc-500">{isAr ? "معاينة تقريبية — قد تمتد السيرة لأكثر من صفحة حسب المحتوى." : "Preview only — the CV may span multiple pages depending on content."}</p>
-    </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 px-3 py-2.5 sm:px-5">
+          <div className="flex flex-wrap gap-2">
+            {templateOptions.map((option) => {
+              const active = currentTemplate === option.id;
+              return (
+                <button key={option.id} type="button" onClick={() => onTemplateChange(option.id)} className={`min-w-[104px] rounded-xl border px-3 py-2 text-start transition sm:min-w-[145px] ${active ? "border-[#182B36] bg-[#182B36] text-white shadow-sm" : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400"}`}>
+                  <span className="block text-xs font-extrabold">{option.title}</span>
+                  <span className={`mt-0.5 block text-[10px] ${active ? "text-white/75" : "text-zinc-500"}`}>{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white p-1">
+            <button type="button" onClick={() => setZoom((value) => Math.max(0.7, Number((value - 0.15).toFixed(2))))} disabled={zoom <= 0.7} className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30" aria-label={isAr ? "تصغير" : "Zoom out"}><ZoomOut className="h-4 w-4" /></button>
+            <span className="min-w-[48px] text-center text-[11px] font-bold tabular-nums text-zinc-600">{Math.round(zoom * 100)}%</span>
+            <button type="button" onClick={() => setZoom((value) => Math.min(1.75, Number((value + 0.15).toFixed(2))))} disabled={zoom >= 1.75} className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30" aria-label={isAr ? "تكبير" : "Zoom in"}><ZoomIn className="h-4 w-4" /></button>
+            <span className="mx-0.5 h-5 w-px bg-zinc-200" />
+            <button type="button" onClick={() => setZoom(1)} className="rounded-lg px-2 py-2 text-[10px] font-bold text-zinc-600 hover:bg-zinc-100">{isAr ? "ملاءمة" : "Fit"}</button>
+          </div>
+        </div>
+      </header>
+
+      <main ref={viewportRef} className="min-h-0 flex-1 overflow-auto overscroll-contain p-3 sm:p-6">
+        <div className="mx-auto" style={{ width: PAGE_WIDTH * scale, height: sheetHeight * scale }}>
+          <div ref={sheetRef} style={{ width: PAGE_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left", boxShadow: "0 10px 38px rgba(15,23,42,.18)" }}>
+            <CVDocument cv={cv} />
+          </div>
+        </div>
+      </main>
+      <footer className="shrink-0 border-t border-zinc-200 bg-white px-4 py-2 text-center text-[10px] text-zinc-500 sm:text-xs">
+        {isAr ? "قالب بعمود واحد وعناوين قياسية لتحسين قابلية قراءة أنظمة ATS. راجع المحتوى قبل التقديم." : "Single-column layout with standard headings to support ATS readability. Review your content before applying."}
+      </footer>
+    </div>,
+    document.body
   );
 }
 
@@ -416,11 +554,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     summary: "نبذة مهنية قصيرة",
     summaryHint: "اكتب 2–3 جمل عن تخصصك واهتماماتك والفرصة التي تستهدفها. تجنب العبارات العامة غير المدعومة بأمثلة.",
     university: "الجامعة أو المعهد",
+    qualification: "المؤهل العلمي",
+    educationStatus: "حالة الدراسة",
+    studying: "ما زلت أدرس",
+    graduated: "تخرجت",
     college: "الكلية",
     major: "التخصص الدراسي",
     yearLevel: "الفرقة الدراسية",
     startYear: "سنة الالتحاق",
-    graduationYear: "سنة التخرج المتوقعة",
+    graduationYear: "سنة التخرج",
     gpa: "التقدير أو المعدل (GPA)",
     required: "مطلوب",
     optional: "اختياري",
@@ -491,7 +633,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     educationRequired: "أضف اسم الجامعة أو الكلية والتخصص الدراسي.",
     complete: "جاهزية المحتوى",
     clear: "بدء سيرة جديدة",
-    removeSection: "إزالة القسم من السيرة"
+    removeSection: "إزالة القسم من السيرة",
+    templates: "اختر تصميم سيرتك",
+    templatesHint: "تقدر تغير التصميم في أي وقت دون التأثير على بياناتك.",
+    classic: "Classic — رسمي ومتوازن",
+    modern: "Modern — عصري",
+    compact: "Compact — مضغوط ومنظم",
+    openPreview: "معاينة واختيار التصميم",
+    closePreview: "العودة للمحرر"
   } : {
     eyebrow: "A free tool by SkillUp",
     title: "Build your CV, one step at a time",
@@ -519,11 +668,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     summary: "Short professional summary",
     summaryHint: "Write 2–3 sentences about your major, interests and target opportunity. Avoid generic claims without examples.",
     university: "University or institute",
+    qualification: "Qualification / degree",
+    educationStatus: "Study status",
+    studying: "Currently studying",
+    graduated: "Graduated",
     college: "Faculty / school",
     major: "Major / field of study",
     yearLevel: "Current study year",
     startYear: "Start year",
-    graduationYear: "Expected graduation",
+    graduationYear: "Graduation / expected year",
     gpa: "Grade or GPA (optional)",
     required: "Required",
     optional: "Optional",
@@ -594,7 +747,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     educationRequired: "Add your university or faculty and major.",
     complete: "Content readiness",
     clear: "Start a new CV",
-    removeSection: "Remove section from CV"
+    removeSection: "Remove section from CV",
+    templates: "Choose your CV design",
+    templatesHint: "Change the design any time without affecting your information.",
+    classic: "Classic — formal and balanced",
+    modern: "Modern — contemporary",
+    compact: "Compact — space-efficient",
+    openPreview: "Preview & choose design",
+    closePreview: "Back to editor"
   }, [isAr]);
 
   const [cv, setCv] = useState<CVData>({ ...EMPTY_CV, cvLanguage: locale });
@@ -614,8 +774,24 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
+        // Keep a one-time safety copy before migrating older saved CV data.
+        const backupKey = `${STORAGE_KEY}_backup_before_redesign`;
+        try {
+          if (!localStorage.getItem(backupKey)) localStorage.setItem(backupKey, raw);
+        } catch {
+          // Do not block loading the user's existing CV if storage has no room for a backup.
+        }
         const parsed = JSON.parse(raw) as Partial<CVData>;
-        setCv({ ...EMPTY_CV, ...parsed, cvLanguage: parsed.cvLanguage ?? locale });
+        setCv({
+          ...EMPTY_CV,
+          ...parsed,
+          qualification: parsed.qualification ?? "",
+          educationStatus: parsed.educationStatus ?? "studying",
+          template: parsed.template === "modern" || parsed.template === "compact" ? parsed.template : "classic",
+          sectionOrder: Array.isArray(parsed.sectionOrder) ? parsed.sectionOrder : EMPTY_CV.sectionOrder,
+          selectedSections: Array.isArray(parsed.selectedSections) ? parsed.selectedSections : EMPTY_CV.selectedSections,
+          cvLanguage: parsed.cvLanguage ?? locale
+        });
       } else {
         setCv({ ...EMPTY_CV, cvLanguage: locale });
       }
@@ -731,8 +907,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     setCv({ ...EMPTY_CV, cvLanguage: locale });
     setActiveSection("experience");
     setFormOpen(false);
+    setShowPreview(false);
     setNotice("");
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(`${STORAGE_KEY}_backup_before_redesign`);
   };
 
   const printCV = () => {
@@ -869,14 +1047,52 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
 
   return (
-    <div className="mx-auto max-w-7xl" dir={isAr ? "rtl" : "ltr"}>
+    <div className="mx-auto max-w-5xl px-3 pb-28 sm:px-5 lg:px-6" dir={isAr ? "rtl" : "ltr"}>
       <style jsx global>{`
         .cv-select { width: 100%; border: 1px solid rgb(228 228 231); border-radius: .75rem; background: white; padding: .75rem .875rem; color: #18181b; font-size: .875rem; outline: none; }
         .dark .cv-select { background: #09090b; border-color: rgb(63 63 70); color: white; }
         .cv-select:focus { border-color: #C8A448; box-shadow: 0 0 0 2px rgb(200 164 72 / .15); }
-        .cv-document .cv-section h2 { margin: 0 0 9px; padding-bottom: 5px; border-bottom: 1px solid #cbd5e1; color: #182B36; font-size: 13px; font-weight: 800; letter-spacing: .02em; }
-        .cv-document .cv-section p { font-size: 11.5px; line-height: 1.65; }
-        .cv-document .cv-entry { margin: 0 0 11px; break-inside: avoid; }
+        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; }
+        .cv-document .cv-document-header { border-bottom: 2px solid #182B36; padding-bottom: 17px; margin-bottom: 20px; }
+        .cv-document .cv-name { margin: 0; color: #182B36; font-size: 31px; line-height: 1.16; font-weight: 800; letter-spacing: -.025em; }
+        .cv-document .cv-target-role { margin: 5px 0 0; color: #475569; font-size: 14px; line-height: 1.45; font-weight: 700; }
+        .cv-document .cv-contact { margin: 12px 0 0; color: #475569; font-size: 10.5px; line-height: 1.7; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
+        .cv-document .cv-section { margin-top: 17px; }
+        .cv-document .cv-section h2 { margin: 0 0 8px; padding-bottom: 5px; border-bottom: 1px solid #cbd5e1; color: #182B36; font-size: 12.5px; line-height: 1.4; font-weight: 800; letter-spacing: .025em; text-transform: uppercase; }
+        .cv-document .cv-section p { margin-top: 0; font-size: 11.5px; line-height: 1.55; }
+        .cv-document .cv-summary-text { margin: 0; }
+        .cv-document .cv-education-layout { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+        .cv-document .cv-entry-title { margin: 0; font-size: 12px; line-height: 1.45; font-weight: 800; color: #20252b; }
+        .cv-document .cv-muted-line { margin: 2px 0 0; color: #4b5563; }
+        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 10.5px; line-height: 1.55; }
+        .cv-document .cv-education-meta p { margin: 0; }
+        .cv-document .cv-entry { margin: 0 0 10px; break-inside: avoid; }
+        .cv-document .cv-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+        .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: #64748b; font-size: 10.5px !important; white-space: nowrap; }
+        .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: #475569; font-size: 11px !important; font-weight: 600; }
+        .cv-document .cv-entry-detail { margin: 4px 0 0; }
+        .cv-document .cv-entry-link { margin: 4px 0 0; color: #475569; font-size: 10.5px !important; }
+        .cv-document .cv-bullets { margin: 4px 0 0; padding-inline-start: 17px; list-style: disc; }
+        .cv-document .cv-bullets li { margin: 2px 0; padding-inline-start: 2px; font-size: 11.25px; line-height: 1.5; }
+        .cv-document .cv-skill-group { margin-top: 4px !important; }
+        .cv-template-modern .cv-document-header { border-top: 7px solid #C8A448; border-bottom: 1px solid #e5e7eb; padding-top: 20px; padding-bottom: 18px; }
+        .cv-template-modern .cv-name { font-size: 34px; }
+        .cv-template-modern .cv-section h2 { color: #8A6D1F; border-bottom-color: #D9C58D; letter-spacing: .04em; }
+        .cv-template-compact { padding-top: 38px !important; padding-bottom: 38px !important; }
+        .cv-template-compact .cv-document-header { padding-bottom: 12px; margin-bottom: 14px; }
+        .cv-template-compact .cv-name { font-size: 27px; }
+        .cv-template-compact .cv-target-role { font-size: 12px; }
+        .cv-template-compact .cv-contact { margin-top: 8px; font-size: 9.5px; }
+        .cv-template-compact .cv-section { margin-top: 12px; }
+        .cv-template-compact .cv-section h2 { margin-bottom: 5px; padding-bottom: 3px; font-size: 11.5px; }
+        .cv-template-compact .cv-section p { font-size: 10.5px; line-height: 1.42; }
+        .cv-template-compact .cv-entry { margin-bottom: 7px; }
+        .cv-template-compact .cv-entry-title { font-size: 11px; }
+        .cv-template-compact .cv-bullets li { margin: 1px 0; font-size: 10.25px; line-height: 1.4; }
+        @media (max-width: 640px) {
+          .cv-document .cv-entry-heading { gap: 8px; }
+          .cv-document .cv-entry-date { white-space: normal; text-align: end; }
+        }
         @media print {
           @page { size: A4; margin: 12mm; }
           html, body { background: white !important; color: #20252b !important; }
@@ -885,6 +1101,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           #skillup-cv-print-root .cv-document { width: 100% !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; }
           #skillup-cv-print-root .cv-section { break-inside: auto; }
           #skillup-cv-print-root .cv-entry { break-inside: avoid; }
+          #skillup-cv-print-root .cv-bullets { break-inside: auto; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>
@@ -908,13 +1125,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <button type="button" onClick={() => update("cvLanguage", "ar")} className={cx("rounded-lg border px-3 py-1.5 text-xs font-bold", cv.cvLanguage === "ar" ? "border-[#182B36] bg-[#182B36] text-white dark:border-[#C8A448] dark:bg-[#C8A448] dark:text-[#182B36]" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")}>{t.arabic}</button>
             <button type="button" onClick={() => update("cvLanguage", "en")} className={cx("rounded-lg border px-3 py-1.5 text-xs font-bold", cv.cvLanguage === "en" ? "border-[#182B36] bg-[#182B36] text-white dark:border-[#C8A448] dark:bg-[#C8A448] dark:text-[#182B36]" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")}>{t.english}</button>
           </div>
-          <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"><RotateCcw className="h-3.5 w-3.5" />{t.reset}</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setShowPreview(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]"><Eye className="h-4 w-4" />{t.openPreview}</button>
+            <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"><RotateCcw className="h-3.5 w-3.5" />{t.reset}</button>
+          </div>
         </div>
         {notice ? <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(390px,0.92fr)] xl:gap-6">
-        <div className={cx("min-w-0 space-y-5", showPreview && "hidden lg:block")}>
+      <div className="mx-auto max-w-4xl space-y-5">
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#182B36]/[0.07] text-[#182B36] dark:bg-[#C8A448]/15 dark:text-[#E2C46F]"><FileText className="h-5 w-5" /></div>
@@ -940,10 +1159,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t.university}><TextInput value={cv.university} onChange={(value) => update("university", value)} /></Field>
               <Field label={t.college}><TextInput value={cv.college} onChange={(value) => update("college", value)} /></Field>
+              <Field label={t.qualification}><TextInput value={cv.qualification} onChange={(value) => update("qualification", value)} placeholder={isAr ? "مثال: بكالوريوس تجارة" : "e.g. Bachelor of Commerce"} /></Field>
               <Field label={t.major} required><TextInput value={cv.major} onChange={(value) => update("major", value)} /></Field>
-              <Field label={t.yearLevel}><select value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{(isAr ? ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "دراسات عليا", "أخرى"] : ["First year", "Second year", "Third year", "Fourth year", "Postgraduate", "Other"]).map((value) => <option key={value}>{value}</option>)}</select></Field>
+              <Field label={t.educationStatus}><select value={cv.educationStatus} onChange={(event) => update("educationStatus", event.target.value as EducationStatus)} className="cv-select"><option value="studying">{t.studying}</option><option value="graduated">{t.graduated}</option></select></Field>
+              {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{(isAr ? ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "دراسات عليا", "أخرى"] : ["First year", "Second year", "Third year", "Fourth year", "Postgraduate", "Other"]).map((value) => <option key={value}>{value}</option>)}</select></Field> : <div />}
               <Field label={t.startYear}><TextInput value={cv.startYear} onChange={(value) => update("startYear", value)} placeholder="2023" /></Field>
-              <Field label={t.graduationYear}><TextInput value={cv.graduationYear} onChange={(value) => update("graduationYear", value)} placeholder="2027" /></Field>
+              <Field label={t.graduationYear}><TextInput value={cv.graduationYear} onChange={(value) => update("graduationYear", value)} placeholder={cv.educationStatus === "studying" ? "2027" : "2025"} /></Field>
               <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isAr ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
             </div>
           </section>
@@ -991,6 +1212,30 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           </section>
 
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.templates}</h2><p className="mt-1 text-xs leading-5 text-zinc-500">{t.templatesHint}</p></div>
+              <button type="button" onClick={() => setShowPreview(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#182B36] px-3 py-2 text-xs font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Maximize2 className="h-3.5 w-3.5" />{t.openPreview}</button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {([{ id: "classic", name: "Classic", detail: t.classic, accent: "#182B36" }, { id: "modern", name: "Modern", detail: t.modern, accent: "#C8A448" }, { id: "compact", name: "Compact", detail: t.compact, accent: "#475569" }] as Array<{ id: CVTemplate; name: string; detail: string; accent: string }>).map((option) => {
+                const active = (cv.template ?? "classic") === option.id;
+                return <button key={option.id} type="button" onClick={() => update("template", option.id)} className={`rounded-xl border p-3 text-start transition ${active ? "border-[#C8A448] bg-[#C8A448]/[0.07] ring-1 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700"}`}>
+                  <div className="mb-3 rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-700">
+                    <div className="mx-auto max-w-[110px] space-y-1.5">
+                      <div className="h-2 w-2/3 rounded-sm" style={{ background: option.accent }} />
+                      <div className="h-1 w-1/2 rounded-sm bg-zinc-300" />
+                      <div className="h-px w-full" style={{ background: option.accent }} />
+                      {["w-full", "w-4/5", "w-11/12", "w-2/3"].map((width, index) => <div key={index} className={`h-1 rounded-sm bg-zinc-200 ${width}`} />)}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2"><span className="text-sm font-extrabold text-zinc-900 dark:text-white">{option.name}</span>{active ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : null}</div>
+                  <p className="mt-1 text-[10px] leading-4 text-zinc-500">{option.detail}</p>
+                </button>;
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
             <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.checklist}</h2><span className="text-sm font-black text-[#8A6D1F] dark:text-[#E2C46F]">{readinessScore}%</span></div>
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
@@ -1000,18 +1245,13 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           </section>
         </div>
 
-        <aside className={cx("min-w-0 lg:sticky lg:top-24", !showPreview && "hidden lg:block")}>
-          <div className="mb-3 flex items-center justify-between gap-3"><div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.preview}</h2><p className="text-xs text-zinc-500">{isAr ? "تتحدث المعاينة تلقائيًا مع كل تعديل." : "The preview updates as you edit."}</p></div><span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"><Eye className="h-3 w-3" /> Live</span></div>
-          <LivePreview cv={cv} isAr={isAr} />
-        </aside>
+      <div className="fixed inset-x-3 bottom-3 z-40 flex justify-center sm:inset-x-6">
+        <button type="button" onClick={() => setShowPreview(true)} className="flex w-full max-w-2xl items-center justify-center gap-2 rounded-2xl bg-[#182B36] px-5 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-[#182B36]/20 transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]">
+          <Eye className="h-4 w-4" />{t.openPreview}<span className="text-white/60 dark:text-[#182B36]/60">·</span><span className="text-xs font-semibold text-white/75 dark:text-[#182B36]/75">{(cv.template ?? "classic").toUpperCase()}</span>
+        </button>
       </div>
 
-      <div className="fixed inset-x-4 bottom-4 z-40 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-200 bg-white/95 p-2 shadow-xl backdrop-blur lg:hidden dark:border-zinc-700 dark:bg-zinc-900/95">
-        <button type="button" onClick={() => setShowPreview(false)} className={cx("rounded-xl px-3 py-3 text-xs font-bold", !showPreview ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{t.mobileForm}</button>
-        <button type="button" onClick={() => setShowPreview(true)} className={cx("rounded-xl px-3 py-3 text-xs font-bold", showPreview ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{t.mobilePreview}</button>
-      </div>
-      <div className="h-20 lg:hidden" />
-
+      {showPreview ? <CVPreviewModal cv={cv} isAr={isAr} onClose={() => setShowPreview(false)} onPrint={printCV} onTemplateChange={(template) => update("template", template)} /> : null}
       {loaded && typeof document !== "undefined" ? createPortal(<div id="skillup-cv-print-root" style={{ display: "none" }}><CVDocument cv={cv} /></div>, document.body) : null}
     </div>
   );
