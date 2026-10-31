@@ -13,7 +13,7 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type NavKey = "programs" | "events" | "sectors" | "highlights" | "contact";
+type NavKey = "programs" | "events" | "sectors" | "highlights" | "cv" | "contact";
 type NavItem = { key: NavKey; href: string };
 
 // 🔹 نقل النصوص خارج المكون لتحسين الأداء ونظافة الكود
@@ -23,6 +23,7 @@ const NAV_LABELS: Record<"ar" | "en", Record<NavKey, string>> = {
     events: "الفعاليات",
     sectors: "القطاعات",
     highlights: "التكريمات",
+    cv: "السيرة الذاتية",
     contact: "تواصل"
   },
   en: {
@@ -30,6 +31,7 @@ const NAV_LABELS: Record<"ar" | "en", Record<NavKey, string>> = {
     events: "Events",
     sectors: "Sectors",
     highlights: "Awards",
+    cv: "CV Builder",
     contact: "Contact"
   }
 };
@@ -80,6 +82,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
       { key: "events", href: `/${locale}/events` },
       { key: "sectors", href: `/${locale}/sectors` },
       { key: "highlights", href: `/${locale}/highlights` },
+      { key: "cv", href: `/${locale}/cv-builder` },
       { key: "contact", href: `/${locale}/contact` }
     ],
     [locale]
@@ -159,7 +162,7 @@ export default function Navbar({ locale }: { locale: "ar" | "en" }) {
                   key={item.key}
                   href={item.href}
                   className={cx(
-                    "relative whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition duration-200",
+                    "relative whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-semibold transition duration-200 xl:px-3 xl:text-sm",
                     active
                       ? "text-[#182B36] dark:text-[#C8A448]"
                       : "text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800/60 dark:hover:text-white"
