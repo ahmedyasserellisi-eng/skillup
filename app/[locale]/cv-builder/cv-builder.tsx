@@ -7,7 +7,6 @@ import {
   BriefcaseBusiness,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -16,7 +15,6 @@ import {
   FolderKanban,
   GraduationCap,
   Lightbulb,
-  Maximize2,
   Plus,
   Pencil,
   RotateCcw,
@@ -30,9 +28,11 @@ import {
 } from "lucide-react";
 
 import type { Locale } from "@/i18n";
+import { downloadCvPdf } from "./pdf-export";
 
 type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "classic" | "modern" | "compact";
+type CVTemplate = "reference" | "signature" | "executive";
+type WizardStep = "template" | "profile" | "education" | "sections" | SectionId | "review";
 type EducationStatus = "studying" | "graduated";
 type Experience = {
   id: string;
@@ -137,9 +137,9 @@ const EMPTY_CV: CVData = {
   tools: "",
   languages: "",
   sectionOrder: ["experience", "projects", "activities", "courses", "skills"],
-  selectedSections: ["experience", "projects", "activities", "courses", "skills"],
+  selectedSections: [],
   cvLanguage: "ar",
-  template: "classic"
+  template: "reference"
 };
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -147,41 +147,22 @@ const cx = (...classes: Array<string | false | undefined | null>) => classes.fil
 
 function listText(value: string): string[] {
   const result: string[] = [];
-  const lines = value.split(/\r?\n/);
-
-  for (const line of lines) {
+  for (const line of value.split(/\r?\n/)) {
     let current = "";
     let depth = 0;
-    let quote = "";
-
-    const pushCurrent = () => {
+    const push = () => {
       const cleaned = current.trim().replace(/^(?:[-*•▪◦]|\d+[.)])\s*/, "").trim();
       if (cleaned) result.push(cleaned);
       current = "";
     };
-
     for (const char of line) {
-      if (quote) {
-        current += char;
-        if (char === quote) quote = "";
-        continue;
-      }
-      if (char === "\"" || char === "'") {
-        quote = char;
-        current += char;
-        continue;
-      }
       if (char === "(" || char === "[" || char === "{") depth += 1;
       if (char === ")" || char === "]" || char === "}") depth = Math.max(0, depth - 1);
-      if (depth === 0 && /[,،;؛]/.test(char)) {
-        pushCurrent();
-      } else {
-        current += char;
-      }
+      if (depth === 0 && /[,،;؛]/.test(char)) push();
+      else current += char;
     }
-    pushCurrent();
+    push();
   }
-
   return result;
 }
 
@@ -275,7 +256,7 @@ function CVDescription({ value }: { value: string }) {
 
 function CVDocument({ cv }: { cv: CVData }) {
   const ar = cv.cvLanguage === "ar";
-  const template = cv.template ?? "classic";
+  const template = cv.template ?? "reference";
   const t = {
     summary: ar ? "الملخص المهني" : "Professional Summary",
     education: ar ? "التعليم" : "Education",
@@ -300,9 +281,16 @@ function CVDocument({ cv }: { cv: CVData }) {
   const skills = listText(cv.skills);
   const tools = listText(cv.tools);
   const languages = listText(cv.languages);
-  const educationLines = uniqueText([cv.qualification, cv.major, cv.college, cv.university]);
+  const degreeLine = cv.qualification.trim() || cv.major.trim();
+  const majorIsAlreadyInDegree = Boolean(cv.qualification.trim() && cv.major.trim() && cv.qualification.toLocaleLowerCase().includes(cv.major.toLocaleLowerCase()));
+  const educationLines = uniqueText([
+    degreeLine,
+    cv.qualification.trim() && cv.major.trim() && !majorIsAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
+    cv.college,
+    cv.university
+  ]);
   const hasEducation = educationLines.length > 0 || Boolean(cv.startYear || cv.graduationYear || cv.gpa);
-  const compact = template === "compact";
+  const compact = template === "executive";
 
   return (
     <article
@@ -438,21 +426,75 @@ function CVDocument({ cv }: { cv: CVData }) {
   );
 }
 
+
+function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boolean }) {
+  const isReference = template === "reference";
+  const isSignature = template === "signature";
+  const accent = isReference ? "#24466F" : isSignature ? "#182B36" : "#20252B";
+  const secondary = isReference ? "#4D83C5" : isSignature ? "#8A6D1F" : "#515B66";
+  const rule = isReference ? "#AFC3DE" : isSignature ? "#C8A448" : "#AAB1B8";
+  const headings = isAr
+    ? ["الملخص المهني", "التعليم", "الخبرات العملية", "المهارات"]
+    : ["PROFESSIONAL SUMMARY", "EDUCATION", "EXPERIENCE", "SKILLS"];
+
+  return (
+    <div className="h-56 overflow-hidden rounded-xl border border-zinc-200 bg-[#eef1f4] p-3 dark:border-zinc-700">
+      <div className="mx-auto h-full max-w-[190px] overflow-hidden bg-white px-3 py-3.5 shadow-sm" style={{ color: "#20252b" }}>
+        <header className={isReference ? "text-center" : isAr ? "text-right" : "text-left"}>
+          <div className="truncate font-extrabold" style={{ color: accent, fontSize: isSignature ? 9 : 8.5, lineHeight: 1.25 }}>
+            {isAr ? "اسمك بالكامل" : "YOUR NAME"}
+          </div>
+          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isExecutiveTemplate(template) ? ".5px" : "0" }}>
+            {isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}
+          </div>
+          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}>
+            <span>email@example.com</span><span>•</span><span>+20 000</span><span>•</span><span>Cairo</span>
+          </div>
+        </header>
+        <div className="mt-2.5 h-[2px] w-full" style={{ background: rule, height: isSignature ? 2.5 : 1 }} />
+        {headings.map((heading, index) => (
+          <section key={heading} className="mt-2">
+            {isReference ? <div className="mb-1 h-px w-full" style={{ background: rule }} /> : null}
+            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isExecutiveTemplate(template) ? ".35px" : "0" }}>{heading}</div>
+            {!isReference ? <div className="mb-1 h-px w-full" style={{ background: rule, opacity: isSignature ? 1 : .8 }} /> : null}
+            <div className="space-y-[3px]">
+              <div className="flex items-center justify-between gap-1">
+                <div className="h-[3px] w-2/5 rounded-sm" style={{ background: "#64748b", opacity: .65 }} />
+                {index > 0 ? <div className="h-[2px] w-1/5 rounded-sm bg-slate-300" /> : null}
+              </div>
+              <div className="h-[2.5px] w-full rounded-sm bg-slate-200" />
+              <div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" />
+              {index === 2 ? <div className="ml-2 h-[2px] w-9/12 rounded-sm bg-slate-200" /> : null}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isExecutiveTemplate(template: CVTemplate): boolean {
+  return template === "executive";
+}
+
 function CVPreviewModal({
   cv,
   isAr,
   onClose,
-  onPrint,
+  onDownload,
+  downloading,
   onTemplateChange
 }: {
   cv: CVData;
   isAr: boolean;
   onClose: () => void;
-  onPrint: () => void;
+  onDownload: () => void;
+  downloading: boolean;
   onTemplateChange: (template: CVTemplate) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(900);
   const [sheetHeight, setSheetHeight] = useState(1123);
   const [zoom, setZoom] = useState(1);
@@ -460,14 +502,14 @@ function CVPreviewModal({
   const scale = fitScale * zoom;
   const templateOptions: Array<{ id: CVTemplate; title: string; description: string }> = isAr
     ? [
-        { id: "classic", title: "Classic", description: "رسمي ومتوازن" },
-        { id: "modern", title: "Modern", description: "عصري بلمسات SkillUp" },
-        { id: "compact", title: "Compact", description: "محتوى أكثر بمسافات أقل" }
+        { id: "reference", title: "Blue Professional", description: "نمط نموذج Word المرفق" },
+        { id: "signature", title: "SkillUp Signature", description: "الكحلي والذهبي" },
+        { id: "executive", title: "Executive Minimal", description: "رسمي أبيض وأسود" }
       ]
     : [
-        { id: "classic", title: "Classic", description: "Formal and balanced" },
-        { id: "modern", title: "Modern", description: "Modern SkillUp accents" },
-        { id: "compact", title: "Compact", description: "More content, tighter spacing" }
+        { id: "reference", title: "Blue Professional", description: "Your reference template" },
+        { id: "signature", title: "SkillUp Signature", description: "Navy and gold identity" },
+        { id: "executive", title: "Executive Minimal", description: "Formal monochrome layout" }
       ];
 
   useEffect(() => {
@@ -495,21 +537,46 @@ function CVPreviewModal({
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
+    const getFocusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []);
+    window.requestAnimationFrame(() => (getFocusable()[0] ?? dialogRef.current)?.focus());
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeRef.current();
+      if (event.key === "Escape") {
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
     };
   }, []);
 
-  const currentTemplate = cv.template ?? "classic";
+  const currentTemplate = cv.template ?? "reference";
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-[#e9edf2] text-zinc-900" dir={isAr ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isAr ? "معاينة السيرة الذاتية" : "CV preview"}>
+    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100] flex flex-col bg-[#e9edf2] text-zinc-900 outline-none" dir={isAr ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isAr ? "معاينة السيرة الذاتية" : "CV preview"}>
       <header className="z-10 shrink-0 border-b border-zinc-200 bg-white shadow-sm">
         <div className="flex min-h-16 items-center justify-between gap-3 px-3 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -520,8 +587,8 @@ function CVPreviewModal({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onPrint} className="inline-flex items-center gap-2 rounded-xl bg-[#182B36] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] sm:px-4 sm:text-sm">
-              <Download className="h-4 w-4" /><span className="hidden sm:inline">{isAr ? "تحميل PDF" : "Download PDF"}</span><span className="sm:hidden">PDF</span>
+            <button type="button" onClick={onDownload} className="inline-flex items-center gap-2 rounded-xl bg-[#182B36] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] disabled:cursor-wait disabled:opacity-60 sm:px-4 sm:text-sm" disabled={downloading}>
+              <Download className="h-4 w-4" /><span className="hidden sm:inline">{downloading ? (isAr ? "جاري تجهيز PDF..." : "Preparing PDF...") : (isAr ? "تحميل PDF" : "Download PDF")}</span><span className="sm:hidden">{downloading ? "…" : "PDF"}</span>
             </button>
             <button type="button" onClick={onClose} className="rounded-xl border border-zinc-200 p-2.5 text-zinc-600 transition hover:bg-zinc-100" aria-label={isAr ? "إغلاق المعاينة" : "Close preview"}><X className="h-5 w-5" /></button>
           </div>
@@ -540,7 +607,7 @@ function CVPreviewModal({
           </div>
           <div className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white p-1">
             <button type="button" onClick={() => setZoom((value) => Math.max(0.7, Number((value - 0.15).toFixed(2))))} disabled={zoom <= 0.7} className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30" aria-label={isAr ? "تصغير" : "Zoom out"}><ZoomOut className="h-4 w-4" /></button>
-            <span className="min-w-[48px] text-center text-[11px] font-bold tabular-nums text-zinc-600">{Math.round(zoom * 100)}%</span>
+            <span className="min-w-[48px] text-center text-[11px] font-bold tabular-nums text-zinc-600">{Math.round(scale * 100)}%</span>
             <button type="button" onClick={() => setZoom((value) => Math.min(1.75, Number((value + 0.15).toFixed(2))))} disabled={zoom >= 1.75} className="rounded-lg p-2 text-zinc-600 hover:bg-zinc-100 disabled:opacity-30" aria-label={isAr ? "تكبير" : "Zoom in"}><ZoomIn className="h-4 w-4" /></button>
             <span className="mx-0.5 h-5 w-px bg-zinc-200" />
             <button type="button" onClick={() => setZoom(1)} className="rounded-lg px-2 py-2 text-[10px] font-bold text-zinc-600 hover:bg-zinc-100">{isAr ? "ملاءمة" : "Fit"}</button>
@@ -645,12 +712,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     language: "لغة السيرة",
     arabic: "العربية",
     english: "English",
-    print: "تحميل PDF / طباعة",
-    printHint: "في نافذة الطباعة اختر Save as PDF. استخدم ملف PDF نصي وليس صورة ممسوحة ضوئيًا.",
+    print: "تحميل PDF",
+    printHint: "سيتم تنزيل ملف PDF نصي مباشرةً دون فتح نافذة الطباعة.",
     saved: "يتم الحفظ تلقائيًا على هذا الجهاز",
     savedInfo: "بياناتك لا تُرسل إلى خادم SkillUp في هذه المرحلة.",
     reset: "مسح كل البيانات",
-    resetConfirm: "هل تريد مسح السيرة الحالية ونسختها الاحتياطية من هذا الجهاز؟ لا يمكن التراجع عن ذلك.",
+    resetConfirm: "هل تريد مسح بيانات السيرة الحالية من هذا الجهاز؟ لا يمكن التراجع عن ذلك.",
     checklist: "مراجعة قبل التحميل",
     checkContact: "أضف اسمك ووسيلة تواصل واحدة على الأقل.",
     checkEducation: "أضف الجامعة أو الكلية والتخصص.",
@@ -675,11 +742,25 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     removeSection: "إزالة القسم من السيرة",
     templates: "اختر تصميم سيرتك",
     templatesHint: "تقدر تغير التصميم في أي وقت دون التأثير على بياناتك.",
-    classic: "Classic — رسمي ومتوازن",
-    modern: "Modern — عصري",
-    compact: "Compact — مضغوط ومنظم",
-    openPreview: "معاينة واختيار التصميم",
-    closePreview: "العودة للمحرر"
+    templateBlue: "Blue Professional — القالب المستوحى من ملف Word المرفق",
+    templateSignature: "SkillUp Signature — هوية SkillUp",
+    templateExecutive: "Executive Minimal — أبيض وأسود",
+    stepSections: "الأقسام المتاحة لديك",
+    openPreview: "معاينة السيرة",
+    closePreview: "العودة للمحرر",
+    chooseTemplateTitle: "اختار شكل سيرتك الذاتية",
+    chooseTemplateHint: "ابدأ باختيار تصميم رسمي، وبعدها هنمشي معاك خطوة بخطوة.",
+    startBuilding: "التالي",
+    nextStep: "التالي",
+    previousStep: "السابق",
+    skipStep: "تخطي الخطوة",
+    finishSteps: "الوصول للمعاينة",
+    stepOf: "من",
+    reviewTitle: "راجع سيرتك الذاتية",
+    downloadNow: "تحميل PDF مباشرة",
+    loadingPdf: "جاري تجهيز الملف...",
+    pdfError: "تعذر تجهيز ملف PDF. تحقق من اتصال الإنترنت وحاول مرة أخرى.",
+    chooseAgain: "تغيير التصميم"
   } : {
     eyebrow: "A free tool by SkillUp",
     title: "Build your CV, one step at a time",
@@ -760,12 +841,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     language: "CV language",
     arabic: "العربية",
     english: "English",
-    print: "Download PDF / Print",
-    printHint: "Choose Save as PDF in the print dialog. Use a text-based PDF, not a scanned image.",
+    print: "Download PDF",
+    printHint: "Your text-based PDF downloads directly without opening the print dialog.",
     saved: "Automatically saved on this device",
     savedInfo: "Your information is not sent to SkillUp servers at this stage.",
     reset: "Clear all data",
-    resetConfirm: "Clear the CV and its local safety backup from this device? This cannot be undone.",
+    resetConfirm: "Clear the current CV data from this device? This cannot be undone.",
     checklist: "Before you download",
     checkContact: "Add your name and at least one contact method.",
     checkEducation: "Add your university or faculty and major.",
@@ -790,18 +871,32 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     removeSection: "Remove section from CV",
     templates: "Choose your CV design",
     templatesHint: "Change the design any time without affecting your information.",
-    classic: "Classic — formal and balanced",
-    modern: "Modern — contemporary",
-    compact: "Compact — space-efficient",
-    openPreview: "Preview & choose design",
-    closePreview: "Back to editor"
+    templateBlue: "Blue Professional — inspired by your Word sample",
+    templateSignature: "SkillUp Signature — SkillUp identity",
+    templateExecutive: "Executive Minimal — monochrome",
+    stepSections: "Your available sections",
+    openPreview: "Preview CV",
+    closePreview: "Back to editor",
+    chooseTemplateTitle: "Choose your CV design",
+    chooseTemplateHint: "Start with a formal design, then complete your CV one step at a time.",
+    startBuilding: "Next",
+    nextStep: "Next",
+    previousStep: "Back",
+    skipStep: "Skip this step",
+    finishSteps: "Go to preview",
+    stepOf: "of",
+    reviewTitle: "Review your CV",
+    downloadNow: "Download PDF directly",
+    loadingPdf: "Preparing your file...",
+    pdfError: "Could not prepare the PDF. Check your internet connection and try again.",
+    chooseAgain: "Change design"
   }, [isAr]);
 
   const [cv, setCv] = useState<CVData>({ ...EMPTY_CV, cvLanguage: locale });
   const [loaded, setLoaded] = useState(false);
-  const [activeSection, setActiveSection] = useState<SectionId>("experience");
+  const [wizardStep, setWizardStep] = useState<WizardStep>("template");
   const [showPreview, setShowPreview] = useState(false);
-  const [showSectionManager, setShowSectionManager] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -814,13 +909,6 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        // Keep a one-time safety copy before migrating older saved CV data.
-        const backupKey = `${STORAGE_KEY}_backup_before_redesign`;
-        try {
-          if (!localStorage.getItem(backupKey)) localStorage.setItem(backupKey, raw);
-        } catch {
-          // Do not block loading the user's existing CV if storage has no room for a backup.
-        }
         const parsed = JSON.parse(raw) as Partial<CVData>;
         const validSectionIds = Object.keys(SECTION_META) as SectionId[];
         const savedOrder = Array.isArray(parsed.sectionOrder)
@@ -835,19 +923,27 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           ? parsed.selectedSections.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
           : [...EMPTY_CV.selectedSections];
         const normalizedSelected = [...new Set(savedSelected)];
+        const inferredSelected: SectionId[] = [];
+        if (Array.isArray(parsed.experiences) && parsed.experiences.length) inferredSelected.push("experience");
+        if (Array.isArray(parsed.projects) && parsed.projects.length) inferredSelected.push("projects");
+        if (Array.isArray(parsed.activities) && parsed.activities.length) inferredSelected.push("activities");
+        if (Array.isArray(parsed.courses) && parsed.courses.length) inferredSelected.push("courses");
+        if ([parsed.skills, parsed.tools, parsed.languages].some((value) => typeof value === "string" && value.trim())) inferredSelected.push("skills");
 
         setCv({
           ...EMPTY_CV,
           ...parsed,
           qualification: parsed.qualification ?? "",
           educationStatus: parsed.educationStatus ?? "studying",
-          template: parsed.template === "modern" || parsed.template === "compact" ? parsed.template : "classic",
+          template: parsed.template === "reference" || parsed.template === "signature" || parsed.template === "executive" ? parsed.template : parsed.template === "compact" ? "executive" : "signature",
           sectionOrder: mergedOrder,
           // selectedSections represents the user's intentional visibility choices.
           // Keep hidden sections hidden; every section remains available in the section manager.
-          selectedSections: normalizedSelected.length ? normalizedSelected : [...EMPTY_CV.selectedSections],
+          selectedSections: Array.isArray(parsed.selectedSections) ? normalizedSelected : inferredSelected,
           cvLanguage: parsed.cvLanguage ?? locale
         });
+        // Remove the one-time migration backup only after the current CV JSON was parsed successfully.
+        try { localStorage.removeItem("_backup_before_redesign"); } catch { /* storage may be read-only */ }
       } else {
         setCv({ ...EMPTY_CV, cvLanguage: locale });
       }
@@ -866,10 +962,21 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     }
   }, [cv, loaded, isAr]);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeoutId = window.setTimeout(() => setNotice(""), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
+
   const update = <K extends keyof CVData>(key: K, value: CVData[K]) => setCv((previous) => ({ ...previous, [key]: value }));
   const isActive = (id: SectionId) => cv.selectedSections.includes(id);
   const orderedSections = cv.sectionOrder.filter((id) => isActive(id));
-  const visibleActiveSection = isActive(activeSection) ? activeSection : orderedSections[0] ?? "experience";
+  const isSectionStep = (step: WizardStep): step is SectionId => Object.prototype.hasOwnProperty.call(SECTION_META, step);
+  const visibleActiveSection: SectionId = isSectionStep(wizardStep) ? wizardStep : orderedSections[0] ?? "experience";
+  const wizardSteps: WizardStep[] = ["template", "profile", "education", "sections", ...orderedSections, "review"];
+  const visibleWizardSteps = wizardSteps.filter((step) => step !== "template");
+  const currentWizardIndex = Math.max(0, wizardSteps.indexOf(wizardStep));
+  const currentVisibleStepIndex = visibleWizardSteps.indexOf(wizardStep);
 
   const readiness = [
     { done: Boolean(cv.fullName.trim() && (cv.email.trim() || cv.phone.trim())), text: t.checkContact },
@@ -958,53 +1065,91 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
 
   const toggleSection = (id: SectionId) => {
     if (isActive(id)) {
-      if (cv.selectedSections.length === 1) return;
       const next = cv.selectedSections.filter((item) => item !== id);
-      const nextOrdered = cv.sectionOrder.filter((sectionId) => next.includes(sectionId));
       update("selectedSections", next);
-      if (activeSection === id) setActiveSection(nextOrdered[0] ?? "experience");
       setFormOpen(false);
     } else {
       update("selectedSections", [...cv.selectedSections, id]);
-      setActiveSection(id);
     }
   };
   const moveSection = (id: SectionId, direction: -1 | 1) => {
-    const order = [...cv.sectionOrder];
-    const index = order.indexOf(id);
+    const selectedOrder = cv.sectionOrder.filter((sectionId) => cv.selectedSections.includes(sectionId));
+    const index = selectedOrder.indexOf(id);
     const next = index + direction;
-    if (next < 0 || next >= order.length) return;
-    [order[index], order[next]] = [order[next], order[index]];
-    update("sectionOrder", order);
+    if (index < 0 || next < 0 || next >= selectedOrder.length) return;
+    [selectedOrder[index], selectedOrder[next]] = [selectedOrder[next], selectedOrder[index]];
+    const hiddenOrder = cv.sectionOrder.filter((sectionId) => !cv.selectedSections.includes(sectionId));
+    update("sectionOrder", [...selectedOrder, ...hiddenOrder]);
   };
 
   const reset = () => {
     if (!window.confirm(t.resetConfirm)) return;
     setCv({ ...EMPTY_CV, cvLanguage: locale });
-    setActiveSection("experience");
+    setWizardStep("template");
     setFormOpen(false);
     setShowPreview(false);
     setNotice("");
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(`${STORAGE_KEY}_backup_before_redesign`);
   };
 
-  const printCV = () => {
+  const downloadCV = async () => {
     if (!cv.fullName.trim() || (!cv.email.trim() && !cv.phone.trim())) {
       setNotice(t.profileRequired);
       setShowPreview(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setWizardStep("profile");
       return;
     }
     if (!(cv.university.trim() || cv.college.trim()) || !cv.major.trim()) {
       setNotice(t.educationRequired);
       setShowPreview(false);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      setWizardStep("education");
       return;
     }
     setNotice("");
-    window.print();
+    setDownloading(true);
+    try {
+      await downloadCvPdf(cv);
+    } catch (error) {
+      console.error("SkillUp PDF export failed", error);
+      setNotice(t.pdfError);
+    } finally {
+      setDownloading(false);
+    }
   };
+
+  const goNextStep = () => {
+    if (formOpen) {
+      setNotice(isAr ? "احفظ العنصر الحالي أو ألغِ تعديله قبل الانتقال للخطوة التالية." : "Save or cancel the current item before moving to the next step.");
+      return;
+    }
+    if (wizardStep === "profile" && (!cv.fullName.trim() || (!cv.email.trim() && !cv.phone.trim()))) {
+      setNotice(t.profileRequired);
+      return;
+    }
+    if (wizardStep === "education" && (!(cv.university.trim() || cv.college.trim()) || !cv.major.trim())) {
+      setNotice(t.educationRequired);
+      return;
+    }
+    const nextStep = wizardSteps[Math.min(currentWizardIndex + 1, wizardSteps.length - 1)];
+    if (!nextStep) return;
+    setNotice("");
+    setFormOpen(false);
+    setWizardStep(nextStep);
+  };
+
+  const goPreviousStep = () => {
+    if (formOpen) {
+      setNotice(isAr ? "احفظ العنصر الحالي أو ألغِ تعديله قبل الرجوع." : "Save or cancel the current item before going back.");
+      return;
+    }
+    const previousStep = wizardSteps[Math.max(currentWizardIndex - 1, 0)];
+    if (previousStep) {
+      setNotice("");
+      setShowPreview(false);
+      setWizardStep(previousStep);
+    }
+  };
+
 
   const renderSectionForm = () => {
     if (visibleActiveSection === "experience") {
@@ -1120,6 +1265,21 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
+  const templateOptions: Array<{ id: CVTemplate; name: string; description: string; badge: string }> = isAr
+    ? [
+        { id: "reference", name: "Blue Professional", description: "نفس أسلوب نموذج Word المرفق: عنوان مركزي وأقسام زرقاء واضحة.", badge: "القالب المرجعي" },
+        { id: "signature", name: "SkillUp Signature", description: "هوية SkillUp بالكحلي والذهبي مع ترتيب مهني واضح.", badge: "هوية SkillUp" },
+        { id: "executive", name: "Executive Minimal", description: "أبيض وأسود، بسيط ورسمي، مناسب للمحتوى المكثف.", badge: "رسمي وبسيط" }
+      ]
+    : [
+        { id: "reference", name: "Blue Professional", description: "Inspired by your Word sample: centered header and clear blue section headings.", badge: "Reference style" },
+        { id: "signature", name: "SkillUp Signature", description: "SkillUp navy and gold identity with a clear professional hierarchy.", badge: "SkillUp identity" },
+        { id: "executive", name: "Executive Minimal", description: "Monochrome, minimal and formal, designed for content-rich CVs.", badge: "Formal minimal" }
+      ];
+  const currentStepLabel = wizardStep === "template" ? t.templates : wizardStep === "profile" ? t.stepProfile : wizardStep === "education" ? t.stepEducation : wizardStep === "sections" ? t.stepSections : wizardStep === "review" ? t.reviewTitle : sectionLabel(wizardStep);
+  const progressPercent = currentVisibleStepIndex < 0
+    ? 0
+    : Math.round(((currentVisibleStepIndex + 1) / Math.max(1, visibleWizardSteps.length)) * 100);
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-28 sm:px-5 lg:px-6" dir={isAr ? "rtl" : "ltr"}>
@@ -1150,96 +1310,96 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         .cv-document .cv-bullets { margin: 4px 0 0; padding-inline-start: 17px; list-style: disc; }
         .cv-document .cv-bullets li { margin: 2px 0; padding-inline-start: 2px; font-size: 11.25px; line-height: 1.5; }
         .cv-document .cv-skill-group { margin-top: 4px !important; }
-        .cv-template-modern .cv-document-header { border-top: 7px solid #C8A448; border-bottom: 1px solid #e5e7eb; padding-top: 20px; padding-bottom: 18px; }
-        .cv-template-modern .cv-name { font-size: 34px; }
-        .cv-template-modern .cv-section h2 { color: #8A6D1F; border-bottom-color: #D9C58D; letter-spacing: .04em; }
-        .cv-template-compact { padding-top: 38px !important; padding-bottom: 38px !important; }
-        .cv-template-compact .cv-document-header { padding-bottom: 12px; margin-bottom: 14px; }
-        .cv-template-compact .cv-name { font-size: 27px; }
-        .cv-template-compact .cv-target-role { font-size: 12px; }
-        .cv-template-compact .cv-contact { margin-top: 8px; font-size: 9.5px; }
-        .cv-template-compact .cv-section { margin-top: 12px; }
-        .cv-template-compact .cv-section h2 { margin-bottom: 5px; padding-bottom: 3px; font-size: 11.5px; }
-        .cv-template-compact .cv-section p { font-size: 10.5px; line-height: 1.42; }
-        .cv-template-compact .cv-entry { margin-bottom: 7px; }
-        .cv-template-compact .cv-entry-title { font-size: 11px; }
-        .cv-template-compact .cv-bullets li { margin: 1px 0; font-size: 10.25px; line-height: 1.4; }
+        .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1.25px solid #AFC3DE; padding-bottom: 18px; margin-bottom: 18px; }
+        .cv-template-reference .cv-name { color: #24466F; font-size: 30px; letter-spacing: 0; }
+        .cv-template-reference .cv-target-role { color: #4D83C5; font-size: 14px; font-style: italic; font-weight: 500; }
+        .cv-template-reference .cv-contact { justify-content: center; color: #596574; }
+        .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid #AFC3DE; padding: 7px 0 0; color: #24466F; letter-spacing: 0; margin-bottom: 8px; }
+        .cv-template-signature .cv-document-header { border-bottom: 3px solid #182B36; padding-bottom: 17px; margin-bottom: 20px; }
+        .cv-template-signature .cv-name { color: #182B36; font-size: 32px; }
+        .cv-template-signature .cv-target-role { color: #8A6D1F; font-size: 14px; }
+        .cv-template-signature .cv-section h2 { color: #182B36; border-bottom-color: #C8A448; }
+        .cv-template-executive .cv-document-header { border-bottom: 1px solid #606A75; padding-bottom: 15px; margin-bottom: 17px; }
+        .cv-template-executive .cv-name { color: #15191E; font-size: 29px; letter-spacing: -.01em; }
+        .cv-template-executive .cv-target-role { color: #4B5563; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+        .cv-template-executive .cv-section h2 { color: #20252B; border-bottom: 1.25px solid #717B85; letter-spacing: .08em; font-size: 11.5px; }
+        .cv-template-executive .cv-section { margin-top: 15px; }
+        .cv-template-executive .cv-section p { font-size: 11px; line-height: 1.48; }
+        .cv-template-executive .cv-entry { margin-bottom: 8px; }
+        .cv-template-executive .cv-entry-title { font-size: 11.75px; }
+        .cv-template-executive .cv-bullets li { font-size: 10.75px; line-height: 1.42; }
         @media (max-width: 640px) {
           .cv-document .cv-entry-heading { gap: 8px; }
           .cv-document .cv-entry-date { white-space: normal; text-align: end; }
         }
-        @media print {
-          @page { size: A4; margin: 12mm; }
-          html, body {
-            display: block !important;
-            width: auto !important;
-            height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            background: #fff !important;
-            color: #20252b !important;
-          }
-          /* The print portal is a direct child of body. This hides the Next.js app root,
-             Navbar/Footer, and any preview modal portal, leaving only the print document. */
-          body > *:not(#skillup-cv-print-root) { display: none !important; }
-          #skillup-cv-print-root {
-            display: block !important;
-            position: static !important;
-            inset: auto !important;
-            width: auto !important;
-            height: auto !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-          }
-          #skillup-cv-print-root .cv-document {
-            display: block !important;
-            width: 100% !important;
-            max-width: none !important;
-            min-height: 0 !important;
-            margin: 0 auto !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            box-shadow: none !important;
-          }
-          #skillup-cv-print-root .cv-section { break-inside: auto; page-break-inside: auto; }
-          #skillup-cv-print-root .cv-entry { break-inside: avoid; page-break-inside: avoid; }
-          #skillup-cv-print-root .cv-bullets { break-inside: auto; page-break-inside: auto; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
       `}</style>
 
-      <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#C8A448]/40 bg-[#C8A448]/10 px-3 py-1.5 text-xs font-bold text-[#8A6D1F] dark:text-[#E2C46F]">
-            <Sparkles className="h-3.5 w-3.5" /> {t.eyebrow}
+      <div className="mx-auto max-w-4xl pb-28 sm:pb-32">
+        <header className="mb-6 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#C8A448]/40 bg-[#C8A448]/10 px-3 py-1.5 text-xs font-bold text-[#8A6D1F] dark:text-[#E2C46F]">
+              <Sparkles className="h-3.5 w-3.5" /> {t.eyebrow}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t.saved}
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" /> {t.saved}
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+            <div className="max-w-2xl">
+              <h1 className="text-2xl font-black tracking-tight text-[#182B36] dark:text-white md:text-3xl">{wizardStep === "template" ? t.chooseTemplateTitle : t.title}</h1>
+              <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">{wizardStep === "template" ? t.chooseTemplateHint : t.subtitle}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                <button type="button" onClick={() => update("cvLanguage", "ar")} className={cx("rounded-lg px-3 py-2 text-xs font-bold", cv.cvLanguage === "ar" ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{t.arabic}</button>
+                <button type="button" onClick={() => update("cvLanguage", "en")} className={cx("rounded-lg px-3 py-2 text-xs font-bold", cv.cvLanguage === "en" ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{t.english}</button>
+              </div>
+              <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"><RotateCcw className="h-3.5 w-3.5" />{t.reset}</button>
+            </div>
           </div>
-        </div>
-        <div className="max-w-3xl">
-          <h1 className="text-2xl font-black tracking-tight text-[#182B36] dark:text-white md:text-3xl">{t.title}</h1>
-          <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">{t.subtitle}</p>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-500">{t.language}:</span>
-            <button type="button" onClick={() => update("cvLanguage", "ar")} className={cx("rounded-lg border px-3 py-1.5 text-xs font-bold", cv.cvLanguage === "ar" ? "border-[#182B36] bg-[#182B36] text-white dark:border-[#C8A448] dark:bg-[#C8A448] dark:text-[#182B36]" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")}>{t.arabic}</button>
-            <button type="button" onClick={() => update("cvLanguage", "en")} className={cx("rounded-lg border px-3 py-1.5 text-xs font-bold", cv.cvLanguage === "en" ? "border-[#182B36] bg-[#182B36] text-white dark:border-[#C8A448] dark:bg-[#C8A448] dark:text-[#182B36]" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300")}>{t.english}</button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setShowPreview(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]"><Eye className="h-4 w-4" />{t.openPreview}</button>
-            <button type="button" onClick={reset} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"><RotateCcw className="h-3.5 w-3.5" />{t.reset}</button>
-          </div>
-        </div>
-        {notice ? <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
-      </div>
+          {wizardStep !== "template" ? (
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                <span className="font-bold text-zinc-700 dark:text-zinc-200">{currentStepLabel}</span>
+                <span className="tabular-nums text-zinc-500">{currentVisibleStepIndex + 1} {t.stepOf} {visibleWizardSteps.length}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all duration-300" style={{ width: `${progressPercent}%` }} /></div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {visibleWizardSteps.map((step, index) => (
+                  <span key={step} className={cx("rounded-full px-2.5 py-1 text-[10px] font-semibold", step === wizardStep ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : index < currentVisibleStepIndex ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400")}>{step === "profile" ? t.stepProfile : step === "education" ? t.stepEducation : step === "sections" ? t.sectionsTitle : step === "review" ? t.reviewTitle : sectionLabel(step as SectionId)}</span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {notice ? <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
+        </header>
 
-      <div className="mx-auto max-w-4xl space-y-5">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
+        {wizardStep === "template" ? (
+          <section className="space-y-5">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{isAr ? "اختار الشكل اللي يناسب تقديمك" : "Choose the style that fits your application"}</p>
+              <p className="mt-1 text-xs text-zinc-500">{isAr ? "كل التصميمات رسمية وبعمود واحد ومهيأة لتكون سهلة القراءة بواسطة ATS." : "All three designs are formal, single-column and designed for ATS readability."}</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {templateOptions.map((option) => {
+                const active = cv.template === option.id;
+                return (
+                  <button key={option.id} type="button" onClick={() => update("template", option.id)} aria-pressed={active} className={cx("group rounded-2xl border bg-white p-3 text-start shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900", active ? "border-[#C8A448] ring-2 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700")}>
+                    <TemplateThumbnail template={option.id} isAr={isAr} />
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div><span className="block text-sm font-extrabold text-zinc-900 dark:text-white">{option.name}</span><span className="mt-0.5 block text-[10px] font-semibold text-[#8A6D1F] dark:text-[#E2C46F]">{option.badge}</span></div>
+                      {active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /> : <span className="h-5 w-5 shrink-0 rounded-full border border-zinc-300 dark:border-zinc-600" />}
+                    </div>
+                    <p className="mt-2 min-h-10 text-xs leading-5 text-zinc-500">{option.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {wizardStep === "profile" ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#182B36]/[0.07] text-[#182B36] dark:bg-[#C8A448]/15 dark:text-[#E2C46F]"><FileText className="h-5 w-5" /></div>
               <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.stepProfile}</h2><p className="text-xs text-zinc-500">{isAr ? "معلومات تساعد جهة التوظيف على التواصل معك." : "Details employers need to identify and contact you."}</p></div>
@@ -1255,8 +1415,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <p className="mt-2 text-[11px] text-zinc-500">{isAr ? "أدخل البريد الإلكتروني أو رقم الهاتف على الأقل." : "Enter at least an email address or a phone number."}</p>
             <div className="mt-4"><Field label={t.summary} hint={t.summaryHint}><TextArea value={cv.summary} onChange={(value) => update("summary", value)} rows={3} placeholder={isAr ? "طالب في كلية ... مهتم بمجال ... وأسعى لاكتساب خبرة في ..." : "University student majoring in ... interested in ... and seeking an opportunity to ..."} /></Field></div>
           </section>
+        ) : null}
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
+        {wizardStep === "education" ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#182B36]/[0.07] text-[#182B36] dark:bg-[#C8A448]/15 dark:text-[#E2C46F]"><GraduationCap className="h-5 w-5" /></div>
               <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.stepEducation}</h2><p className="text-xs text-zinc-500">{t.educationNote}</p></div>
@@ -1273,91 +1435,65 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isAr ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
             </div>
           </section>
+        ) : null}
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.sectionsTitle}</h2><p className="mt-1 text-xs leading-5 text-zinc-500">{t.sectionsSub}</p></div>
-              <button type="button" onClick={() => setShowSectionManager((value) => !value)} className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-bold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"><Wrench className="h-3.5 w-3.5" />{t.selectSections}<ChevronDown className={cx("h-3.5 w-3.5 transition", showSectionManager && "rotate-180")} /></button>
-            </div>
-
-            {showSectionManager ? (
-              <div className="mb-4 grid gap-2 rounded-xl border border-dashed border-zinc-300 p-3 dark:border-zinc-700 sm:grid-cols-2">
-                {(Object.keys(SECTION_META) as SectionId[]).map((id) => {
-                  const Icon = SECTION_META[id].icon;
-                  return <button key={id} type="button" onClick={() => toggleSection(id)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition hover:bg-zinc-50 dark:hover:bg-zinc-800"><Icon className="h-4 w-4 text-[#8A6D1F]" /><span className="flex-1">{sectionLabel(id)}</span>{isActive(id) ? <Check className="h-4 w-4 text-emerald-600" /> : <Plus className="h-4 w-4 text-zinc-400" />}</button>;
-                })}
-              </div>
-            ) : null}
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {orderedSections.map((id) => {
+        {wizardStep === "sections" ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
+            <div className="mb-5"><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{isAr ? "إيه الأقسام اللي عندك؟" : "Which sections can you add?"}</h2><p className="mt-1 text-sm leading-6 text-zinc-500">{isAr ? "اختار الأقسام اللي عندك بيانات فعلية ليها. تقدر تتخطى أي قسم وتضيفه لاحقًا." : "Select the sections you have real information for. You can skip any section and add it later."}</p></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(Object.keys(SECTION_META) as SectionId[]).map((id) => {
                 const Icon = SECTION_META[id].icon;
-                const active = visibleActiveSection === id;
+                const selected = isActive(id);
+                const count = countFor(id);
                 return (
-                  <button key={id} type="button" onClick={() => { setActiveSection(id); setFormOpen(false); }} className={cx("flex min-h-[94px] items-start gap-3 rounded-xl border p-3.5 text-start transition", active ? "border-[#C8A448] bg-[#C8A448]/[0.08] ring-1 ring-[#C8A448]/20" : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:bg-zinc-800")}>
-                    <div className={cx("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", active ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300")}><Icon className="h-4 w-4" /></div>
-                    <div className="min-w-0 flex-1"><span className="block text-sm font-bold text-zinc-900 dark:text-white">{sectionLabel(id)}</span><span className="mt-1 block text-[11px] leading-5 text-zinc-500">{isAr ? SECTION_META[id].subAr : SECTION_META[id].subEn}</span><span className="mt-2 inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{countFor(id)} {id === "experience" ? t.experienceCount : id === "projects" ? t.projectCount : id === "activities" ? t.activityCount : id === "courses" ? t.coursesCount : t.skillsCount}</span></div>
+                  <button key={id} type="button" aria-pressed={selected} onClick={() => toggleSection(id)} className={cx("flex min-h-28 items-start gap-3 rounded-2xl border p-4 text-start transition", selected ? "border-[#C8A448] bg-[#C8A448]/[0.07] ring-1 ring-[#C8A448]/20" : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700")}>
+                    <span className={cx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", selected ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300")}><Icon className="h-5 w-5" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-extrabold text-zinc-900 dark:text-white">{sectionLabel(id)}</span><span className="mt-1 block text-xs leading-5 text-zinc-500">{isAr ? SECTION_META[id].subAr : SECTION_META[id].subEn}</span><span className="mt-2 block text-[10px] font-semibold text-zinc-500">{count ? `${count} ${isAr ? "عناصر محفوظة" : "saved items"}` : isAr ? "لم تضف بيانات بعد" : "No data added yet"}</span></span>
+                    <span className={cx("mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border", selected ? "border-[#182B36] bg-[#182B36] text-white dark:border-[#C8A448] dark:bg-[#C8A448] dark:text-[#182B36]" : "border-zinc-300 text-transparent dark:border-zinc-600")}>{selected ? <Check className="h-4 w-4" /> : null}</span>
                   </button>
                 );
               })}
             </div>
-
-            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-700 dark:bg-zinc-950/60">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="font-extrabold text-zinc-900 dark:text-white">{sectionLabel(visibleActiveSection)}</h3><p className="mt-1 text-xs text-zinc-500">{isAr ? "كل الحقول هنا اختيارية. أضف ما ينطبق عليك فقط." : "All fields are optional. Add only what applies to you."}</p></div>
-                {visibleActiveSection !== "skills" && !formOpen ? <button type="button" onClick={beginAdd} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36] dark:hover:bg-[#d8b95d]"><Plus className="h-4 w-4" />{t.addNew}</button> : null}
-              </div>
-              {visibleActiveSection === "skills" ? renderSectionForm() : formOpen ? <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"><div className="mb-4 flex items-center justify-between gap-3"><h4 className="text-sm font-bold">{editingId ? t.edit : t.addNew}</h4><button type="button" onClick={() => setFormOpen(false)} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t.cancel}><X className="h-4 w-4" /></button></div>{renderSectionForm()}</div> : renderSectionItems()}
-              {visibleActiveSection === "skills" ? <div className="mt-4 flex justify-end"><button type="button" onClick={() => setNotice(isAr ? "تم حفظ المهارات تلقائيًا." : "Skills are saved automatically.")} className="rounded-xl bg-[#182B36] px-4 py-2.5 text-xs font-bold text-white dark:bg-[#C8A448] dark:text-[#182B36]">{t.save}</button></div> : null}
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {orderedSections.map((id, index) => <div key={id} className="inline-flex items-center gap-1 rounded-full border border-zinc-200 px-2 py-1 text-[10px] text-zinc-500 dark:border-zinc-700">{sectionLabel(id)}<button type="button" onClick={() => moveSection(id, -1)} disabled={index === 0} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-25 dark:hover:bg-zinc-800" aria-label={t.up}><ChevronLeft className="h-3 w-3" /></button><button type="button" onClick={() => moveSection(id, 1)} disabled={index === orderedSections.length - 1} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-25 dark:hover:bg-zinc-800" aria-label={t.down}><ChevronRight className="h-3 w-3" /></button></div>)}
-            </div>
+            {orderedSections.length ? <div className="mt-5 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-950"><p className="mb-2 text-xs font-bold text-zinc-700 dark:text-zinc-200">{t.sectionOrder}</p><div className="flex flex-wrap gap-2">{orderedSections.map((id, index) => <span key={id} className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2 py-1 text-[10px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">{sectionLabel(id)}<button type="button" onClick={() => moveSection(id,-1)} disabled={index===0} aria-label={t.up} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-30"><ChevronLeft className="h-3 w-3"/></button><button type="button" onClick={() => moveSection(id,1)} disabled={index===orderedSections.length-1} aria-label={t.down} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-30"><ChevronRight className="h-3 w-3"/></button></span>)}</div></div> : <p className="mt-5 rounded-xl border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">{isAr ? "مش لازم تضيف أي أقسام دلوقتي؛ تقدر تكمل وتضيفها لاحقًا." : "You can continue without extra sections and add them later."}</p>}
           </section>
+        ) : null}
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-              <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.templates}</h2><p className="mt-1 text-xs leading-5 text-zinc-500">{t.templatesHint}</p></div>
-              <button type="button" onClick={() => setShowPreview(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-[#182B36] px-3 py-2 text-xs font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Maximize2 className="h-3.5 w-3.5" />{t.openPreview}</button>
+        {isSectionStep(wizardStep) ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{sectionLabel(visibleActiveSection)}</h2><p className="mt-1 text-sm text-zinc-500">{isAr ? "كل الحقول اختيارية. أضف ما ينطبق عليك فقط، ويمكنك تخطي الخطوة." : "All fields are optional. Add only what applies to you, or skip this step."}</p></div>
+              {visibleActiveSection !== "skills" && !formOpen ? <button type="button" onClick={beginAdd} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]"><Plus className="h-4 w-4" />{t.addNew}</button> : null}
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {([{ id: "classic", name: "Classic", detail: t.classic, accent: "#182B36" }, { id: "modern", name: "Modern", detail: t.modern, accent: "#C8A448" }, { id: "compact", name: "Compact", detail: t.compact, accent: "#475569" }] as Array<{ id: CVTemplate; name: string; detail: string; accent: string }>).map((option) => {
-                const active = (cv.template ?? "classic") === option.id;
-                return <button key={option.id} type="button" onClick={() => update("template", option.id)} className={`rounded-xl border p-3 text-start transition ${active ? "border-[#C8A448] bg-[#C8A448]/[0.07] ring-1 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700"}`}>
-                  <div className="mb-3 rounded-md border border-zinc-200 bg-white p-2 dark:border-zinc-700">
-                    <div className="mx-auto max-w-[110px] space-y-1.5">
-                      <div className="h-2 w-2/3 rounded-sm" style={{ background: option.accent }} />
-                      <div className="h-1 w-1/2 rounded-sm bg-zinc-300" />
-                      <div className="h-px w-full" style={{ background: option.accent }} />
-                      {["w-full", "w-4/5", "w-11/12", "w-2/3"].map((width, index) => <div key={index} className={`h-1 rounded-sm bg-zinc-200 ${width}`} />)}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2"><span className="text-sm font-extrabold text-zinc-900 dark:text-white">{option.name}</span>{active ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : null}</div>
-                  <p className="mt-1 text-[10px] leading-4 text-zinc-500">{option.detail}</p>
-                </button>;
-              })}
-            </div>
+            {visibleActiveSection === "skills" ? renderSectionForm() : formOpen ? <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-950"><div className="mb-4 flex items-center justify-between gap-3"><h4 className="text-sm font-bold">{editingId ? t.edit : t.addNew}</h4><button type="button" onClick={() => setFormOpen(false)} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t.cancel}><X className="h-4 w-4" /></button></div>{renderSectionForm()}</div> : renderSectionItems()}
+            {visibleActiveSection === "skills" ? <div className="mt-4 flex justify-end"><button type="button" onClick={() => setNotice(isAr ? "تم حفظ المهارات تلقائيًا." : "Skills are saved automatically.")} className="rounded-xl bg-[#182B36] px-4 py-2.5 text-xs font-bold text-white dark:bg-[#C8A448] dark:text-[#182B36]">{t.save}</button></div> : null}
           </section>
+        ) : null}
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.checklist}</h2><span className="text-sm font-black text-[#8A6D1F] dark:text-[#E2C46F]">{readinessScore}%</span></div>
+        {wizardStep === "review" ? (
+          <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
+            <div className="mb-5 flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{t.checklist}</h2><p className="mt-1 text-xs text-zinc-500">{isAr ? "راجع النقاط دي قبل ما تحمل ملفك." : "Review these points before downloading."}</p></div><span className="text-xl font-black text-[#8A6D1F] dark:text-[#E2C46F]">{readinessScore}%</span></div>
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
-            <div className="mt-4 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p><button type="button" onClick={printCV} className="inline-flex items-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36] dark:hover:bg-[#d8b95d]"><Download className="h-4 w-4" />{t.print}</button></div>
-            <p className="mt-2 text-[11px] leading-5 text-zinc-500">{t.printHint}</p>
+            <div className="mt-5 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
+            <p className="mt-3 text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p>
           </section>
-        </div>
-
-      <div className="fixed inset-x-3 bottom-3 z-40 flex justify-center sm:inset-x-6">
-        <button type="button" onClick={() => setShowPreview(true)} className="flex w-full max-w-2xl items-center justify-center gap-2 rounded-2xl bg-[#182B36] px-5 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-[#182B36]/20 transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]">
-          <Eye className="h-4 w-4" />{t.openPreview}<span className="text-white/60 dark:text-[#182B36]/60">·</span><span className="text-xs font-semibold text-white/75 dark:text-[#182B36]/75">{(cv.template ?? "classic").toUpperCase()}</span>
-        </button>
+        ) : null}
       </div>
 
-      {showPreview ? <CVPreviewModal cv={cv} isAr={isAr} onClose={() => setShowPreview(false)} onPrint={printCV} onTemplateChange={(template) => update("template", template)} /> : null}
-      {loaded && typeof document !== "undefined" ? createPortal(<div id="skillup-cv-print-root" style={{ display: "none" }}><CVDocument cv={cv} /></div>, document.body) : null}
+      {wizardStep !== "template" ? (
+        <div className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-4xl items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white/95 p-2 shadow-xl backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95 sm:inset-x-6 sm:p-3">
+          <button type="button" onClick={goPreviousStep} className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 px-3 py-2.5 text-xs font-bold text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800">{isAr ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}{t.previousStep}</button>
+          <div className="flex items-center gap-2">
+            {isSectionStep(wizardStep) ? <button type="button" onClick={goNextStep} className="rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">{t.skipStep}</button> : null}
+            {wizardStep === "review" ? <button type="button" onClick={() => setShowPreview(true)} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-4 py-2.5 text-xs font-bold text-white dark:bg-[#C8A448] dark:text-[#182B36]"><Eye className="h-4 w-4" />{t.openPreview}</button> : <button type="button" onClick={goNextStep} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]"><span>{t.nextStep}</span>{isAr ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" /> }</button>}
+          </div>
+        </div>
+      ) : (
+        <div className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-4xl justify-end sm:inset-x-6"><button type="button" onClick={() => { setNotice(""); setWizardStep("profile"); }} className="inline-flex items-center gap-2 rounded-2xl bg-[#182B36] px-6 py-3.5 text-sm font-extrabold text-white shadow-xl hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]">{t.startBuilding}{isAr ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" /> }</button></div>
+      )}
+
+      {showPreview ? <CVPreviewModal cv={cv} isAr={isAr} onClose={() => setShowPreview(false)} onDownload={downloadCV} downloading={downloading} onTemplateChange={(template) => update("template", template)} /> : null}
     </div>
   );
 }
