@@ -1228,34 +1228,38 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.985 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
-              draggable={canDrag}
-              onDragStart={(event) => {
-                if (!canDrag) return;
-                setDraggingExperienceId(raw.id);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", raw.id);
-              }}
-              onDragOver={(event) => {
-                if (!canDrag || !draggingExperienceId) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDragOverExperienceId(raw.id);
-              }}
-              onDrop={(event) => {
-                if (!canDrag) return;
-                event.preventDefault();
-                const sourceId = event.dataTransfer.getData("text/plain") || draggingExperienceId;
-                if (sourceId) reorderExperiences(sourceId, raw.id);
-              }}
-              onDragEnd={() => { setDraggingExperienceId(null); setDragOverExperienceId(null); }}
-              className={cx(
-                "flex items-start justify-between gap-3 rounded-xl border bg-white p-3.5 transition dark:bg-zinc-900",
-                dragOverExperienceId === raw.id ? "border-[#C8A448] ring-2 ring-[#C8A448]/20" : "border-zinc-200 dark:border-zinc-700",
-                draggingExperienceId === raw.id ? "opacity-45" : "",
-                canDrag ? "cursor-grab active:cursor-grabbing" : ""
-              )}
             >
-              <div className="flex min-w-0 items-start gap-2">
+              {/* Keep native HTML drag events on a regular div. Framer Motion's
+                  motion.div uses its own drag gesture event types. */}
+              <div
+                draggable={canDrag}
+                onDragStart={(event) => {
+                  if (!canDrag) return;
+                  setDraggingExperienceId(raw.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", raw.id);
+                }}
+                onDragOver={(event) => {
+                  if (!canDrag || !draggingExperienceId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverExperienceId(raw.id);
+                }}
+                onDrop={(event) => {
+                  if (!canDrag) return;
+                  event.preventDefault();
+                  const sourceId = event.dataTransfer.getData("text/plain") || draggingExperienceId;
+                  if (sourceId) reorderExperiences(sourceId, raw.id);
+                }}
+                onDragEnd={() => { setDraggingExperienceId(null); setDragOverExperienceId(null); }}
+                className={cx(
+                  "flex items-start justify-between gap-3 rounded-xl border bg-white p-3.5 transition dark:bg-zinc-900",
+                  dragOverExperienceId === raw.id ? "border-[#C8A448] ring-2 ring-[#C8A448]/20" : "border-zinc-200 dark:border-zinc-700",
+                  draggingExperienceId === raw.id ? "opacity-45" : "",
+                  canDrag ? "cursor-grab active:cursor-grabbing" : ""
+                )}
+              >
+                <div className="flex min-w-0 items-start gap-2">
                 {canDrag ? <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
                   <GripVertical className="h-4 w-4 text-zinc-400" aria-label={isAr ? "اسحب لإعادة الترتيب" : "Drag to reorder"} />
                   <div className="flex flex-col">
@@ -1272,6 +1276,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <div className="flex shrink-0 items-center gap-1">
                 <button type="button" onClick={() => editItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white" aria-label={t.editItem}><Pencil className="h-4 w-4" /></button>
                 <button type="button" onClick={() => removeItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30" aria-label={t.delete}><Trash2 className="h-4 w-4" /></button>
+                </div>
               </div>
             </motion.div>
           );
