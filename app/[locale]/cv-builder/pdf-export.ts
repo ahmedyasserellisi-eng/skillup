@@ -13,8 +13,13 @@ import {
 export type CVExportData = CVData;
 
 type PdfNode = Record<string, unknown>;
+type PdfMakeDocument = {
+  download: (filename: string) => Promise<void>;
+  getBlob: () => Promise<Blob>;
+};
+
 type PdfMakeApi = {
-  createPdf: (definition: Record<string, unknown>) => { download: (filename: string) => void };
+  createPdf: (definition: Record<string, unknown>) => PdfMakeDocument;
 };
 
 declare global {
@@ -421,9 +426,20 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   };
 }
 
+/**
+ * Build a PDF Blob for the live preview. The preview uses the same document
+ * definition as downloadCvPdf, so it cannot drift from the exported layout.
+ */
+export async function createCvPdfBlob(cv: CVExportData): Promise<Blob> {
+  const pdfMake = await getPdfMake();
+  const definition = buildPdfDefinition(cv);
+
+  return pdfMake.createPdf(definition).getBlob();
+}
+
 export async function downloadCvPdf(cv: CVExportData): Promise<void> {
   const pdfMake = await getPdfMake();
   const definition = buildPdfDefinition(cv);
   const safeName = cv.fullName.trim().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "") || "SkillUp_CV";
-  pdfMake.createPdf(definition).download(`${safeName}_CV.pdf`);
+  await pdfMake.createPdf(definition).download(`${safeName}_CV.pdf`);
 }
