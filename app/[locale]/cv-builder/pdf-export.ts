@@ -1,13 +1,70 @@
 type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "reference" | "executive" | "yale";
+type CVTemplate = "reference" | "executive" | "classic";
 type EducationStatus = "studying" | "graduated";
+
+const YEAR_LEVELS: Record<string, { ar: string; en: string }> = {
+  first: { ar: "الفرقة الأولى", en: "First year" },
+  second: { ar: "الفرقة الثانية", en: "Second year" },
+  third: { ar: "الفرقة الثالثة", en: "Third year" },
+  fourth: { ar: "الفرقة الرابعة", en: "Fourth year" },
+  postgrad: { ar: "دراسات عليا", en: "Postgraduate" },
+  other: { ar: "أخرى", en: "Other" }
+};
+
+function yearLevelLabel(value: string, language: "ar" | "en"): string {
+  if (!value) return "";
+  const known = YEAR_LEVELS[value] ?? Object.values(YEAR_LEVELS).find((labels) => labels.ar === value || labels.en === value);
+  if (!known || known === YEAR_LEVELS.other) return known ? "" : value;
+  return known[language];
+}
+
+function formatMonthYear(value: string | undefined, language: "ar" | "en"): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-US", {
+    month: "short", year: "numeric", timeZone: "UTC"
+  }).format(date);
+}
+
+function experiencePeriodLabel(item: Experience, language: "ar" | "en"): string {
+  const start = formatMonthYear(item.startDate, language);
+  const end = item.isCurrent
+    ? (language === "ar" ? "حتى الآن" : "Present")
+    : formatMonthYear(item.endDate, language);
+  return [start, end].filter(Boolean).join(" – ") || item.period?.trim() || "";
+}
+
+function experienceKindLabel(value: string, language: "ar" | "en"): string {
+  const labels: Record<string, { ar: string; en: string }> = {
+    internship: { ar: "تدريب عملي", en: "Internship" },
+    summer: { ar: "تدريب صيفي", en: "Summer Training" },
+    "part-time": { ar: "عمل بدوام جزئي", en: "Part-time Job" },
+    freelance: { ar: "عمل حر", en: "Freelance" },
+    work: { ar: "خبرة عملية", en: "Work Experience" }
+  };
+  return labels[value]?.[language] ?? value;
+}
+
+function projectKindLabel(value: string, language: "ar" | "en"): string {
+  const labels: Record<string, { ar: string; en: string }> = {
+    academic: { ar: "مشروع جامعي", en: "Academic Project" },
+    personal: { ar: "مشروع شخصي", en: "Personal Project" },
+    graduation: { ar: "مشروع تخرج", en: "Graduation Project" }
+  };
+  return labels[value]?.[language] ?? value;
+}
 
 type Experience = {
   id: string;
   kind: string;
   role: string;
   organization: string;
+  // `period` remains for legacy saved records. New records use structured dates.
   period: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
   location: string;
   description: string;
 };
@@ -202,27 +259,21 @@ function buildContactText(cv: CVExportData): PdfNode[] {
   return richText;
 }
 
-function addDescriptionBullets(content: PdfNode[], value: string, color: string): void {
+function addDescriptionBullets(
+  content: PdfNode[],
+  value: string,
+  color: string,
+  fontSize: number,
+  lineHeight: number
+): void {
   const items = descriptionLines(value);
   if (!items.length) return;
   content.push({
     ul: items,
-    fontSize: 10,
+    fontSize,
     color,
     margin: [0, 2, 0, 6],
-    lineHeight: 1.18
-  });
-}
-
-function addPlainDescription(content: PdfNode[], value: string, color: string): void {
-  const lines = descriptionLines(value);
-  if (!lines.length) return;
-  content.push({
-    text: lines.join(" "),
-    fontSize: 10,
-    color,
-    lineHeight: 1.18,
-    margin: [0, 1, 0, 5]
+    lineHeight
   });
 }
 
@@ -230,11 +281,17 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   const ar = cv.cvLanguage === "ar";
   const template = cv.template ?? "reference";
   const isReference = template === "reference";
-  const isYale = template === "yale";
+  const isClassic = template === "classic";
   const colors = isReference
     ? { primary: "#24466F", secondary: "#4D83C5", rule: "#AFC3DE", body: "#111111", muted: "#4D4D4D" }
     : { primary: "#111111", secondary: "#333333", rule: "#333333", body: "#111111", muted: "#4D4D4D" };
   const font = ar ? "Cairo" : "Roboto";
+  const bodyFontSize = ar ? 11 : 10;
+  const sectionFontSize = ar ? 13 : 12;
+  const nameFontSize = ar ? 19 : 18;
+  const targetFontSize = ar ? 12 : 11;
+  const contactFontSize = ar ? 10 : 9;
+  const bodyLineHeight = ar ? 1.15 : 1.12;
   const content: PdfNode[] = [];
 
   // US Letter, matching the attached Word reference (8.5 x 11 in).
@@ -254,14 +311,14 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     if (isReference) headingNodes.push(line([0, 11, 0, 4], colors.rule, 0.7));
     headingNodes.push({
       text: title,
-      fontSize: 11,
+      fontSize: sectionFontSize,
       bold: true,
       color: colors.primary,
-      characterSpacing: isYale ? 0.35 : 0,
+      characterSpacing: isClassic ? 0.35 : 0,
       margin: [0, isReference ? 0 : 10, 0, 5],
       alignment: ar ? "right" : "left"
     });
-    if (!isReference) headingNodes.push(line([0, 0, 0, 5], colors.rule, isYale ? 0.9 : 0.6));
+    if (!isReference) headingNodes.push(line([0, 0, 0, 5], colors.rule, isClassic ? 0.9 : 0.6));
     // Keep the section title with its rule so a heading is not stranded at a page bottom.
     content.push({ unbreakable: true, stack: headingNodes, margin: [0, 0, 0, 0] });
   };
@@ -272,7 +329,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       leftStack.push({
         text: title.trim(),
         bold: true,
-        fontSize: 10,
+        fontSize: bodyFontSize,
         color: colors.body,
         margin: [0, 0, 0, 1]
       });
@@ -280,7 +337,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     if (subtitle.trim()) {
       leftStack.push({
         text: subtitle.trim(),
-        fontSize: 10,
+        fontSize: bodyFontSize,
         bold: true,
         color: colors.body,
         margin: [0, 0, 0, 1]
@@ -292,7 +349,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     content.push({
       columns: [
         { width: "*", stack: leftStack },
-        ...(date.trim() ? [{ width: "auto", text: date.trim(), alignment: "right", color: colors.muted, fontSize: 10, margin: [0, 0, 0, 0] }] : [])
+        ...(date.trim() ? [{ width: "auto", text: date.trim(), alignment: "right", color: colors.muted, fontSize: bodyFontSize, margin: [0, 0, 0, 0] }] : [])
       ],
       columnGap: 12,
       margin: [indent, 3, 0, 2]
@@ -304,7 +361,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   const header: PdfNode[] = [];
   header.push({
     text: cv.fullName.trim() || (ar ? "الاسم بالكامل" : "Full Name"),
-    fontSize: 18,
+    fontSize: nameFontSize,
     bold: true,
     color: colors.primary,
     alignment: nameAlignment,
@@ -313,7 +370,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   if (cv.targetRole.trim()) {
     header.push({
       text: cv.targetRole.trim(),
-      fontSize: 11,
+      fontSize: targetFontSize,
       italics: isReference,
       bold: !isReference,
       color: colors.secondary,
@@ -324,7 +381,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   if (contact.length) {
     header.push({
       text: contact,
-      fontSize: 9,
+      fontSize: contactFontSize,
       color: colors.muted,
       alignment: isReference ? "center" : (ar ? "right" : "left"),
       margin: [0, 3, 0, 2]
@@ -336,9 +393,9 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     sectionHeading(ar ? "الملخص المهني" : "PROFESSIONAL SUMMARY");
     content.push({
       text: cv.summary.trim(),
-      fontSize: 10,
+      fontSize: bodyFontSize,
       color: colors.body,
-      lineHeight: 1.18,
+      lineHeight: bodyLineHeight,
       margin: [0, 0, 0, 2]
     });
   }
@@ -356,11 +413,11 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     const majorAlreadyInDegree = Boolean(cv.qualification.trim() && cv.major.trim() && cv.qualification.toLocaleLowerCase().includes(cv.major.toLocaleLowerCase()));
     const educationDetails = unique([
       cv.major && cv.qualification && !majorAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
-      cv.educationStatus === "studying" && cv.yearLevel ? `${ar ? "السنة الدراسية" : "Study year"}: ${cv.yearLevel}` : "",
+      cv.educationStatus === "studying" && yearLevelLabel(cv.yearLevel, cv.cvLanguage) ? `${ar ? "السنة الدراسية" : "Study year"}: ${yearLevelLabel(cv.yearLevel, cv.cvLanguage)}` : "",
       cv.gpa ? `${ar ? "التقدير" : "Grade"}: ${cv.gpa}` : ""
     ]);
     if (educationDetails.length) {
-      content.push({ ul: educationDetails, fontSize: 10, color: colors.body, margin: [0, 1, 0, 5], lineHeight: 1.16 });
+      content.push({ ul: educationDetails, fontSize: bodyFontSize, color: colors.body, margin: [0, 1, 0, 5], lineHeight: bodyLineHeight });
     }
   }
 
@@ -371,8 +428,8 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       if (!items.length) continue;
       sectionHeading(ar ? "الخبرات العملية والتدريب" : "PROFESSIONAL EXPERIENCE");
       for (const item of items) {
-        addEntryHeader(item.role || item.kind, unique([item.organization, item.location]).join(" · "), item.period, 12);
-        addDescriptionBullets(content, item.description, colors.body);
+        addEntryHeader(item.role || experienceKindLabel(item.kind, cv.cvLanguage), unique([item.organization, item.location]).join(" · "), experiencePeriodLabel(item, cv.cvLanguage), 12);
+        addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
       }
     }
 
@@ -381,12 +438,12 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       if (!items.length) continue;
       sectionHeading(ar ? "المشاريع" : "PROJECTS");
       for (const item of items) {
-        addEntryHeader(item.name, unique([item.role, item.kind]).join(" · "), item.date, 12);
-        addPlainDescription(content, item.description, colors.body);
+        addEntryHeader(item.name, unique([item.role, projectKindLabel(item.kind, cv.cvLanguage)]).join(" · "), item.date, 12);
+        addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
         if (item.tools.trim()) {
           content.push({
             text: [{ text: ar ? "الأدوات والتقنيات: " : "Tools: ", bold: true }, { text: item.tools.trim() }],
-            fontSize: 10,
+            fontSize: bodyFontSize,
             color: colors.body,
             margin: [0, 1, 0, 2]
           });
@@ -395,7 +452,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
           const url = normalizeWebUrl(item.url);
           content.push({
             text: item.url.trim(),
-            fontSize: 10,
+            fontSize: bodyFontSize,
             color: colors.secondary,
             link: url,
             decoration: "underline",
@@ -408,10 +465,10 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     if (id === "activities") {
       const items = cv.activities.filter((item) => item.organization || item.role || item.description);
       if (!items.length) continue;
-      sectionHeading(ar ? "القيادة والتطوع والأنشطة" : "LEADERSHIP & VOLUNTEERING");
+      sectionHeading(ar ? "التطوع والأنشطة" : "LEADERSHIP & VOLUNTEERING");
       for (const item of items) {
         addEntryHeader(item.role || item.organization, item.role && item.organization ? item.organization : "", item.period, 12);
-        addDescriptionBullets(content, item.description, colors.body);
+        addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
       }
     }
 
@@ -421,12 +478,12 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       sectionHeading(ar ? "الكورسات والشهادات" : "COURSES & CERTIFICATIONS");
       for (const item of items) {
         addEntryHeader(item.name, item.provider, item.date, 12);
-        addDescriptionBullets(content, item.description, colors.body);
+        addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
         if (item.certificateUrl.trim()) {
           const url = normalizeWebUrl(item.certificateUrl);
           content.push({
             text: item.certificateUrl.trim(),
-            fontSize: 10,
+            fontSize: bodyFontSize,
             color: colors.secondary,
             link: url,
             decoration: "underline",
@@ -445,8 +502,8 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
 
       const addSkillGroup = (label: string, values: string[]) => {
         if (!values.length) return;
-        content.push({ text: label, fontSize: 10, bold: true, color: colors.body, margin: [0, 3, 0, 1] });
-        content.push({ ul: values, fontSize: 10, color: colors.body, margin: [0, 0, 0, 4], lineHeight: 1.15 });
+        content.push({ text: label, fontSize: bodyFontSize, bold: true, color: colors.body, margin: [0, 3, 0, 1] });
+        content.push({ ul: values, fontSize: bodyFontSize, color: colors.body, margin: [0, 0, 0, 4], lineHeight: bodyLineHeight });
       };
 
       addSkillGroup(ar ? "المهارات الأساسية" : "Core Skills", skills);
@@ -465,7 +522,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       subject: "Professional CV",
       creator: "SkillUp CV Builder"
     },
-    defaultStyle: { font, fontSize: 10, color: colors.body, lineHeight: 1.18 },
+    defaultStyle: { font, fontSize: bodyFontSize, color: colors.body, lineHeight: bodyLineHeight },
     content
   };
 }
