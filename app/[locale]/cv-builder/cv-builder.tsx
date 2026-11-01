@@ -31,7 +31,7 @@ import type { Locale } from "@/i18n";
 import { downloadCvPdf } from "./pdf-export";
 
 type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "reference" | "executive" | "yale";
+type CVTemplate = "reference" | "executive" | "classic";
 type WizardStep = "template" | "profile" | "education" | "sections" | SectionId | "review";
 type EducationStatus = "studying" | "graduated";
 type Experience = {
@@ -39,7 +39,11 @@ type Experience = {
   kind: string;
   role: string;
   organization: string;
+  // `period` is retained for backward compatibility with existing saved CVs.
   period: string;
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
   location: string;
   description: string;
 };
@@ -106,6 +110,70 @@ const STORAGE_KEY = "skillup_cv_student_v1";
 const PAGE_WIDTH = 816; // US Letter width at 96 CSS px per inch
 const PAGE_HEIGHT = 1056; // US Letter height at 96 CSS px per inch
 
+const YEAR_LEVELS: Record<string, { ar: string; en: string }> = {
+  first: { ar: "الفرقة الأولى", en: "First year" },
+  second: { ar: "الفرقة الثانية", en: "Second year" },
+  third: { ar: "الفرقة الثالثة", en: "Third year" },
+  fourth: { ar: "الفرقة الرابعة", en: "Fourth year" },
+  postgrad: { ar: "دراسات عليا", en: "Postgraduate" },
+  other: { ar: "أخرى", en: "Other" }
+};
+
+function normalizeYearLevel(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const candidate = value.trim();
+  if (Object.prototype.hasOwnProperty.call(YEAR_LEVELS, candidate)) return candidate;
+  const match = Object.entries(YEAR_LEVELS).find(([, labels]) => labels.ar === candidate || labels.en === candidate);
+  return match?.[0] ?? candidate;
+}
+
+function yearLevelLabel(value: string, language: "ar" | "en"): string {
+  const key = normalizeYearLevel(value);
+  if (!key || key === "other") return "";
+  const labels = YEAR_LEVELS[key];
+  return labels ? labels[language] : value;
+}
+
+function formatMonthYear(value: string | undefined, language: "ar" | "en"): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(date);
+}
+
+function experiencePeriodLabel(item: Experience, language: "ar" | "en"): string {
+  const start = formatMonthYear(item.startDate, language);
+  const end = item.isCurrent
+    ? (language === "ar" ? "حتى الآن" : "Present")
+    : formatMonthYear(item.endDate, language);
+  const formatted = [start, end].filter(Boolean).join(" – ");
+  return formatted || item.period?.trim() || "";
+}
+
+function experienceKindLabel(value: string, language: "ar" | "en"): string {
+  const labels: Record<string, { ar: string; en: string }> = {
+    internship: { ar: "تدريب عملي", en: "Internship" },
+    summer: { ar: "تدريب صيفي", en: "Summer Training" },
+    "part-time": { ar: "عمل بدوام جزئي", en: "Part-time Job" },
+    freelance: { ar: "عمل حر", en: "Freelance" },
+    work: { ar: "خبرة عملية", en: "Work Experience" }
+  };
+  return labels[value]?.[language] ?? value;
+}
+
+function projectKindLabel(value: string, language: "ar" | "en"): string {
+  const labels: Record<string, { ar: string; en: string }> = {
+    academic: { ar: "مشروع جامعي", en: "Academic Project" },
+    personal: { ar: "مشروع شخصي", en: "Personal Project" },
+    graduation: { ar: "مشروع تخرج", en: "Graduation Project" }
+  };
+  return labels[value]?.[language] ?? value;
+}
+
 const SECTION_META: Record<SectionId, { icon: typeof BriefcaseBusiness; titleAr: string; titleEn: string; subAr: string; subEn: string }> = {
   experience: { icon: BriefcaseBusiness, titleAr: "التدريبات والخبرات", titleEn: "Experience & Internships", subAr: "تدريب، عمل جزئي، عمل حر أو خبرة عملية", subEn: "Internships, part-time work, freelance or other experience" },
   projects: { icon: FolderKanban, titleAr: "المشاريع", titleEn: "Projects", subAr: "مشاريع جامعية أو شخصية أو مشروع تخرج", subEn: "Academic, personal or graduation projects" },
@@ -148,10 +216,10 @@ const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(
 const cx = (...classes: Array<string | false | undefined | null>) => classes.filter(Boolean).join(" ");
 
 function normalizeTemplate(value: unknown): CVTemplate {
-  if (value === "reference" || value === "executive" || value === "yale") return value;
-  // Legacy templates are mapped to the closest neutral formal design without losing CV data.
-  if (value === "signature" || value === "compact" || value === "classic") return "executive";
-  if (value === "modern") return "yale";
+  if (value === "reference" || value === "executive" || value === "classic") return value;
+  // Old Yale/modern template IDs are retained as Classic Academic without losing CV data.
+  if (value === "yale" || value === "modern") return "classic";
+  if (value === "signature" || value === "compact") return "executive";
   return "reference";
 }
 
@@ -237,16 +305,79 @@ function TextArea({
 }
 
 const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+const LATIN_SCRIPT = /\p{Script=Latin}/u;
 
-function collectCvText(cv: CVData): string[] {
-  return [
-    cv.fullName, cv.targetRole, cv.city, cv.summary, cv.university, cv.qualification,
-    cv.college, cv.major, cv.yearLevel, cv.gpa, cv.skills, cv.tools, cv.languages,
-    ...cv.experiences.flatMap((item) => [item.role, item.organization, item.period, item.location, item.description]),
-    ...cv.projects.flatMap((item) => [item.name, item.kind, item.role, item.date, item.tools, item.description]),
-    ...cv.activities.flatMap((item) => [item.organization, item.role, item.period, item.description]),
-    ...cv.courses.flatMap((item) => [item.name, item.provider, item.date, item.description])
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+type CvLanguageField = { labelAr: string; labelEn: string; value: string };
+
+function collectCvLanguageFields(cv: CVData): CvLanguageField[] {
+  const fields: CvLanguageField[] = [
+    { labelAr: "الاسم", labelEn: "Full name", value: cv.fullName },
+    { labelAr: "المسمى الوظيفي المستهدف", labelEn: "Target role", value: cv.targetRole },
+    { labelAr: "المدينة والدولة", labelEn: "City and country", value: cv.city },
+    { labelAr: "الملخص المهني", labelEn: "Professional summary", value: cv.summary },
+    { labelAr: "الجامعة", labelEn: "University", value: cv.university },
+    { labelAr: "المؤهل العلمي", labelEn: "Qualification", value: cv.qualification },
+    { labelAr: "الكلية", labelEn: "Faculty / school", value: cv.college },
+    { labelAr: "التخصص", labelEn: "Major", value: cv.major },
+    { labelAr: "التقدير", labelEn: "Grade / GPA", value: cv.gpa },
+    { labelAr: "المهارات", labelEn: "Skills", value: cv.skills },
+    { labelAr: "الأدوات والتقنيات", labelEn: "Tools and technologies", value: cv.tools },
+    { labelAr: "اللغات", labelEn: "Languages", value: cv.languages }
+  ];
+
+  cv.experiences.forEach((item, index) => {
+    const n = index + 1;
+    fields.push(
+      { labelAr: `الخبرة ${n}: المسمى`, labelEn: `Experience ${n}: role`, value: item.role },
+      { labelAr: `الخبرة ${n}: جهة العمل`, labelEn: `Experience ${n}: organization`, value: item.organization },
+      { labelAr: `الخبرة ${n}: المكان`, labelEn: `Experience ${n}: location`, value: item.location },
+      { labelAr: `الخبرة ${n}: الوصف`, labelEn: `Experience ${n}: description`, value: item.description }
+    );
+    // Start/end dates and legacy period values are metadata, not language-bearing CV prose.
+  });
+
+  cv.projects.forEach((item, index) => {
+    const n = index + 1;
+    fields.push(
+      { labelAr: `المشروع ${n}: الاسم`, labelEn: `Project ${n}: name`, value: item.name },
+      { labelAr: `المشروع ${n}: الدور`, labelEn: `Project ${n}: role`, value: item.role },
+      { labelAr: `المشروع ${n}: الأدوات`, labelEn: `Project ${n}: tools`, value: item.tools },
+      { labelAr: `المشروع ${n}: الوصف`, labelEn: `Project ${n}: description`, value: item.description }
+    );
+  });
+
+  cv.activities.forEach((item, index) => {
+    const n = index + 1;
+    fields.push(
+      { labelAr: `النشاط ${n}: الجهة`, labelEn: `Activity ${n}: organization`, value: item.organization },
+      { labelAr: `النشاط ${n}: الدور`, labelEn: `Activity ${n}: role`, value: item.role },
+      { labelAr: `النشاط ${n}: الوصف`, labelEn: `Activity ${n}: description`, value: item.description }
+    );
+  });
+
+  cv.courses.forEach((item, index) => {
+    const n = index + 1;
+    fields.push(
+      { labelAr: `الكورس ${n}: الاسم`, labelEn: `Course ${n}: name`, value: item.name },
+      { labelAr: `الكورس ${n}: الجهة المقدمة`, labelEn: `Course ${n}: provider`, value: item.provider },
+      { labelAr: `الكورس ${n}: الوصف`, labelEn: `Course ${n}: description`, value: item.description }
+    );
+  });
+
+  const knownYearValues = new Set([
+    ...Object.keys(YEAR_LEVELS),
+    ...Object.values(YEAR_LEVELS).flatMap((labels) => [labels.ar, labels.en])
+  ]);
+  if (cv.yearLevel.trim() && !knownYearValues.has(cv.yearLevel.trim())) {
+    fields.push({ labelAr: "السنة الدراسية", labelEn: "Study year", value: cv.yearLevel });
+  }
+
+  return fields.filter((field) => typeof field.value === "string" && field.value.trim().length > 0);
+}
+
+function findLanguageMismatches(cv: CVData): CvLanguageField[] {
+  const wrongScript = cv.cvLanguage === "en" ? ARABIC_SCRIPT : LATIN_SCRIPT;
+  return collectCvLanguageFields(cv).filter((field) => wrongScript.test(field.value));
 }
 
 function normalizedWords(value: string): string[] {
@@ -275,7 +406,7 @@ function getCvQualityWarnings(cv: CVData, isAr: boolean): string[] {
   }
 
   const incompleteExperience = cv.experiences.some((item) => {
-    const hasAnyData = [item.role, item.organization, item.period, item.location, item.description].some((value) => value.trim());
+    const hasAnyData = [item.role, item.organization, item.period, item.startDate ?? "", item.endDate ?? "", item.location, item.description].some((value) => value.trim());
     if (!hasAnyData) return false;
     return !item.role.trim() || !item.description.trim() || (!item.organization.trim() && item.kind !== "freelance");
   });
@@ -313,7 +444,7 @@ function getCvQualityWarnings(cv: CVData, isAr: boolean): string[] {
   }
 
   const placeholders = new Set(["gg", "test", "xxx", "xxxx", "n/a", "na", "none", "tbd", "example", "lorem ipsum"]);
-  const validShortTerms = new Set(["hr", "it", "qa", "ai", "ux", "ui", "bi", "sql", "3d"]);
+  const validShortTerms = new Set(["hr", "it", "qa", "ai", "ux", "ui", "bi", "sql", "3d", "c", "r", "go", "c#", "c++"]);
   const unclearSkills = [...listText(cv.skills), ...listText(cv.tools), ...listText(cv.languages)]
     .some((item) => {
       const normalized = item.trim().toLocaleLowerCase();
@@ -389,7 +520,7 @@ function CVDocument({ cv }: { cv: CVData }) {
   const educationLines = uniqueText([degreeLine, educationPlace]);
   const educationDetails = uniqueText([
     cv.qualification.trim() && cv.major.trim() && !majorIsAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
-    cv.educationStatus === "studying" && cv.yearLevel && !["أخرى", "Other"].includes(cv.yearLevel) ? `${t.studyYear}: ${cv.yearLevel}` : "",
+    cv.educationStatus === "studying" && yearLevelLabel(cv.yearLevel, cv.cvLanguage) ? `${t.studyYear}: ${yearLevelLabel(cv.yearLevel, cv.cvLanguage)}` : "",
     cv.gpa ? `${t.gpa}: ${cv.gpa}` : ""
   ]);
   const hasEducation = educationLines.length > 0 || educationDetails.length > 0 || Boolean(cv.startYear || cv.graduationYear);
@@ -457,8 +588,8 @@ function CVDocument({ cv }: { cv: CVData }) {
               {experience.map((item) => (
                 <div className="cv-entry" key={item.id}>
                   <div className="cv-entry-heading">
-                    <p className="cv-entry-title">{item.role || item.kind}</p>
-                    {item.period ? <p className="cv-entry-date">{item.period}</p> : null}
+                    <p className="cv-entry-title">{item.role || experienceKindLabel(item.kind, cv.cvLanguage)}</p>
+                    {experiencePeriodLabel(item, cv.cvLanguage) ? <p className="cv-entry-date">{experiencePeriodLabel(item, cv.cvLanguage)}</p> : null}
                   </div>
                   {item.organization || item.location ? <p className="cv-entry-subtitle">{[item.organization, item.location].filter(Boolean).join(" · ")}</p> : null}
                   <CVDescription value={item.description} />
@@ -477,7 +608,7 @@ function CVDocument({ cv }: { cv: CVData }) {
                     <p className="cv-entry-title">{item.name}</p>
                     {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
                   </div>
-                  {item.role || item.kind ? <p className="cv-entry-subtitle">{[item.role, item.kind].filter(Boolean).join(" · ")}</p> : null}
+                  {item.role || item.kind ? <p className="cv-entry-subtitle">{[item.role, projectKindLabel(item.kind, cv.cvLanguage)].filter(Boolean).join(" · ")}</p> : null}
                   <CVDescription value={item.description} />
                   {item.tools ? <p className="cv-entry-detail"><strong>{t.tools}: </strong>{item.tools}</p> : null}
                   {item.url ? <p className="cv-entry-link" dir="ltr">{item.url}</p> : null}
@@ -540,7 +671,7 @@ function CVDocument({ cv }: { cv: CVData }) {
 
 function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boolean }) {
   const isReference = template === "reference";
-  const isYale = template === "yale";
+  const isClassic = template === "classic";
   const accent = isReference ? "#24466F" : "#171717";
   const secondary = isReference ? "#4D83C5" : "#444444";
   const rule = isReference ? "#AFC3DE" : "#333333";
@@ -555,7 +686,7 @@ function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boo
           <div className="truncate font-extrabold" style={{ color: accent, fontSize: 8.5, lineHeight: 1.25 }}>
             {isAr ? "اسمك بالكامل" : "YOUR NAME"}
           </div>
-          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isYale ? ".4px" : "0" }}>
+          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isClassic ? ".4px" : "0" }}>
             {isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}
           </div>
           <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}>
@@ -566,7 +697,7 @@ function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boo
         {headings.map((heading, index) => (
           <section key={heading} className="mt-2">
             {isReference ? <div className="mb-1 h-px w-full" style={{ background: rule }} /> : null}
-            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isYale ? ".35px" : "0" }}>{heading}</div>
+            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isClassic ? ".35px" : "0" }}>{heading}</div>
             {!isReference ? <div className="mb-1 h-px w-full" style={{ background: rule, opacity: .8 }} /> : null}
             <div className="space-y-[3px]">
               <div className="flex items-center justify-between gap-1">
@@ -582,10 +713,6 @@ function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boo
       </div>
     </div>
   );
-}
-
-function isExecutiveTemplate(template: CVTemplate): boolean {
-  return template !== "reference";
 }
 
 function CVPreviewModal({
@@ -615,12 +742,12 @@ function CVPreviewModal({
     ? [
         { id: "reference", title: "Blue Professional", description: "نفس نموذج Word المرفق" },
         { id: "executive", title: "Executive Minimal", description: "أبيض وأسود رسمي وبسيط" },
-        { id: "yale", title: "Yale OCS–Inspired", description: "مستوحى من إرشادات Yale الرسمية للسيرة الذاتية" }
+        { id: "classic", title: "Classic Academic", description: "تصميم أكاديمي رسمي أبيض وأسود بعناوين قياسية" }
       ]
     : [
         { id: "reference", title: "Blue Professional", description: "Matches the supplied Word reference" },
         { id: "executive", title: "Executive Minimal", description: "Formal black-and-white layout" },
-        { id: "yale", title: "Yale OCS–Inspired", description: "Inspired by Yale's official resume guidance" }
+        { id: "classic", title: "Classic Academic", description: "Inspired by standard academic resume conventions" }
       ];
 
   useEffect(() => {
@@ -787,6 +914,9 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     organization: "الشركة أو المؤسسة",
     kind: "نوع التجربة",
     period: "الفترة",
+    startDate: "تاريخ البداية",
+    endDate: "تاريخ النهاية",
+    currentlyWorking: "ما زلت أعمل أو أتدرب هنا حاليًا",
     location: "المكان",
     description: "المسؤوليات والإنجازات",
     descriptionHint: "اكتب ما قمت به فعلًا. استخدم نقاطًا قصيرة، وأضف أرقامًا فقط لو كانت حقيقية.",
@@ -854,7 +984,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     templates: "اختر تصميم سيرتك",
     templatesHint: "تقدر تغير التصميم في أي وقت دون التأثير على بياناتك.",
     templateBlue: "Blue Professional — القالب المستوحى من ملف Word المرفق",
-    templateYale: "Yale OCS–Inspired — تصميم رسمي أبيض وأسود",
+    templateClassic: "Classic Academic — تصميم أكاديمي رسمي أبيض وأسود",
     templateExecutive: "Executive Minimal — أبيض وأسود",
     stepSections: "الأقسام المتاحة لديك",
     openPreview: "معاينة السيرة",
@@ -916,6 +1046,9 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     organization: "Company or organization",
     kind: "Experience type",
     period: "Period",
+    startDate: "Start date",
+    endDate: "End date",
+    currentlyWorking: "I currently work or train here",
     location: "Location",
     description: "Responsibilities and achievements",
     descriptionHint: "Describe what you actually did. Use short bullets and include numbers only when they are accurate.",
@@ -983,7 +1116,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     templates: "Choose your CV design",
     templatesHint: "Change the design any time without affecting your information.",
     templateBlue: "Blue Professional — inspired by your Word sample",
-    templateYale: "Yale OCS–Inspired — formal black-and-white layout",
+    templateClassic: "Classic Academic — formal black-and-white layout",
     templateExecutive: "Executive Minimal — monochrome",
     stepSections: "Your available sections",
     openPreview: "Preview CV",
@@ -1011,7 +1144,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [experienceDraft, setExperienceDraft] = useState<Experience>({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
+  const [experienceDraft, setExperienceDraft] = useState<Experience>({ id: "", kind: "internship", role: "", organization: "", period: "", startDate: "", endDate: "", isCurrent: false, location: "", description: "" });
   const [projectDraft, setProjectDraft] = useState<Project>({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
   const [activityDraft, setActivityDraft] = useState<Activity>({ id: "", organization: "", role: "", period: "", description: "" });
   const [courseDraft, setCourseDraft] = useState<Course>({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
@@ -1050,16 +1183,23 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           ...parsed,
           qualification: parsed.qualification ?? "",
           educationStatus: parsed.educationStatus ?? "studying",
+          yearLevel: normalizeYearLevel(parsed.yearLevel),
           template: normalizeTemplate(parsed.template),
           sectionOrder: mergedOrder,
           // selectedSections represents the user's intentional visibility choices.
           // Keep hidden sections hidden; every section remains available in the section manager.
           selectedSections: Array.isArray(parsed.selectedSections) ? normalizedSelected : inferredSelected,
+          experiences: Array.isArray(parsed.experiences) ? parsed.experiences.map((item) => ({
+            ...item,
+            startDate: typeof item.startDate === "string" ? item.startDate : "",
+            endDate: typeof item.endDate === "string" ? item.endDate : "",
+            isCurrent: Boolean(item.isCurrent)
+          })) : [],
           courses: Array.isArray(parsed.courses) ? parsed.courses.map((item) => ({ ...item, description: typeof item.description === "string" ? item.description : "" })) : [],
           cvLanguage: parsed.cvLanguage ?? locale
         });
         // Remove the one-time migration backup only after the current CV JSON was parsed successfully.
-        try { localStorage.removeItem("_backup_before_redesign"); } catch { /* storage may be read-only */ }
+        try { localStorage.removeItem(`${STORAGE_KEY}_backup_before_redesign`); } catch { /* storage may be read-only */ }
       } else {
         setCv({ ...EMPTY_CV, cvLanguage: locale });
       }
@@ -1106,7 +1246,8 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     { done: Boolean(cv.experiences.some((item) => item.description.trim()) || cv.projects.some((item) => item.description.trim()) || cv.activities.some((item) => item.description.trim())), text: t.checkContent }
   ];
   const readinessScore = Math.round((readiness.filter((item) => item.done).length / readiness.length) * 100);
-  const languageMismatch = cv.cvLanguage === "en" && collectCvText(cv).some((value) => ARABIC_SCRIPT.test(value));
+  const languageMismatchFields = findLanguageMismatches(cv);
+  const languageMismatch = languageMismatchFields.length > 0;
   const qualityWarnings = getCvQualityWarnings(cv, isAr);
 
   const countFor = (id: SectionId) => {
@@ -1121,7 +1262,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     const section = visibleActiveSection;
     if (section === "skills") return;
     setEditingId(null);
-    if (section === "experience") setExperienceDraft({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
+    if (section === "experience") setExperienceDraft({ id: "", kind: "internship", role: "", organization: "", period: "", startDate: "", endDate: "", isCurrent: false, location: "", description: "" });
     if (section === "projects") setProjectDraft({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
     if (section === "activities") setActivityDraft({ id: "", organization: "", role: "", period: "", description: "" });
     if (section === "courses") setCourseDraft({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
@@ -1130,8 +1271,33 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
 
   const saveExperience = (event: FormEvent) => {
     event.preventDefault();
-    const item = { ...experienceDraft, id: experienceDraft.id || uid() };
+
+    const startDate = experienceDraft.startDate ?? "";
+    const endDate = experienceDraft.isCurrent ? "" : (experienceDraft.endDate ?? "");
+    const hasStructuredDates = Boolean(startDate || endDate || experienceDraft.isCurrent);
+
+    // Keep legacy entries editable without forcing their old free-text period to be re-entered.
+    if (hasStructuredDates && !startDate) {
+      setNotice(isAr ? "أدخل تاريخ البداية أولًا." : "Please enter a start date.");
+      return;
+    }
+    if (startDate && !experienceDraft.isCurrent && !endDate) {
+      setNotice(isAr ? "أدخل تاريخ النهاية أو فعّل اختيار (ما زلت أعمل هنا)." : "Enter an end date or mark this as a current role.");
+      return;
+    }
+    if (startDate && endDate && endDate < startDate) {
+      setNotice(isAr ? "تاريخ النهاية لا يمكن أن يسبق تاريخ البداية." : "The end date cannot be earlier than the start date.");
+      return;
+    }
+
+    const item = {
+      ...experienceDraft,
+      id: experienceDraft.id || uid(),
+      startDate,
+      endDate
+    };
     update("experiences", editingId ? cv.experiences.map((entry) => entry.id === editingId ? item : entry) : [...cv.experiences, item]);
+    setNotice("");
     setFormOpen(false);
   };
   const saveProject = (event: FormEvent) => {
@@ -1217,10 +1383,11 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
 
   const downloadCV = async () => {
     if (languageMismatch) {
-      setNotice(isAr
-        ? "لغة السيرة المختارة English، لكن يوجد نص عربي داخل البيانات. صحح النصوص العربية أو غيّر لغة السيرة قبل التحميل."
-        : "The selected CV language is English, but Arabic text was detected. Replace the Arabic text or switch the CV language before downloading.");
       setShowPreview(false);
+      setWizardStep("review");
+      setNotice(cv.cvLanguage === "en"
+        ? (isAr ? "اخترت سيرة إنجليزية، لكن توجد حقول تحتوي على حروف عربية. راجع أسماء الحقول الظاهرة في المراجعة." : "English CV selected, but some fields contain Arabic text. Review the fields listed below.")
+        : (isAr ? "اخترت سيرة عربية، لكن توجد حقول تحتوي على حروف إنجليزية. راجع أسماء الحقول الظاهرة في المراجعة." : "Arabic CV selected, but some fields contain English text. Review the fields listed below."));
       return;
     }
     if (!cv.fullName.trim() || (!cv.email.trim() && !cv.phone.trim())) {
@@ -1291,9 +1458,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <Field label={t.organization}><TextInput value={experienceDraft.organization} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, organization: value }))} /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.period}><TextInput value={experienceDraft.period} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, period: value }))} placeholder={isAr ? "يونيو 2026 – أغسطس 2026" : "Jun 2026 – Aug 2026"} /></Field>
+            <Field label={t.startDate}><TextInput type="date" value={experienceDraft.startDate ?? ""} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, startDate: value }))} dir="ltr" /></Field>
+            {!experienceDraft.isCurrent ? <Field label={t.endDate}><TextInput type="date" value={experienceDraft.endDate ?? ""} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, endDate: value }))} dir="ltr" /></Field> : null}
             <Field label={t.location}><TextInput value={experienceDraft.location} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, location: value }))} /></Field>
           </div>
+          <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
+            <input type="checkbox" checked={Boolean(experienceDraft.isCurrent)} onChange={(event) => setExperienceDraft((draft) => ({ ...draft, isCurrent: event.target.checked, endDate: event.target.checked ? "" : draft.endDate }))} className="h-4 w-4 accent-[#182B36]" />
+            <span>{t.currentlyWorking}</span>
+          </label>
+          {experienceDraft.period && !experienceDraft.startDate && !experienceDraft.endDate ? <p className="text-xs text-zinc-500">{isAr ? `الفترة المحفوظة من نسخة سابقة: ${experienceDraft.period}. يمكنك إدخال تاريخين جديدين لاستبدالها.` : `Saved legacy period: ${experienceDraft.period}. Enter structured dates above to replace it.`}</p> : null}
           <Field label={t.description} hint={t.descriptionHint}><TextArea value={experienceDraft.description} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, description: value }))} placeholder={isAr ? "• ساعدت في ...\n• شاركت في ..." : "• Supported ...\n• Contributed to ..."} /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
@@ -1400,12 +1573,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     ? [
         { id: "reference", name: "Blue Professional", description: "نفس ملف Word المرفق في ترتيب الاسم والعناوين والمسافات.", badge: "القالب المرجعي" },
         { id: "executive", name: "Executive Minimal", description: "تصميم رسمي أبيض وأسود، بعمود واحد وخط واضح.", badge: "رسمي وبسيط" },
-        { id: "yale", name: "Yale OCS–Inspired", description: "تصميم أبيض وأسود مستوحى من إرشادات Yale المهنية للسير الذاتية.", badge: "مستوحى من إرشادات موثقة" }
+        { id: "classic", name: "Classic Academic", description: "تصميم أكاديمي رسمي أبيض وأسود بعناوين قياسية.", badge: "أكاديمي ورسمي" }
       ]
     : [
         { id: "reference", name: "Blue Professional", description: "Matches the supplied Word sample's centered header, spacing and section hierarchy.", badge: "Reference template" },
         { id: "executive", name: "Executive Minimal", description: "Formal black-and-white, single-column layout with readable typography.", badge: "Formal minimal" },
-        { id: "yale", name: "Yale OCS–Inspired", description: "Black-and-white layout inspired by Yale's official resume guidance.", badge: "Guidance-inspired" }
+        { id: "classic", name: "Classic Academic", description: "Black-and-white academic layout with standard section headings.", badge: "Academic formal" }
       ];
   const currentStepLabel = wizardStep === "template" ? t.templates : wizardStep === "profile" ? t.stepProfile : wizardStep === "education" ? t.stepEducation : wizardStep === "sections" ? t.stepSections : wizardStep === "review" ? t.reviewTitle : sectionLabel(wizardStep);
   const progressPercent = currentVisibleStepIndex < 0
@@ -1418,45 +1591,61 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         .cv-select { width: 100%; border: 1px solid rgb(228 228 231); border-radius: .75rem; background: white; padding: .75rem .875rem; color: #18181b; font-size: .875rem; outline: none; }
         .dark .cv-select { background: #09090b; border-color: rgb(63 63 70); color: white; }
         .cv-select:focus { border-color: #C8A448; box-shadow: 0 0 0 2px rgb(200 164 72 / .15); }
-        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; font-size: 13.333px; }
+        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; font-size: 13.333px; line-height: 1.12; }
         .cv-document .cv-document-header { border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
-        .cv-document .cv-name { margin: 0; color: #24466F; font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: 0; }
-        .cv-document .cv-target-role { margin: 4px 0 0; color: #4D83C5; font-size: 14.667px; line-height: 1.35; font-weight: 500; }
-        .cv-document .cv-contact { margin: 9px 0 0; color: #596574; font-size: 12px; line-height: 1.45; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
+        .cv-document .cv-name { margin: 0; color: #24466F; font-size: 24px; line-height: 1.12; font-weight: 800; letter-spacing: 0; }
+        .cv-document .cv-target-role { margin: 4px 0 0; color: #4D83C5; font-size: 14.667px; line-height: 1.12; font-weight: 500; }
+        .cv-document .cv-contact { margin: 9px 0 0; color: #596574; font-size: 12px; line-height: 1.12; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
         .cv-document .cv-section { margin-top: 14px; break-inside: auto; }
-        .cv-document .cv-section h2 { margin: 0 0 7px; padding-bottom: 4px; border-bottom: 1px solid #AFC3DE; color: #24466F; font-size: 14.667px; line-height: 1.3; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
-        .cv-document .cv-section p { margin-top: 0; font-size: 13.333px; line-height: 1.2; }
+        .cv-document .cv-section h2 { margin: 0 0 7px; padding-bottom: 4px; border-bottom: 1px solid #AFC3DE; color: #24466F; font-size: 16px; line-height: 1.12; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+        .cv-document .cv-section p { margin-top: 0; font-size: 13.333px; line-height: 1.12; }
         .cv-document .cv-summary-text { margin: 0; }
         .cv-document .cv-education-layout { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-        .cv-document .cv-entry-title { margin: 0; font-size: 13.333px; line-height: 1.2; font-weight: 800; color: #20252b; }
+        .cv-document .cv-entry-title { margin: 0; font-size: 13.333px; line-height: 1.12; font-weight: 800; color: #20252b; }
         .cv-document .cv-muted-line { margin: 2px 0 0; color: #4b5563; font-size: 13.333px; }
-        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 13.333px; line-height: 1.2; }
-        .cv-document .cv-education-meta p { margin: 0; font-size: 13.333px; }
+        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 13.333px; line-height: 1.12; }
+        .cv-document .cv-education-meta p { margin: 0; font-size: 13.333px; line-height: 1.12; }
         .cv-document .cv-entry { margin: 0 0 11px; margin-inline-start: 16px; break-inside: avoid; page-break-inside: avoid; }
         .cv-document .cv-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
         .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: #555; font-size: 13.333px !important; white-space: nowrap; }
         .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: #20252b; font-size: 13.333px !important; font-weight: 700; }
-        .cv-document .cv-entry-detail { margin: 4px 0 0; font-size: 13.333px !important; line-height: 1.2; }
-        .cv-document .cv-entry-link { margin: 4px 0 0; color: #334155; font-size: 13.333px !important; line-height: 1.2; }
+        .cv-document .cv-entry-detail { margin: 4px 0 0; font-size: 13.333px !important; line-height: 1.12; }
+        .cv-document .cv-entry-link { margin: 4px 0 0; color: #334155; font-size: 13.333px !important; line-height: 1.12; }
         .cv-document .cv-bullets { margin: 3px 0 0; padding-inline-start: 20px; list-style: disc; }
-        .cv-document .cv-bullets li { margin: 1px 0; padding-inline-start: 2px; font-size: 13.333px; line-height: 1.2; }
+        .cv-document .cv-bullets li { margin: 1px 0; padding-inline-start: 2px; font-size: 13.333px; line-height: 1.12; }
         .cv-document .cv-skill-group { margin-top: 4px !important; }
         .cv-document .cv-skill-block { margin: 0 0 5px; }
         .cv-document .cv-skill-label { margin: 0 0 1px !important; font-size: 13.333px !important; font-weight: 700; }
         .cv-document a { color: inherit; text-decoration: underline; }
+        .cv-document[lang="ar"] { font-size: 14.667px; line-height: 1.15; }
+        .cv-document[lang="ar"] .cv-name { font-size: 25.333px; line-height: 1.15; }
+        .cv-document[lang="ar"] .cv-target-role { font-size: 16px; line-height: 1.15; }
+        .cv-document[lang="ar"] .cv-contact { font-size: 13.333px; line-height: 1.15; }
+        .cv-document[lang="ar"] .cv-section h2 { font-size: 17.333px; line-height: 1.15; }
+        .cv-document[lang="ar"] .cv-section p,
+        .cv-document[lang="ar"] .cv-entry-title,
+        .cv-document[lang="ar"] .cv-muted-line,
+        .cv-document[lang="ar"] .cv-education-meta,
+        .cv-document[lang="ar"] .cv-education-meta p,
+        .cv-document[lang="ar"] .cv-entry-date,
+        .cv-document[lang="ar"] .cv-entry-subtitle,
+        .cv-document[lang="ar"] .cv-entry-detail,
+        .cv-document[lang="ar"] .cv-entry-link,
+        .cv-document[lang="ar"] .cv-bullets li,
+        .cv-document[lang="ar"] .cv-skill-label { font-size: 14.667px !important; line-height: 1.15; }
         .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
         .cv-template-reference .cv-name { color: #24466F; font-size: 24px; }
         .cv-template-reference .cv-target-role { color: #4D83C5; font-size: 14.667px; font-style: italic; font-weight: 500; }
         .cv-template-reference .cv-contact { justify-content: center; color: #596574; }
         .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid #AFC3DE; padding: 7px 0 0; color: #24466F; margin-bottom: 7px; }
         .cv-template-executive .cv-document-header { border-bottom: 1px solid #333; }
-        .cv-template-executive .cv-name, .cv-template-yale .cv-name { color: #111; }
-        .cv-template-executive .cv-target-role, .cv-template-yale .cv-target-role { color: #333; }
-        .cv-template-executive .cv-section h2, .cv-template-yale .cv-section h2 { color: #111; border-color: #333; }
-        .cv-template-yale .cv-document-header { border-bottom: 2px solid #111; padding-bottom: 16px; }
-        .cv-template-yale .cv-name { text-transform: none; letter-spacing: .01em; }
-        .cv-template-yale .cv-target-role { font-weight: 600; }
-        .cv-template-yale .cv-section h2 { text-transform: uppercase; letter-spacing: .045em; border-bottom-width: 1px; }
+        .cv-template-executive .cv-name, .cv-template-classic .cv-name { color: #111; }
+        .cv-template-executive .cv-target-role, .cv-template-classic .cv-target-role { color: #333; }
+        .cv-template-executive .cv-section h2, .cv-template-classic .cv-section h2 { color: #111; border-color: #333; }
+        .cv-template-classic .cv-document-header { border-bottom: 2px solid #111; padding-bottom: 16px; }
+        .cv-template-classic .cv-name { text-transform: none; letter-spacing: .01em; }
+        .cv-template-classic .cv-target-role { font-weight: 600; }
+        .cv-template-classic .cv-section h2 { text-transform: uppercase; letter-spacing: .045em; border-bottom-width: 1px; }
         @media (max-width: 640px) {
           .cv-document .cv-entry-heading { gap: 8px; }
           .cv-document .cv-entry-date { white-space: normal; text-align: end; }
@@ -1501,7 +1690,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             </div>
           ) : null}
           {notice ? <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
-          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{isAr ? "اخترت English للسيرة، لكن النظام اكتشف حروفًا عربية في البيانات. لازم تكون كل النصوص المكتوبة بالإنجليزية قبل التحميل." : "English CV selected, but Arabic-script text was detected. All CV text fields must be in English before PDF export."}</div> : null}
+          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-bold">{cv.cvLanguage === "en" ? (isAr ? "السيرة باللغة الإنجليزية، لكن توجد نصوص عربية." : "English CV selected, but Arabic text was found.") : (isAr ? "السيرة باللغة العربية، لكن توجد نصوص إنجليزية." : "Arabic CV selected, but English text was found.")}</p><p>{isAr ? "الحقول التي تحتاج مراجعة:" : "Fields to review:"}</p><ul className="list-disc ps-5">{languageMismatchFields.slice(0, 8).map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}</li>)}</ul>{languageMismatchFields.length > 8 ? <p>{isAr ? `و ${languageMismatchFields.length - 8} حقول أخرى.` : `And ${languageMismatchFields.length - 8} more field(s).`}</p> : null}</div> : null}
         </header>
 
         {wizardStep === "template" ? (
@@ -1559,7 +1748,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <Field label={t.qualification}><TextInput value={cv.qualification} onChange={(value) => update("qualification", value)} placeholder={isAr ? "مثال: بكالوريوس تجارة" : "e.g. Bachelor of Commerce"} /></Field>
               <Field label={t.major} required><TextInput value={cv.major} onChange={(value) => update("major", value)} /></Field>
               <Field label={t.educationStatus}><select aria-label={t.educationStatus} value={cv.educationStatus} onChange={(event) => update("educationStatus", event.target.value as EducationStatus)} className="cv-select"><option value="studying">{t.studying}</option><option value="graduated">{t.graduated}</option></select></Field>
-              {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select aria-label={t.yearLevel} value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{(isAr ? ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "دراسات عليا", "أخرى"] : ["First year", "Second year", "Third year", "Fourth year", "Postgraduate", "Other"]).map((value) => <option key={value}>{value}</option>)}</select></Field> : null}
+              {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select aria-label={t.yearLevel} value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{Object.entries(YEAR_LEVELS).map(([key, labels]) => <option key={key} value={key}>{labels[isAr ? "ar" : "en"]}</option>)}</select></Field> : null}
               <Field label={t.startYear}><TextInput value={cv.startYear} onChange={(value) => update("startYear", value)} placeholder="2023" /></Field>
               <Field label={t.graduationYear}><TextInput value={cv.graduationYear} onChange={(value) => update("graduationYear", value)} placeholder={cv.educationStatus === "studying" ? "2027" : "2025"} /></Field>
               <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isAr ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
@@ -1605,7 +1794,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
             {qualityWarnings.length ? <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="mb-1 font-extrabold">{isAr ? "ملاحظات لمراجعتها قبل التقديم" : "Content checks to review before applying"}</p><ul className="list-disc space-y-1 ps-5">{qualityWarnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul><p className="mt-2 text-[11px]">{isAr ? "دي تنبيهات إرشادية فقط؛ لن يتم تعديل أو حذف أي معلومة تلقائيًا." : "These are guidance warnings only. No information is automatically changed or deleted."}</p></div> : null}
-            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{isAr ? "لا يمكن تحميل CV باللغة الإنجليزية قبل استبدال النصوص العربية أو تغيير لغة السيرة إلى العربية." : "PDF export is blocked until the Arabic text is replaced or the CV language is changed to Arabic."}</div> : null}
+            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-extrabold">{cv.cvLanguage === "en" ? (isAr ? "لا يمكن تصدير السيرة الإنجليزية قبل مراجعة النصوص العربية." : "English PDF export is blocked until Arabic text is reviewed.") : (isAr ? "لا يمكن تصدير السيرة العربية قبل مراجعة النصوص الإنجليزية." : "Arabic PDF export is blocked until English text is reviewed.")}</p><ul className="mt-1 list-disc space-y-1 ps-5">{languageMismatchFields.map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}</li>)}</ul><p className="mt-2">{isAr ? "الاختيارات الجاهزة مثل حالة الدراسة والسنة الدراسية لا تدخل في هذا الفحص؛ يتم عرضها حسب لغة السيرة." : "System choices such as study status and study year are excluded and displayed in the selected CV language."}</p></div> : null}
             <div className="mt-5 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading || languageMismatch} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
             <p className="mt-3 text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p>
