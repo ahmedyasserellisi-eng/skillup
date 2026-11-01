@@ -33,6 +33,7 @@ type Course = {
   name: string;
   provider: string;
   date: string;
+  description: string;
   certificateUrl: string;
 };
 
