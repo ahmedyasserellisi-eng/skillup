@@ -8,6 +8,7 @@ import {
   sortExperiencesByDate,
   yearLevelLabel,
   type CVData,
+  type CVTemplate,
 } from "./cv-types";
 
 export type CVExportData = CVData;
@@ -135,21 +136,53 @@ function normalizePhoneUrl(value: string): string {
   return phone ? `tel:${phone}` : "";
 }
 
-function buildContactText(cv: CVExportData): PdfNode[] {
-  const items: Array<{ value: string; href?: string }> = [];
-  if (cv.city.trim()) items.push({ value: cv.city.trim() });
-  if (cv.phone.trim()) items.push({ value: cv.phone.trim(), href: normalizePhoneUrl(cv.phone) });
-  if (cv.email.trim()) items.push({ value: cv.email.trim(), href: `mailto:${cv.email.trim()}` });
-  if (cv.linkedin.trim()) items.push({ value: cv.linkedin.trim(), href: normalizeWebUrl(cv.linkedin) });
+function parseInlineEmphasis(value: string): PdfNode[] {
+  const nodes: PdfNode[] = [];
+  const pattern = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
 
-  const richText: PdfNode[] = [];
+  while ((match = pattern.exec(value)) !== null) {
+    if (match.index > cursor) nodes.push({ text: value.slice(cursor, match.index) });
+    nodes.push({ text: match[1], bold: true });
+    cursor = match.index + match[0].length;
+  }
+
+  if (cursor < value.length) nodes.push({ text: value.slice(cursor) });
+  return nodes.length ? nodes : [{ text: value }];
+}
+
+function buildContactItems(cv: CVExportData): Array<{ value: string; href?: string; kind: "plain" | "phone" | "email" | "linkedin" }> {
+  const items: Array<{ value: string; href?: string; kind: "plain" | "phone" | "email" | "linkedin" }> = [];
+  if (cv.city.trim()) items.push({ value: cv.city.trim(), kind: "plain" });
+  if (cv.phone.trim()) items.push({ value: cv.phone.trim(), href: normalizePhoneUrl(cv.phone), kind: "phone" });
+  if (cv.email.trim()) items.push({ value: cv.email.trim(), href: `mailto:${cv.email.trim()}`, kind: "email" });
+  if (cv.linkedin.trim()) {
+    const linkedinValue = cv.linkedin.trim().replace(/^linkedin\s*:\s*/i, "");
+    items.push({ value: linkedinValue, href: normalizeWebUrl(linkedinValue), kind: "linkedin" });
+  }
+  return items;
+}
+
+function contactInlineNodes(
+  items: ReturnType<typeof buildContactItems>,
+  colors: typeof CV_TEMPLATE_DESIGNS[CVTemplate],
+  separator = "  |  "
+): PdfNode[] {
+  const nodes: PdfNode[] = [];
   items.forEach((item, index) => {
-    if (index) richText.push({ text: "  |  " });
-    richText.push(item.href
-      ? { text: item.value, link: item.href, color: "#111111", decoration: "underline" }
-      : { text: item.value });
+    if (index) nodes.push({ text: separator, color: colors.muted });
+    const display = item.kind === "linkedin"
+      ? item.value.replace(/^linkedin\s*:\s*/i, "")
+      : item.value;
+    nodes.push({
+      text: display,
+      ...(item.href ? { link: item.href } : {}),
+      color: item.kind === "linkedin" ? colors.secondary : colors.muted,
+      ...(item.kind === "linkedin" ? { decoration: "underline" } : {})
+    });
   });
-  return richText;
+  return nodes;
 }
 
 function addDescriptionBullets(
@@ -162,7 +195,7 @@ function addDescriptionBullets(
   const items = descriptionLines(value);
   if (!items.length) return;
   content.push({
-    ul: items,
+    ul: items.map((item) => ({ text: parseInlineEmphasis(item) })),
     fontSize,
     color,
     margin: [0, 2, 0, 6],
@@ -188,11 +221,11 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   const contactFontSize = typography.contactPt;
   const bodyLineHeight = typography.lineHeight;
   const content: PdfNode[] = [];
+  const contactItems = buildContactItems(cv);
 
-  // A4 page dimensions and matching margins are shared with the browser preview.
+  // The same A4 page box and margins are shared by all templates.
   const { left: leftMargin, right: rightMargin, top: topMargin, bottom: bottomMargin } = CV_PAGE.marginsPt;
   const pageContentWidth = CV_PAGE.widthPt - leftMargin - rightMargin;
-
   const line = (margin: number[] = [0, 4, 0, 7], color = colors.rule, width = 0.7): PdfNode => ({
     canvas: [{ type: "line", x1: 0, y1: 0, x2: pageContentWidth, y2: 0, lineWidth: width, lineColor: color }],
     margin
@@ -200,30 +233,82 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
 
   const sectionHeading = (title: string) => {
     const headingNodes: PdfNode[] = [];
-    if (isReference) headingNodes.push(line([0, 11, 0, 4], colors.rule, 0.7));
-    headingNodes.push({
-      text: title,
-      fontSize: sectionFontSize,
-      bold: true,
-      color: colors.primary,
-      fillColor: isContemporary ? "#F1F7F6" : undefined,
-      characterSpacing: isChronological ? 0.65 : isClassic ? 0.3 : isContemporary ? 0.15 : 0,
-      margin: [0, isReference ? 0 : 10, 0, 5],
-      alignment: ar ? "right" : "left"
-    });
-    if (!isReference) headingNodes.push(line([0, 0, 0, 5], colors.rule, isContemporary ? 1.1 : isClassic ? 0.9 : 0.6));
-    // Keep the section title with its rule so a heading is not stranded at a page bottom.
+
+    if (isReference) {
+      // One rule above the heading. It also separates the header from the first section,
+      // so we deliberately do not add a second rule directly after the profile header.
+      headingNodes.push(line([0, 9, 0, 4], colors.rule, 0.7));
+      headingNodes.push({
+        text: title,
+        fontSize: sectionFontSize,
+        bold: true,
+        color: colors.primary,
+        margin: [0, 0, 0, 4],
+        alignment: ar ? "right" : "left"
+      });
+    } else if (isClassic) {
+      headingNodes.push({
+        text: title,
+        fontSize: sectionFontSize,
+        bold: true,
+        color: colors.primary,
+        characterSpacing: 0.45,
+        margin: [0, 10, 0, 2],
+        alignment: ar ? "right" : "left"
+      });
+      headingNodes.push(line([0, 0, 0, 5], colors.rule, 0.9));
+    } else if (isContemporary) {
+      headingNodes.push({
+        table: {
+          widths: [3, "*"],
+          body: [[
+            { text: "", fillColor: colors.secondary, border: [false, false, false, false], margin: [0, 0, 0, 0] },
+            {
+              text: title,
+              bold: true,
+              fontSize: sectionFontSize,
+              color: colors.primary,
+              fillColor: "#EDF6F4",
+              margin: [6, 5, 6, 5],
+              border: [false, false, false, false],
+              alignment: ar ? "right" : "left"
+            }
+          ]]
+        },
+        layout: "noBorders",
+        margin: [0, 10, 0, 5]
+      });
+    } else {
+      headingNodes.push({
+        text: title,
+        fontSize: sectionFontSize,
+        bold: true,
+        color: colors.primary,
+        characterSpacing: 0.8,
+        margin: [0, 10, 0, 3],
+        alignment: ar ? "right" : "left"
+      });
+      headingNodes.push(line([0, 0, 0, 5], colors.rule, 0.8));
+    }
+
+    // Keep each section label with its rule so a heading is not stranded at a page bottom.
     content.push({ unbreakable: true, stack: headingNodes, margin: [0, 0, 0, 0] });
   };
 
-  const addEntryHeader = (title: string, subtitle: string, date: string, indent = 0) => {
+  const addEntryHeader = (
+    title: string,
+    subtitle: string,
+    date: string,
+    options: { indent?: number; subtitleBold?: boolean; subtitleColor?: string } = {}
+  ) => {
+    const indent = options.indent ?? 0;
     const leftStack: PdfNode[] = [];
     if (title.trim()) {
       leftStack.push({
         text: title.trim(),
         bold: true,
         fontSize: bodyFontSize,
-        color: colors.body,
+        color: isContemporary ? colors.primary : colors.body,
         margin: [0, 0, 0, 1]
       });
     }
@@ -231,64 +316,124 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       leftStack.push({
         text: subtitle.trim(),
         fontSize: bodyFontSize,
-        bold: true,
-        color: colors.body,
+        bold: options.subtitleBold ?? false,
+        color: options.subtitleColor ?? colors.body,
         margin: [0, 0, 0, 1]
       });
     }
     if (!leftStack.length && !date.trim()) return;
 
-    // Keep the reading order deterministic: title, organization, then date.
-    content.push({
-      columns: [
-        { width: "*", stack: leftStack },
-        ...(date.trim() ? [{ width: "auto", text: date.trim(), alignment: "right", color: colors.muted, fontSize: bodyFontSize, margin: [0, 0, 0, 0] }] : [])
-      ],
-      columnGap: 12,
-      margin: [indent, 3, 0, 2]
-    });
+    const dateNode: PdfNode = {
+      width: "auto",
+      text: date.trim(),
+      alignment: isChronological ? (ar ? "right" : "left") : (ar ? "left" : "right"),
+      color: colors.muted,
+      fontSize: isChronological ? Math.max(8, contactFontSize) : bodyFontSize,
+      italics: isClassic,
+      margin: [0, 0, 0, 0]
+    };
+
+    if (isChronological && date.trim()) {
+      const contentColumn: PdfNode = { width: "*", stack: leftStack };
+      const columns = ar
+        ? [contentColumn, dateNode]
+        : [dateNode, contentColumn];
+      content.push({ columns, columnGap: 12, margin: [indent, 4, 0, 2] });
+    } else {
+      content.push({
+        columns: [
+          { width: "*", stack: leftStack },
+          ...(date.trim() ? [dateNode] : [])
+        ],
+        columnGap: 12,
+        margin: [indent, 3, 0, 2]
+      });
+    }
   };
 
-  const contact = buildContactText(cv);
   const nameAlignment = design.headerAlignment === "center" ? "center" : (ar ? "right" : "left");
   const header: PdfNode[] = [];
   header.push({
     text: cv.fullName.trim() || (ar ? "الاسم بالكامل" : "Full Name"),
-    fontSize: nameFontSize,
+    fontSize: isContemporary ? nameFontSize + 1 : nameFontSize,
     bold: true,
-    color: colors.primary,
+    color: colors.name,
     alignment: nameAlignment,
+    characterSpacing: isChronological ? 0.45 : 0,
     margin: [0, 0, 0, 2]
   });
+
   if (cv.targetRole.trim()) {
     header.push({
       text: cv.targetRole.trim(),
       fontSize: targetFontSize,
-      italics: isReference,
-      bold: !isReference,
+      italics: isReference || isChronological,
+      bold: isClassic || isContemporary,
       color: colors.secondary,
       alignment: nameAlignment,
       margin: [0, 0, 0, 4]
     });
   }
-  if (contact.length) {
+
+  if (isReference) {
+    const firstContactLine = contactItems.filter((item) => item.kind !== "linkedin");
+    if (firstContactLine.length) {
+      header.push({
+        text: contactInlineNodes(firstContactLine, colors),
+        fontSize: contactFontSize,
+        alignment: "center",
+        margin: [0, 3, 0, 1]
+      });
+    }
+    const linkedIn = contactItems.find((item) => item.kind === "linkedin");
+    if (linkedIn) {
+      const linkedInLabel = linkedIn.value.replace(/^linkedin\s*:\s*/i, "");
+      header.push({
+        text: [
+          { text: "LinkedIn: ", color: colors.muted },
+          { text: linkedInLabel, link: linkedIn.href, color: colors.secondary, decoration: "underline" }
+        ],
+        fontSize: contactFontSize,
+        alignment: "center",
+        margin: [0, 1, 0, 4]
+      });
+    }
+  } else if (contactItems.length) {
     header.push({
-      text: contact,
+      text: contactInlineNodes(contactItems, colors),
       fontSize: contactFontSize,
-      color: colors.muted,
-      alignment: design.headerAlignment === "center" ? "center" : (ar ? "right" : "left"),
-      margin: [0, 3, 0, 2]
+      alignment: nameAlignment,
+      margin: [0, 4, 0, 1]
     });
   }
-  content.push({ stack: header, margin: [0, 0, 0, 0] });
-  if (template === "reference") content.push(line([0, 4, 0, 0], colors.rule, 0.7));
-  else if (isContemporary) content.push(line([0, 5, 0, 1], colors.secondary, 1.5));
-  else content.push(line([0, 5, 0, 1], colors.rule, isClassic ? 1.4 : 0.8));
+
+  if (isContemporary) {
+    content.push({
+      table: {
+        widths: ["*"],
+        body: [[{
+          stack: header,
+          fillColor: "#F0F7F5",
+          margin: [11, 10, 11, 10],
+          border: [false, false, false, false]
+        }]]
+      },
+      layout: "noBorders",
+      margin: [0, 0, 0, 2]
+    });
+    content.push(line([0, 7, 0, 1], colors.secondary, 1.5));
+  } else {
+    content.push({ stack: header, margin: [0, 0, 0, 0] });
+    if (isClassic) content.push(line([0, 5, 0, 2], colors.rule, 1.25));
+    if (isChronological) content.push(line([0, 6, 0, 2], colors.primary, 1.1));
+    // Blue Professional intentionally has no extra header line: the first section's
+    // top rule is the single separator visible in the provided reference document.
+  }
 
   if (cv.summary.trim()) {
-    sectionHeading(ar ? "الملخص المهني" : "PROFESSIONAL SUMMARY");
+    sectionHeading(isReference || isClassic ? (ar ? "الملخص المهني" : "PROFESSIONAL SUMMARY") : (ar ? "الملخص المهني" : "PROFILE"));
     content.push({
-      text: cv.summary.trim(),
+      text: parseInlineEmphasis(cv.summary.trim()),
       fontSize: bodyFontSize,
       color: colors.body,
       lineHeight: bodyLineHeight,
@@ -305,7 +450,8 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       : "";
   if (degree || educationPlace || cv.gpa || cv.yearLevel || educationPeriod) {
     sectionHeading(ar ? "التعليم" : "EDUCATION");
-    addEntryHeader(degree, educationPlace, educationPeriod);
+    // In the Blue Professional reference the qualification is bold, while the university is regular.
+    addEntryHeader(degree, educationPlace, educationPeriod, { subtitleBold: false });
     const majorAlreadyInDegree = Boolean(cv.qualification.trim() && cv.major.trim() && cv.qualification.toLocaleLowerCase().includes(cv.major.toLocaleLowerCase()));
     const educationDetails = unique([
       cv.major && cv.qualification && !majorAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
@@ -327,7 +473,12 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       if (!items.length) continue;
       sectionHeading(ar ? "الخبرات العملية والتدريب" : "PROFESSIONAL EXPERIENCE");
       for (const item of items) {
-        addEntryHeader(item.role || experienceKindLabel(item.kind, cv.cvLanguage), unique([item.organization, item.location]).join(" · "), experiencePeriodLabel(item, cv.cvLanguage), 12);
+        addEntryHeader(
+          item.role || experienceKindLabel(item.kind, cv.cvLanguage),
+          unique([item.organization, item.location]).join(" · "),
+          experiencePeriodLabel(item, cv.cvLanguage),
+          { indent: 12, subtitleBold: isReference || isContemporary }
+        );
         addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
       }
     }
@@ -335,10 +486,24 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     if (id === "projects") {
       const items = cv.projects.filter((item) => item.name || item.description);
       if (!items.length) continue;
-      sectionHeading(ar ? "المشاريع" : "PROJECTS");
+      sectionHeading(ar ? "المشاريع" : "Projects");
       for (const item of items) {
-        addEntryHeader(item.name, unique([item.role, projectKindLabel(item.kind, cv.cvLanguage)]).join(" · "), item.date, 12);
-        addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
+        addEntryHeader(
+          item.name,
+          unique([item.role, projectKindLabel(item.kind, cv.cvLanguage)]).join(" · "),
+          item.date,
+          { indent: 12, subtitleBold: false }
+        );
+        const projectDescription = descriptionLines(item.description).join(" ");
+        if (projectDescription) {
+          content.push({
+            text: parseInlineEmphasis(projectDescription),
+            fontSize: bodyFontSize,
+            color: colors.body,
+            lineHeight: bodyLineHeight,
+            margin: [0, 0, 0, 5]
+          });
+        }
         if (item.tools.trim()) {
           content.push({
             text: [{ text: ar ? "الأدوات والتقنيات: " : "Tools: ", bold: true }, { text: item.tools.trim() }],
@@ -349,12 +514,15 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
         }
         if (item.url.trim()) {
           const url = normalizeWebUrl(item.url);
+          const label = /github\.com/i.test(item.url) ? (ar ? "GitHub: " : "GitHub: ")
+            : /vercel\.app|netlify\.app|\.com\/demo/i.test(item.url) ? (ar ? "عرض مباشر: " : "Live Demo: ")
+              : (ar ? "الرابط: " : "Link: ");
           content.push({
-            text: item.url.trim(),
+            text: [
+              { text: label, bold: true, color: colors.body },
+              { text: item.url.trim(), color: colors.secondary, link: url, decoration: "underline" }
+            ],
             fontSize: bodyFontSize,
-            color: colors.secondary,
-            link: url,
-            decoration: "underline",
             margin: [0, 0, 0, 5]
           });
         }
@@ -366,7 +534,12 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       if (!items.length) continue;
       sectionHeading(ar ? "التطوع والأنشطة" : "LEADERSHIP & VOLUNTEERING");
       for (const item of items) {
-        addEntryHeader(item.role || item.organization, item.role && item.organization ? item.organization : "", item.period, 12);
+        addEntryHeader(
+          item.role || item.organization,
+          item.role && item.organization ? item.organization : "",
+          item.period,
+          { indent: 12, subtitleBold: false }
+        );
         addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
       }
     }
@@ -374,18 +547,18 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     if (id === "courses") {
       const items = cv.courses.filter((item) => item.name || item.provider || item.description);
       if (!items.length) continue;
-      sectionHeading(ar ? "الكورسات والشهادات" : "COURSES & CERTIFICATIONS");
+      sectionHeading(ar ? "الكورسات والشهادات" : "Courses & Certifications");
       for (const item of items) {
-        addEntryHeader(item.name, item.provider, item.date, 12);
+        addEntryHeader(item.name, item.provider, item.date, { indent: 12, subtitleBold: isReference || isContemporary });
         addDescriptionBullets(content, item.description, colors.body, bodyFontSize, bodyLineHeight);
         if (item.certificateUrl.trim()) {
           const url = normalizeWebUrl(item.certificateUrl);
           content.push({
-            text: item.certificateUrl.trim(),
+            text: [
+              { text: ar ? "الشهادة: " : "Certificate: ", bold: true, color: colors.body },
+              { text: item.certificateUrl.trim(), color: colors.secondary, link: url, decoration: "underline" }
+            ],
             fontSize: bodyFontSize,
-            color: colors.secondary,
-            link: url,
-            decoration: "underline",
             margin: [0, 0, 0, 4]
           });
         }
@@ -397,7 +570,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       const tools = listText(cv.tools);
       const languages = listText(cv.languages);
       if (!skills.length && !tools.length && !languages.length) continue;
-      sectionHeading(ar ? "المهارات" : "SKILLS");
+      sectionHeading(ar ? "المهارات" : "Skills");
 
       const addSkillGroup = (label: string, values: string[]) => {
         if (!values.length) return;
@@ -412,7 +585,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   }
 
   return {
-    // pdfMake paginates automatically; body font sizes are fixed and are never scaled to fit one page.
+    // pdfMake paginates automatically; font sizes are not scaled to force content onto one page.
     pageSize: { width: CV_PAGE.widthPt, height: CV_PAGE.heightPt },
     pageMargins: [leftMargin, topMargin, rightMargin, bottomMargin],
     rtl: ar,
