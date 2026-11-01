@@ -1,128 +1,16 @@
-type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "reference" | "executive" | "classic";
-type EducationStatus = "studying" | "graduated";
+import {
+  CV_PAGE,
+  CV_TEMPLATE_DESIGNS,
+  CV_TYPOGRAPHY,
+  experienceKindLabel,
+  experiencePeriodLabel,
+  projectKindLabel,
+  sortExperiencesByDate,
+  yearLevelLabel,
+  type CVData,
+} from "./cv-types";
 
-const YEAR_LEVELS: Record<string, { ar: string; en: string }> = {
-  first: { ar: "الفرقة الأولى", en: "First year" },
-  second: { ar: "الفرقة الثانية", en: "Second year" },
-  third: { ar: "الفرقة الثالثة", en: "Third year" },
-  fourth: { ar: "الفرقة الرابعة", en: "Fourth year" },
-  postgrad: { ar: "دراسات عليا", en: "Postgraduate" },
-  other: { ar: "أخرى", en: "Other" }
-};
-
-function yearLevelLabel(value: string, language: "ar" | "en"): string {
-  if (!value) return "";
-  const known = YEAR_LEVELS[value] ?? Object.values(YEAR_LEVELS).find((labels) => labels.ar === value || labels.en === value);
-  if (!known || known === YEAR_LEVELS.other) return known ? "" : value;
-  return known[language];
-}
-
-function formatMonthYear(value: string | undefined, language: "ar" | "en"): string {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-US", {
-    month: "short", year: "numeric", timeZone: "UTC"
-  }).format(date);
-}
-
-function experiencePeriodLabel(item: Experience, language: "ar" | "en"): string {
-  const start = formatMonthYear(item.startDate, language);
-  const end = item.isCurrent
-    ? (language === "ar" ? "حتى الآن" : "Present")
-    : formatMonthYear(item.endDate, language);
-  return [start, end].filter(Boolean).join(" – ") || item.period?.trim() || "";
-}
-
-function experienceKindLabel(value: string, language: "ar" | "en"): string {
-  const labels: Record<string, { ar: string; en: string }> = {
-    internship: { ar: "تدريب عملي", en: "Internship" },
-    summer: { ar: "تدريب صيفي", en: "Summer Training" },
-    "part-time": { ar: "عمل بدوام جزئي", en: "Part-time Job" },
-    freelance: { ar: "عمل حر", en: "Freelance" },
-    work: { ar: "خبرة عملية", en: "Work Experience" }
-  };
-  return labels[value]?.[language] ?? value;
-}
-
-function projectKindLabel(value: string, language: "ar" | "en"): string {
-  const labels: Record<string, { ar: string; en: string }> = {
-    academic: { ar: "مشروع جامعي", en: "Academic Project" },
-    personal: { ar: "مشروع شخصي", en: "Personal Project" },
-    graduation: { ar: "مشروع تخرج", en: "Graduation Project" }
-  };
-  return labels[value]?.[language] ?? value;
-}
-
-type Experience = {
-  id: string;
-  kind: string;
-  role: string;
-  organization: string;
-  // `period` remains for legacy saved records. New records use structured dates.
-  period: string;
-  startDate?: string;
-  endDate?: string;
-  isCurrent?: boolean;
-  location: string;
-  description: string;
-};
-type Project = {
-  id: string;
-  name: string;
-  kind: string;
-  role: string;
-  date: string;
-  tools: string;
-  url: string;
-  description: string;
-};
-type Activity = {
-  id: string;
-  organization: string;
-  role: string;
-  period: string;
-  description: string;
-};
-type Course = {
-  id: string;
-  name: string;
-  provider: string;
-  date: string;
-  description: string;
-  certificateUrl: string;
-};
-
-export type CVExportData = {
-  fullName: string;
-  targetRole: string;
-  email: string;
-  phone: string;
-  city: string;
-  linkedin: string;
-  summary: string;
-  university: string;
-  qualification: string;
-  educationStatus: EducationStatus;
-  college: string;
-  major: string;
-  yearLevel: string;
-  startYear: string;
-  graduationYear: string;
-  gpa: string;
-  experiences: Experience[];
-  projects: Project[];
-  activities: Activity[];
-  courses: Course[];
-  skills: string;
-  tools: string;
-  languages: string;
-  sectionOrder: SectionId[];
-  selectedSections: SectionId[];
-  cvLanguage: "ar" | "en";
-  template: CVTemplate;
-};
+export type CVExportData = CVData;
 
 type PdfNode = Record<string, unknown>;
 type PdfMakeApi = {
@@ -280,26 +168,25 @@ function addDescriptionBullets(
 function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   const ar = cv.cvLanguage === "ar";
   const template = cv.template ?? "reference";
+  const design = CV_TEMPLATE_DESIGNS[template];
   const isReference = template === "reference";
   const isClassic = template === "classic";
-  const colors = isReference
-    ? { primary: "#24466F", secondary: "#4D83C5", rule: "#AFC3DE", body: "#111111", muted: "#4D4D4D" }
-    : { primary: "#111111", secondary: "#333333", rule: "#333333", body: "#111111", muted: "#4D4D4D" };
+  const isContemporary = template === "contemporary";
+  const isChronological = template === "chronological";
+  const colors = design;
+  const typography = CV_TYPOGRAPHY[cv.cvLanguage];
   const font = ar ? "Cairo" : "Roboto";
-  const bodyFontSize = ar ? 11 : 10;
-  const sectionFontSize = ar ? 13 : 12;
-  const nameFontSize = ar ? 19 : 18;
-  const targetFontSize = ar ? 12 : 11;
-  const contactFontSize = ar ? 10 : 9;
-  const bodyLineHeight = ar ? 1.15 : 1.12;
+  const bodyFontSize = typography.bodyPt;
+  const sectionFontSize = typography.sectionPt;
+  const nameFontSize = typography.namePt;
+  const targetFontSize = typography.targetPt;
+  const contactFontSize = typography.contactPt;
+  const bodyLineHeight = typography.lineHeight;
   const content: PdfNode[] = [];
 
-  // US Letter, matching the attached Word reference (8.5 x 11 in).
-  // Word margins: 0.70 in left/right, 0.65 in top, 0.55 in bottom.
-  const horizontalMargin = 50.4;
-  const topMargin = 46.8;
-  const bottomMargin = 39.6;
-  const pageContentWidth = 612 - horizontalMargin * 2;
+  // A4 page dimensions and matching margins are shared with the browser preview.
+  const { left: leftMargin, right: rightMargin, top: topMargin, bottom: bottomMargin } = CV_PAGE.marginsPt;
+  const pageContentWidth = CV_PAGE.widthPt - leftMargin - rightMargin;
 
   const line = (margin: number[] = [0, 4, 0, 7], color = colors.rule, width = 0.7): PdfNode => ({
     canvas: [{ type: "line", x1: 0, y1: 0, x2: pageContentWidth, y2: 0, lineWidth: width, lineColor: color }],
@@ -314,11 +201,12 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       fontSize: sectionFontSize,
       bold: true,
       color: colors.primary,
-      characterSpacing: isClassic ? 0.35 : 0,
+      fillColor: isContemporary ? "#F1F7F6" : undefined,
+      characterSpacing: isChronological ? 0.65 : isClassic ? 0.3 : isContemporary ? 0.15 : 0,
       margin: [0, isReference ? 0 : 10, 0, 5],
       alignment: ar ? "right" : "left"
     });
-    if (!isReference) headingNodes.push(line([0, 0, 0, 5], colors.rule, isClassic ? 0.9 : 0.6));
+    if (!isReference) headingNodes.push(line([0, 0, 0, 5], colors.rule, isContemporary ? 1.1 : isClassic ? 0.9 : 0.6));
     // Keep the section title with its rule so a heading is not stranded at a page bottom.
     content.push({ unbreakable: true, stack: headingNodes, margin: [0, 0, 0, 0] });
   };
@@ -357,7 +245,7 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   };
 
   const contact = buildContactText(cv);
-  const nameAlignment = isReference ? "center" : (ar ? "right" : "left");
+  const nameAlignment = design.headerAlignment === "center" ? "center" : (ar ? "right" : "left");
   const header: PdfNode[] = [];
   header.push({
     text: cv.fullName.trim() || (ar ? "الاسم بالكامل" : "Full Name"),
@@ -383,11 +271,14 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
       text: contact,
       fontSize: contactFontSize,
       color: colors.muted,
-      alignment: isReference ? "center" : (ar ? "right" : "left"),
+      alignment: design.headerAlignment === "center" ? "center" : (ar ? "right" : "left"),
       margin: [0, 3, 0, 2]
     });
   }
   content.push({ stack: header, margin: [0, 0, 0, 0] });
+  if (template === "reference") content.push(line([0, 4, 0, 0], colors.rule, 0.7));
+  else if (isContemporary) content.push(line([0, 5, 0, 1], colors.secondary, 1.5));
+  else content.push(line([0, 5, 0, 1], colors.rule, isClassic ? 1.4 : 0.8));
 
   if (cv.summary.trim()) {
     sectionHeading(ar ? "الملخص المهني" : "PROFESSIONAL SUMMARY");
@@ -424,7 +315,10 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
   const order = cv.sectionOrder.filter((id) => cv.selectedSections.includes(id));
   for (const id of order) {
     if (id === "experience") {
-      const items = cv.experiences.filter((item) => item.role || item.organization || item.description);
+      const experienceItems = cv.experienceSortMode === "newest"
+        ? sortExperiencesByDate(cv.experiences)
+        : cv.experiences;
+      const items = experienceItems.filter((item) => item.role || item.organization || item.description);
       if (!items.length) continue;
       sectionHeading(ar ? "الخبرات العملية والتدريب" : "PROFESSIONAL EXPERIENCE");
       for (const item of items) {
@@ -514,8 +408,8 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
 
   return {
     // pdfMake paginates automatically; body font sizes are fixed and are never scaled to fit one page.
-    pageSize: { width: 612, height: 792 },
-    pageMargins: [horizontalMargin, topMargin, horizontalMargin, bottomMargin],
+    pageSize: { width: CV_PAGE.widthPt, height: CV_PAGE.heightPt },
+    pageMargins: [leftMargin, topMargin, rightMargin, bottomMargin],
     rtl: ar,
     info: {
       title: `${cv.fullName.trim() || "CV"} - SkillUp CV`,
