@@ -24,156 +24,37 @@ import {
   Wrench,
   X,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 
 import type { Locale } from "@/i18n";
 import { downloadCvPdf } from "./pdf-export";
-
-type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "reference" | "executive" | "classic";
-type WizardStep = "template" | "profile" | "education" | "sections" | SectionId | "review";
-type EducationStatus = "studying" | "graduated";
-type Experience = {
-  id: string;
-  kind: string;
-  role: string;
-  organization: string;
-  // `period` is retained for backward compatibility with existing saved CVs.
-  period: string;
-  startDate?: string;
-  endDate?: string;
-  isCurrent?: boolean;
-  location: string;
-  description: string;
-};
-type Project = {
-  id: string;
-  name: string;
-  kind: string;
-  role: string;
-  date: string;
-  tools: string;
-  url: string;
-  description: string;
-};
-type Activity = {
-  id: string;
-  organization: string;
-  role: string;
-  period: string;
-  description: string;
-};
-type Course = {
-  id: string;
-  name: string;
-  provider: string;
-  date: string;
-  description: string;
-  certificateUrl: string;
-};
-type CVData = {
-  fullName: string;
-  targetRole: string;
-  email: string;
-  phone: string;
-  city: string;
-  linkedin: string;
-  summary: string;
-  university: string;
-  qualification: string;
-  educationStatus: EducationStatus;
-  college: string;
-  major: string;
-  yearLevel: string;
-  startYear: string;
-  graduationYear: string;
-  gpa: string;
-  experiences: Experience[];
-  projects: Project[];
-  activities: Activity[];
-  courses: Course[];
-  skills: string;
-  tools: string;
-  languages: string;
-  sectionOrder: SectionId[];
-  selectedSections: SectionId[];
-  cvLanguage: "ar" | "en";
-  template: CVTemplate;
-};
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  CV_PAGE,
+  YEAR_LEVELS,
+  normalizeYearLevel,
+  sortExperiencesByDate,
+  type Activity,
+  type CVData,
+  type CVTemplate,
+  type EducationStatus,
+  type Course,
+  type Experience,
+  type Project,
+  type SectionId,
+  type WizardStep
+} from "./cv-types";
+import { CVDocument, CVDocumentStyles, TemplateThumbnail, CV_TEMPLATE_OPTIONS } from "./cv-templates";
 
 type LocaleCopy = {
   [key: string]: string;
 };
 
 const STORAGE_KEY = "skillup_cv_student_v1";
-const PAGE_WIDTH = 816; // US Letter width at 96 CSS px per inch
-const PAGE_HEIGHT = 1056; // US Letter height at 96 CSS px per inch
-
-const YEAR_LEVELS: Record<string, { ar: string; en: string }> = {
-  first: { ar: "الفرقة الأولى", en: "First year" },
-  second: { ar: "الفرقة الثانية", en: "Second year" },
-  third: { ar: "الفرقة الثالثة", en: "Third year" },
-  fourth: { ar: "الفرقة الرابعة", en: "Fourth year" },
-  postgrad: { ar: "دراسات عليا", en: "Postgraduate" },
-  other: { ar: "أخرى", en: "Other" }
-};
-
-function normalizeYearLevel(value: unknown): string {
-  if (typeof value !== "string" || !value.trim()) return "";
-  const candidate = value.trim();
-  if (Object.prototype.hasOwnProperty.call(YEAR_LEVELS, candidate)) return candidate;
-  const match = Object.entries(YEAR_LEVELS).find(([, labels]) => labels.ar === candidate || labels.en === candidate);
-  return match?.[0] ?? candidate;
-}
-
-function yearLevelLabel(value: string, language: "ar" | "en"): string {
-  const key = normalizeYearLevel(value);
-  if (!key || key === "other") return "";
-  const labels = YEAR_LEVELS[key];
-  return labels ? labels[language] : value;
-}
-
-function formatMonthYear(value: string | undefined, language: "ar" | "en"): string {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return new Intl.DateTimeFormat(language === "ar" ? "ar-EG" : "en-US", {
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC"
-  }).format(date);
-}
-
-function experiencePeriodLabel(item: Experience, language: "ar" | "en"): string {
-  const start = formatMonthYear(item.startDate, language);
-  const end = item.isCurrent
-    ? (language === "ar" ? "حتى الآن" : "Present")
-    : formatMonthYear(item.endDate, language);
-  const formatted = [start, end].filter(Boolean).join(" – ");
-  return formatted || item.period?.trim() || "";
-}
-
-function experienceKindLabel(value: string, language: "ar" | "en"): string {
-  const labels: Record<string, { ar: string; en: string }> = {
-    internship: { ar: "تدريب عملي", en: "Internship" },
-    summer: { ar: "تدريب صيفي", en: "Summer Training" },
-    "part-time": { ar: "عمل بدوام جزئي", en: "Part-time Job" },
-    freelance: { ar: "عمل حر", en: "Freelance" },
-    work: { ar: "خبرة عملية", en: "Work Experience" }
-  };
-  return labels[value]?.[language] ?? value;
-}
-
-function projectKindLabel(value: string, language: "ar" | "en"): string {
-  const labels: Record<string, { ar: string; en: string }> = {
-    academic: { ar: "مشروع جامعي", en: "Academic Project" },
-    personal: { ar: "مشروع شخصي", en: "Personal Project" },
-    graduation: { ar: "مشروع تخرج", en: "Graduation Project" }
-  };
-  return labels[value]?.[language] ?? value;
-}
-
 const SECTION_META: Record<SectionId, { icon: typeof BriefcaseBusiness; titleAr: string; titleEn: string; subAr: string; subEn: string }> = {
   experience: { icon: BriefcaseBusiness, titleAr: "التدريبات والخبرات", titleEn: "Experience & Internships", subAr: "تدريب، عمل جزئي، عمل حر أو خبرة عملية", subEn: "Internships, part-time work, freelance or other experience" },
   projects: { icon: FolderKanban, titleAr: "المشاريع", titleEn: "Projects", subAr: "مشاريع جامعية أو شخصية أو مشروع تخرج", subEn: "Academic, personal or graduation projects" },
@@ -209,17 +90,17 @@ const EMPTY_CV: CVData = {
   sectionOrder: ["experience", "courses", "skills", "projects", "activities"],
   selectedSections: [],
   cvLanguage: "ar",
-  template: "reference"
+  template: "reference",
+  experienceSortMode: "newest"
 };
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const cx = (...classes: Array<string | false | undefined | null>) => classes.filter(Boolean).join(" ");
 
 function normalizeTemplate(value: unknown): CVTemplate {
-  if (value === "reference" || value === "executive" || value === "classic") return value;
-  // Old Yale/modern template IDs are retained as Classic Academic without losing CV data.
-  if (value === "yale" || value === "modern") return "classic";
-  if (value === "signature" || value === "compact") return "executive";
+  if (value === "reference" || value === "classic" || value === "contemporary" || value === "chronological") return value;
+  // Legacy layouts that were visually near-identical now use the retained Classic Academic design.
+  if (value === "executive" || value === "signature" || value === "compact" || value === "yale" || value === "modern") return "classic";
   return "reference";
 }
 
@@ -313,14 +194,6 @@ type LetterScript = "Arabic" | "Latin";
  * Arabic Unicode blocks also contain punctuation, numeric symbols and direction marks;
  * those must never block a CV export on their own.
  */
-function containsLettersFromScript(value: string, script: LetterScript): boolean {
-  for (const character of value) {
-    if (!/\p{L}/u.test(character)) continue;
-    if (script === "Arabic" && /\p{Script=Arabic}/u.test(character)) return true;
-    if (script === "Latin" && /\p{Script=Latin}/u.test(character)) return true;
-  }
-  return false;
-}
 
 function collectCvLanguageFields(cv: CVData): CvLanguageField[] {
   const fields: CvLanguageField[] = [
@@ -475,262 +348,6 @@ function getCvQualityWarnings(cv: CVData, isAr: boolean): string[] {
   return warnings;
 }
 
-function uniqueText(values: Array<string | undefined>): string[] {
-  const seen = new Set<string>();
-  return values.map((value) => (value ?? "").trim()).filter((value) => {
-    if (!value) return false;
-    const key = value.toLocaleLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function descriptionLines(value: string): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*(?:[-*•▪◦‣]|\d+[.)])\s*/, "").trim())
-    .filter(Boolean);
-}
-
-function CVDescription({ value }: { value: string }) {
-  const lines = descriptionLines(value);
-  if (!lines.length) return null;
-  return (
-    <ul className="cv-bullets">
-      {lines.map((line, index) => <li key={`${index}-${line.slice(0, 24)}`}>{line}</li>)}
-    </ul>
-  );
-}
-
-function CVDocument({ cv }: { cv: CVData }) {
-  const ar = cv.cvLanguage === "ar";
-  const template = cv.template ?? "reference";
-  const t = {
-    summary: ar ? "الملخص المهني" : "Professional Summary",
-    education: ar ? "التعليم" : "Education",
-    experience: ar ? "الخبرات العملية والتدريب" : "Professional Experience",
-    projects: ar ? "المشاريع" : "Projects",
-    activities: ar ? "التطوع والأنشطة" : "Leadership & Volunteering",
-    courses: ar ? "الكورسات والشهادات" : "Courses & Certifications",
-    skills: ar ? "المهارات" : "Skills",
-    tools: ar ? "الأدوات والتقنيات" : "Tools & Technologies",
-    languages: ar ? "اللغات" : "Languages",
-    expected: ar ? "التخرج المتوقع" : "Expected Graduation",
-    graduated: ar ? "سنة التخرج" : "Graduation",
-    present: ar ? "حتى الآن" : "Present",
-    studyYear: ar ? "السنة الدراسية" : "Study year",
-    gpa: ar ? "التقدير" : "Grade",
-  };
-  const contact = [cv.city, cv.phone, cv.email, cv.linkedin].filter(Boolean);
-  const experience = cv.experiences.filter((item) => item.role || item.organization || item.description);
-  const projects = cv.projects.filter((item) => item.name || item.description);
-  const activities = cv.activities.filter((item) => item.organization || item.role || item.description);
-  const courses = cv.courses.filter((item) => item.name || item.provider || item.description);
-  const skills = listText(cv.skills);
-  const tools = listText(cv.tools);
-  const languages = listText(cv.languages);
-  const degreeLine = cv.qualification.trim() || cv.major.trim();
-  const majorIsAlreadyInDegree = Boolean(cv.qualification.trim() && cv.major.trim() && cv.qualification.toLocaleLowerCase().includes(cv.major.toLocaleLowerCase()));
-  const educationPlace = uniqueText([cv.university, cv.college]).join(" · ");
-  const educationLines = uniqueText([degreeLine, educationPlace]);
-  const educationDetails = uniqueText([
-    cv.qualification.trim() && cv.major.trim() && !majorIsAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
-    cv.educationStatus === "studying" && yearLevelLabel(cv.yearLevel, cv.cvLanguage) ? `${t.studyYear}: ${yearLevelLabel(cv.yearLevel, cv.cvLanguage)}` : "",
-    cv.gpa ? `${t.gpa}: ${cv.gpa}` : ""
-  ]);
-  const hasEducation = educationLines.length > 0 || educationDetails.length > 0 || Boolean(cv.startYear || cv.graduationYear);
-  return (
-    <article
-      className={`cv-document cv-template-${template} mx-auto bg-white text-[#20252b]`}
-      dir={ar ? "rtl" : "ltr"}
-      lang={cv.cvLanguage}
-      style={{
-        width: PAGE_WIDTH,
-        minHeight: PAGE_HEIGHT,
-        boxSizing: "border-box",
-        // Match the supplied Word template: 0.65in top, 0.55in bottom, 0.70in side margins.
-        padding: "62px 67px 53px",
-        fontFamily: "var(--font-sans-app), Arial, 'Segoe UI', Tahoma, sans-serif"
-      }}
-    >
-      <header className="cv-document-header">
-        <h1 className="cv-name">{cv.fullName || (ar ? "الاسم بالكامل" : "Full Name")}</h1>
-        {cv.targetRole ? <p className="cv-target-role">{cv.targetRole}</p> : null}
-        {contact.length ? (
-          <p className="cv-contact" dir="ltr">
-            {contact.map((value, index) => {
-              const href = value === cv.email
-                ? `mailto:${cv.email.trim()}`
-                : value === cv.phone
-                  ? `tel:${cv.phone.trim().replace(/[^\d+]/g, "")}`
-                  : value === cv.linkedin
-                    ? (/^https?:\/\//i.test(cv.linkedin.trim()) ? cv.linkedin.trim() : `https://${cv.linkedin.trim().replace(/^\/+/, "")}`)
-                    : "";
-              return <span key={`${value}-${index}`}>{href ? <a href={href} target={value === cv.linkedin ? "_blank" : undefined} rel={value === cv.linkedin ? "noreferrer" : undefined}>{value}</a> : value}{index < contact.length - 1 ? "  |  " : ""}</span>;
-            })}
-          </p>
-        ) : null}
-      </header>
-
-      {cv.summary.trim() ? (
-        <section className="cv-section">
-          <h2>{t.summary}</h2>
-          <p className="cv-summary-text">{cv.summary.trim()}</p>
-        </section>
-      ) : null}
-
-      {hasEducation ? (
-        <section className="cv-section">
-          <h2>{t.education}</h2>
-          <div className="cv-education-layout">
-            <div className="cv-education-details">
-              {educationLines.map((line, index) => <p key={`${line}-${index}`} className={index === 0 ? "cv-entry-title" : "cv-muted-line"}>{line}</p>)}
-              {educationDetails.length ? <ul className="cv-bullets">{educationDetails.map((line, index) => <li key={`education-${index}`}>{line}</li>)}</ul> : null}
-            </div>
-            <div className="cv-education-meta">
-              {cv.startYear ? <p>{cv.startYear}{cv.graduationYear ? ` – ${cv.graduationYear}` : cv.educationStatus === "studying" ? ` – ${t.present}` : ""}</p> : null}
-              {!cv.startYear && cv.graduationYear ? <p>{cv.educationStatus === "graduated" ? t.graduated : t.expected}: {cv.graduationYear}</p> : null}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {cv.sectionOrder.filter((id) => cv.selectedSections.includes(id)).map((sectionId) => {
-        if (sectionId === "experience" && experience.length) {
-          return (
-            <section className="cv-section" key={sectionId}>
-              <h2>{t.experience}</h2>
-              {experience.map((item) => (
-                <div className="cv-entry" key={item.id}>
-                  <div className="cv-entry-heading">
-                    <p className="cv-entry-title">{item.role || experienceKindLabel(item.kind, cv.cvLanguage)}</p>
-                    {experiencePeriodLabel(item, cv.cvLanguage) ? <p className="cv-entry-date">{experiencePeriodLabel(item, cv.cvLanguage)}</p> : null}
-                  </div>
-                  {item.organization || item.location ? <p className="cv-entry-subtitle">{[item.organization, item.location].filter(Boolean).join(" · ")}</p> : null}
-                  <CVDescription value={item.description} />
-                </div>
-              ))}
-            </section>
-          );
-        }
-        if (sectionId === "projects" && projects.length) {
-          return (
-            <section className="cv-section" key={sectionId}>
-              <h2>{t.projects}</h2>
-              {projects.map((item) => (
-                <div className="cv-entry" key={item.id}>
-                  <div className="cv-entry-heading">
-                    <p className="cv-entry-title">{item.name}</p>
-                    {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
-                  </div>
-                  {item.role || item.kind ? <p className="cv-entry-subtitle">{[item.role, projectKindLabel(item.kind, cv.cvLanguage)].filter(Boolean).join(" · ")}</p> : null}
-                  <CVDescription value={item.description} />
-                  {item.tools ? <p className="cv-entry-detail"><strong>{t.tools}: </strong>{item.tools}</p> : null}
-                  {item.url ? <p className="cv-entry-link" dir="ltr">{item.url}</p> : null}
-                </div>
-              ))}
-            </section>
-          );
-        }
-        if (sectionId === "activities" && activities.length) {
-          return (
-            <section className="cv-section" key={sectionId}>
-              <h2>{t.activities}</h2>
-              {activities.map((item) => (
-                <div className="cv-entry" key={item.id}>
-                  <div className="cv-entry-heading">
-                    <p className="cv-entry-title">{item.role || item.organization}</p>
-                    {item.period ? <p className="cv-entry-date">{item.period}</p> : null}
-                  </div>
-                  {item.organization && item.role ? <p className="cv-entry-subtitle">{item.organization}</p> : null}
-                  <CVDescription value={item.description} />
-                </div>
-              ))}
-            </section>
-          );
-        }
-        if (sectionId === "courses" && courses.length) {
-          return (
-            <section className="cv-section" key={sectionId}>
-              <h2>{t.courses}</h2>
-              {courses.map((item) => (
-                <div className="cv-entry" key={item.id}>
-                  <div className="cv-entry-heading">
-                    <p className="cv-entry-title">{item.name}</p>
-                    {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
-                  </div>
-                  {item.provider ? <p className="cv-entry-subtitle">{item.provider}</p> : null}
-                  <CVDescription value={item.description} />
-                  {item.certificateUrl ? <p className="cv-entry-link" dir="ltr">{item.certificateUrl}</p> : null}
-                </div>
-              ))}
-            </section>
-          );
-        }
-        if (sectionId === "skills" && (skills.length || tools.length || languages.length)) {
-          return (
-            <section className="cv-section" key={sectionId}>
-              <h2>{t.skills}</h2>
-              {skills.length ? <div className="cv-skill-block"><p className="cv-skill-label">{ar ? "المهارات الأساسية" : "Core Skills"}</p><ul className="cv-bullets">{skills.map((item, index) => <li key={`skill-${index}`}>{item}</li>)}</ul></div> : null}
-              {tools.length ? <div className="cv-skill-block"><p className="cv-skill-label">{t.tools}</p><ul className="cv-bullets">{tools.map((item, index) => <li key={`tool-${index}`}>{item}</li>)}</ul></div> : null}
-              {languages.length ? <div className="cv-skill-block"><p className="cv-skill-label">{t.languages}</p><ul className="cv-bullets">{languages.map((item, index) => <li key={`language-${index}`}>{item}</li>)}</ul></div> : null}
-            </section>
-          );
-        }
-        return null;
-      })}
-    </article>
-  );
-}
-
-
-function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boolean }) {
-  const isReference = template === "reference";
-  const isClassic = template === "classic";
-  const accent = isReference ? "#24466F" : "#171717";
-  const secondary = isReference ? "#4D83C5" : "#444444";
-  const rule = isReference ? "#AFC3DE" : "#333333";
-  const headings = isAr
-    ? ["الملخص المهني", "التعليم", "الخبرات العملية", "المهارات"]
-    : ["PROFESSIONAL SUMMARY", "EDUCATION", "EXPERIENCE", "SKILLS"];
-
-  return (
-    <div className="h-56 overflow-hidden rounded-xl border border-zinc-200 bg-[#eef1f4] p-3 dark:border-zinc-700">
-      <div className="mx-auto h-full max-w-[190px] overflow-hidden bg-white px-3 py-3.5 shadow-sm" style={{ color: "#20252b" }}>
-        <header className={isReference ? "text-center" : isAr ? "text-right" : "text-left"}>
-          <div className="truncate font-extrabold" style={{ color: accent, fontSize: 8.5, lineHeight: 1.25 }}>
-            {isAr ? "اسمك بالكامل" : "YOUR NAME"}
-          </div>
-          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isClassic ? ".4px" : "0" }}>
-            {isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}
-          </div>
-          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}>
-            <span>email@example.com</span><span>•</span><span>+20 000</span><span>•</span><span>Cairo</span>
-          </div>
-        </header>
-        <div className="mt-2.5 h-px w-full" style={{ background: rule }} />
-        {headings.map((heading, index) => (
-          <section key={heading} className="mt-2">
-            {isReference ? <div className="mb-1 h-px w-full" style={{ background: rule }} /> : null}
-            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isClassic ? ".35px" : "0" }}>{heading}</div>
-            {!isReference ? <div className="mb-1 h-px w-full" style={{ background: rule, opacity: .8 }} /> : null}
-            <div className="space-y-[3px]">
-              <div className="flex items-center justify-between gap-1">
-                <div className="h-[3px] w-2/5 rounded-sm" style={{ background: "#64748b", opacity: .65 }} />
-                {index > 0 ? <div className="h-[2px] w-1/5 rounded-sm bg-slate-300" /> : null}
-              </div>
-              <div className="h-[2.5px] w-full rounded-sm bg-slate-200" />
-              <div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" />
-              {index === 2 ? <div className="ml-2 h-[2px] w-9/12 rounded-sm bg-slate-200" /> : null}
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function CVPreviewModal({
   cv,
   isAr,
@@ -750,21 +367,15 @@ function CVPreviewModal({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(900);
-  const [sheetHeight, setSheetHeight] = useState(PAGE_HEIGHT);
+  const [sheetHeight, setSheetHeight] = useState<number>(CV_PAGE.heightPx);
   const [zoom, setZoom] = useState(1);
-  const fitScale = Math.min(1, Math.max(0.2, viewportWidth / PAGE_WIDTH));
+  const fitScale = Math.min(1, Math.max(0.2, viewportWidth / CV_PAGE.widthPx));
   const scale = fitScale * zoom;
-  const templateOptions: Array<{ id: CVTemplate; title: string; description: string }> = isAr
-    ? [
-        { id: "reference", title: "Blue Professional", description: "نفس نموذج Word المرفق" },
-        { id: "executive", title: "Executive Minimal", description: "أبيض وأسود رسمي وبسيط" },
-        { id: "classic", title: "Classic Academic", description: "تصميم أكاديمي رسمي أبيض وأسود بعناوين قياسية" }
-      ]
-    : [
-        { id: "reference", title: "Blue Professional", description: "Matches the supplied Word reference" },
-        { id: "executive", title: "Executive Minimal", description: "Formal black-and-white layout" },
-        { id: "classic", title: "Classic Academic", description: "Inspired by standard academic resume conventions" }
-      ];
+  const templateOptions = CV_TEMPLATE_OPTIONS.map((option) => ({
+    id: option.id,
+    title: option.title,
+    description: isAr ? option.descriptionAr : option.descriptionEn
+  }));
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -773,7 +384,7 @@ function CVPreviewModal({
     const measureViewport = () => {
       const horizontalPadding = window.matchMedia("(min-width: 640px)").matches ? 48 : 24;
       setViewportWidth(Math.max(240, (viewport.clientWidth || 900) - horizontalPadding));
-      setSheetHeight(sheet.offsetHeight || PAGE_HEIGHT);
+      setSheetHeight(sheet.offsetHeight || CV_PAGE.heightPx);
     };
     const observer = new ResizeObserver(measureViewport);
     observer.observe(viewport);
@@ -830,7 +441,7 @@ function CVPreviewModal({
   const currentTemplate = cv.template ?? "reference";
 
   return createPortal(
-    <div ref={dialogRef} tabIndex={-1} className="fixed inset-0 z-[100] flex flex-col bg-[#e9edf2] text-zinc-900 outline-none" dir={isAr ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isAr ? "معاينة السيرة الذاتية" : "CV preview"}>
+    <motion.div ref={dialogRef} tabIndex={-1} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.2, ease: "easeOut" }} className="fixed inset-0 z-[100] flex flex-col bg-[#e9edf2] text-zinc-900 outline-none" dir={isAr ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isAr ? "معاينة السيرة الذاتية" : "CV preview"}>
       <header className="z-10 shrink-0 border-b border-zinc-200 bg-white shadow-sm">
         <div className="flex min-h-16 items-center justify-between gap-3 px-3 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -870,8 +481,8 @@ function CVPreviewModal({
       </header>
 
       <main ref={viewportRef} className="min-h-0 flex-1 overflow-auto overscroll-contain p-3 sm:p-6">
-        <div className="mx-auto" style={{ width: PAGE_WIDTH * scale, height: sheetHeight * scale }}>
-          <div ref={sheetRef} style={{ width: PAGE_WIDTH, transform: `scale(${scale})`, transformOrigin: "top left", boxShadow: "0 10px 38px rgba(15,23,42,.18)" }}>
+        <div className="mx-auto" style={{ width: CV_PAGE.widthPx * scale, height: sheetHeight * scale }}>
+          <div ref={sheetRef} style={{ width: CV_PAGE.widthPx, transform: `scale(${scale})`, transformOrigin: "top left", boxShadow: "0 10px 38px rgba(15,23,42,.18)" }}>
             <CVDocument cv={cv} />
           </div>
         </div>
@@ -879,7 +490,7 @@ function CVPreviewModal({
       <footer className="shrink-0 border-t border-zinc-200 bg-white px-4 py-2 text-center text-[10px] text-zinc-500 sm:text-xs">
         {isAr ? "قالب بعمود واحد وعناوين قياسية لتحسين قابلية قراءة أنظمة ATS. راجع المحتوى قبل التقديم." : "Single-column layout with standard headings to support ATS readability. Review your content before applying."}
       </footer>
-    </div>,
+    </motion.div>,
     document.body
   );
 }
@@ -999,9 +610,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     removeSection: "إزالة القسم من السيرة",
     templates: "اختر تصميم سيرتك",
     templatesHint: "تقدر تغير التصميم في أي وقت دون التأثير على بياناتك.",
-    templateBlue: "Blue Professional — القالب المستوحى من ملف Word المرفق",
+    templateBlue: "Blue Professional — قالب احترافي أزرق بعناوين واضحة ومساحات منظمة",
     templateClassic: "Classic Academic — تصميم أكاديمي رسمي أبيض وأسود",
-    templateExecutive: "Executive Minimal — أبيض وأسود",
+    templateContemporary: "Contemporary Professional — تصميم حديث بلمسة لونية هادئة",
+    templateChronological: "Traditional Chronological — تنسيق تقليدي واضح",
     stepSections: "الأقسام المتاحة لديك",
     openPreview: "معاينة السيرة",
     closePreview: "العودة للمحرر",
@@ -1131,9 +743,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     removeSection: "Remove section from CV",
     templates: "Choose your CV design",
     templatesHint: "Change the design any time without affecting your information.",
-    templateBlue: "Blue Professional — inspired by your Word sample",
+    templateBlue: "Blue Professional — structured blue-accented resume with clear section hierarchy",
     templateClassic: "Classic Academic — formal black-and-white layout",
-    templateExecutive: "Executive Minimal — monochrome",
+    templateContemporary: "Contemporary Professional — subtle teal accent",
+    templateChronological: "Traditional Chronological — clean reverse-chronological layout",
     stepSections: "Your available sections",
     openPreview: "Preview CV",
     closePreview: "Back to editor",
@@ -1164,6 +777,8 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const [projectDraft, setProjectDraft] = useState<Project>({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
   const [activityDraft, setActivityDraft] = useState<Activity>({ id: "", organization: "", role: "", period: "", description: "" });
   const [courseDraft, setCourseDraft] = useState<Course>({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
+  const [draggingExperienceId, setDraggingExperienceId] = useState<string | null>(null);
+  const [dragOverExperienceId, setDragOverExperienceId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -1201,16 +816,24 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           educationStatus: parsed.educationStatus ?? "studying",
           yearLevel: normalizeYearLevel(parsed.yearLevel),
           template: normalizeTemplate(parsed.template),
+          experienceSortMode: parsed.experienceSortMode === "newest" ? "newest" : "manual",
           sectionOrder: mergedOrder,
           // selectedSections represents the user's intentional visibility choices.
           // Keep hidden sections hidden; every section remains available in the section manager.
           selectedSections: Array.isArray(parsed.selectedSections) ? normalizedSelected : inferredSelected,
-          experiences: Array.isArray(parsed.experiences) ? parsed.experiences.map((item) => ({
-            ...item,
-            startDate: typeof item.startDate === "string" ? item.startDate : "",
-            endDate: typeof item.endDate === "string" ? item.endDate : "",
-            isCurrent: Boolean(item.isCurrent)
-          })) : [],
+          experiences: parsed.experienceSortMode === "newest"
+            ? sortExperiencesByDate(Array.isArray(parsed.experiences) ? parsed.experiences.map((item) => ({
+                ...item,
+                startDate: typeof item.startDate === "string" ? item.startDate : "",
+                endDate: typeof item.endDate === "string" ? item.endDate : "",
+                isCurrent: Boolean(item.isCurrent)
+              })) : [])
+            : (Array.isArray(parsed.experiences) ? parsed.experiences.map((item) => ({
+                ...item,
+                startDate: typeof item.startDate === "string" ? item.startDate : "",
+                endDate: typeof item.endDate === "string" ? item.endDate : "",
+                isCurrent: Boolean(item.isCurrent)
+              })) : []),
           courses: Array.isArray(parsed.courses) ? parsed.courses.map((item) => ({ ...item, description: typeof item.description === "string" ? item.description : "" })) : [],
           cvLanguage: parsed.cvLanguage ?? locale
         });
@@ -1312,7 +935,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
       startDate,
       endDate
     };
-    update("experiences", editingId ? cv.experiences.map((entry) => entry.id === editingId ? item : entry) : [...cv.experiences, item]);
+    const nextExperiences = editingId
+      ? cv.experiences.map((entry) => entry.id === editingId ? item : entry)
+      : [...cv.experiences, item];
+    update("experiences", cv.experienceSortMode === "newest" ? sortExperiencesByDate(nextExperiences) : nextExperiences);
     setNotice("");
     setFormOpen(false);
   };
@@ -1333,6 +959,35 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     const item = { ...courseDraft, id: courseDraft.id || uid() };
     update("courses", editingId ? cv.courses.map((entry) => entry.id === editingId ? item : entry) : [...cv.courses, item]);
     setFormOpen(false);
+  };
+
+  const reorderExperiences = (sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const reordered = [...cv.experiences];
+    const from = reordered.findIndex((item) => item.id === sourceId);
+    const to = reordered.findIndex((item) => item.id === targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    update("experiences", reordered);
+    update("experienceSortMode", "manual");
+    setDraggingExperienceId(null);
+    setDragOverExperienceId(null);
+  };
+
+  const moveExperience = (id: string, direction: -1 | 1) => {
+    const ordered = [...cv.experiences];
+    const index = ordered.findIndex((item) => item.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    update("experiences", ordered);
+    update("experienceSortMode", "manual");
+  };
+
+  const setExperienceSortMode = (mode: "manual" | "newest") => {
+    update("experienceSortMode", mode);
+    if (mode === "newest") update("experiences", sortExperiencesByDate(cv.experiences));
   };
 
   const editItem = (id: string) => {
@@ -1398,14 +1053,6 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const downloadCV = async () => {
-    if (languageMismatch) {
-      setShowPreview(false);
-      setWizardStep("review");
-      setNotice(cv.cvLanguage === "en"
-        ? (isAr ? "اخترت سيرة إنجليزية، لكن توجد حقول تحتوي على حروف عربية. راجع أسماء الحقول الظاهرة في المراجعة." : "English CV selected, but some fields contain Arabic text. Review the fields listed below.")
-        : (isAr ? "اخترت سيرة عربية، لكن توجد حقول تحتوي على حروف إنجليزية. راجع أسماء الحقول الظاهرة في المراجعة." : "Arabic CV selected, but some fields contain English text. Review the fields listed below."));
-      return;
-    }
     if (!cv.fullName.trim() || (!cv.email.trim() && !cv.phone.trim())) {
       setNotice(t.profileRequired);
       setShowPreview(false);
@@ -1548,10 +1195,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
       const total = listText(cv.skills).length + listText(cv.tools).length + listText(cv.languages).length;
       return total ? <div className="rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-7 dark:border-zinc-700 dark:bg-zinc-900"><p><strong>{t.skills}: </strong>{listText(cv.skills).join("، ") || "—"}</p><p className="mt-2"><strong>{t.technical}: </strong>{listText(cv.tools).join("، ") || "—"}</p><p className="mt-2"><strong>{t.languages}: </strong>{listText(cv.languages).join("، ") || "—"}</p></div> : <EmptyState t={t} />;
     }
-    const items = visibleActiveSection === "experience" ? cv.experiences : visibleActiveSection === "projects" ? cv.projects : visibleActiveSection === "activities" ? cv.activities : cv.courses;
+    const items = visibleActiveSection === "experience"
+      ? (cv.experienceSortMode === "newest" ? sortExperiencesByDate(cv.experiences) : cv.experiences)
+      : visibleActiveSection === "projects" ? cv.projects
+        : visibleActiveSection === "activities" ? cv.activities : cv.courses;
     if (!items.length) return <EmptyState t={t} />;
     return (
-      <div className="grid gap-2.5">
+      <motion.div layout className="grid gap-2.5">
+        <AnimatePresence initial={false}>
         {items.map((raw) => {
           const heading =
             ("role" in raw ? raw.role : "") ||
@@ -1566,36 +1217,77 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             ("period" in raw ? raw.period : "") ||
             ("kind" in raw ? raw.kind : "");
           const description = "description" in raw ? raw.description : "";
+          const isExperience = visibleActiveSection === "experience";
+          const canDrag = isExperience && items.length > 1 && cv.experienceSortMode === "manual";
+          const experienceIndex = isExperience ? items.findIndex((entry) => entry.id === raw.id) : -1;
           return (
-            <div key={raw.id} className="flex items-start justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-3.5 dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="min-w-0">
-                <p className="break-words text-sm font-bold text-zinc-900 dark:text-white">{heading}</p>
-                {sub ? <p className="mt-1 break-words text-xs text-zinc-500">{sub}</p> : null}
-                {description ? <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs leading-5 text-zinc-600 dark:text-zinc-300">{description}</p> : null}
+            <motion.div
+              key={raw.id}
+              layout
+              initial={{ opacity: 0, y: 10, scale: 0.985 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.985 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              draggable={canDrag}
+              onDragStart={(event) => {
+                if (!canDrag) return;
+                setDraggingExperienceId(raw.id);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", raw.id);
+              }}
+              onDragOver={(event) => {
+                if (!canDrag || !draggingExperienceId) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDragOverExperienceId(raw.id);
+              }}
+              onDrop={(event) => {
+                if (!canDrag) return;
+                event.preventDefault();
+                const sourceId = event.dataTransfer.getData("text/plain") || draggingExperienceId;
+                if (sourceId) reorderExperiences(sourceId, raw.id);
+              }}
+              onDragEnd={() => { setDraggingExperienceId(null); setDragOverExperienceId(null); }}
+              className={cx(
+                "flex items-start justify-between gap-3 rounded-xl border bg-white p-3.5 transition dark:bg-zinc-900",
+                dragOverExperienceId === raw.id ? "border-[#C8A448] ring-2 ring-[#C8A448]/20" : "border-zinc-200 dark:border-zinc-700",
+                draggingExperienceId === raw.id ? "opacity-45" : "",
+                canDrag ? "cursor-grab active:cursor-grabbing" : ""
+              )}
+            >
+              <div className="flex min-w-0 items-start gap-2">
+                {canDrag ? <div className="flex shrink-0 flex-col items-center gap-1 pt-0.5">
+                  <GripVertical className="h-4 w-4 text-zinc-400" aria-label={isAr ? "اسحب لإعادة الترتيب" : "Drag to reorder"} />
+                  <div className="flex flex-col">
+                    <button type="button" onClick={() => moveExperience(raw.id, -1)} disabled={experienceIndex === 0} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 disabled:opacity-25 dark:hover:bg-zinc-800" aria-label={isAr ? "تحريك لأعلى" : "Move up"}><ArrowUp className="h-3 w-3" /></button>
+                    <button type="button" onClick={() => moveExperience(raw.id, 1)} disabled={experienceIndex === items.length - 1} className="rounded p-0.5 text-zinc-400 hover:bg-zinc-100 disabled:opacity-25 dark:hover:bg-zinc-800" aria-label={isAr ? "تحريك لأسفل" : "Move down"}><ArrowDown className="h-3 w-3" /></button>
+                  </div>
+                </div> : null}
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-zinc-900 dark:text-white">{heading}</p>
+                  {sub ? <p className="mt-1 break-words text-xs text-zinc-500">{sub}</p> : null}
+                  {description ? <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs leading-5 text-zinc-600 dark:text-zinc-300">{description}</p> : null}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button type="button" onClick={() => editItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-white" aria-label={t.editItem}><Pencil className="h-4 w-4" /></button>
                 <button type="button" onClick={() => removeItem(raw.id)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30" aria-label={t.delete}><Trash2 className="h-4 w-4" /></button>
               </div>
-            </div>
+            </motion.div>
           );
         })}
-      </div>
+        </AnimatePresence>
+      </motion.div>
     );
   };
 
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
-  const templateOptions: Array<{ id: CVTemplate; name: string; description: string; badge: string }> = isAr
-    ? [
-        { id: "reference", name: "Blue Professional", description: "نفس ملف Word المرفق في ترتيب الاسم والعناوين والمسافات.", badge: "القالب المرجعي" },
-        { id: "executive", name: "Executive Minimal", description: "تصميم رسمي أبيض وأسود، بعمود واحد وخط واضح.", badge: "رسمي وبسيط" },
-        { id: "classic", name: "Classic Academic", description: "تصميم أكاديمي رسمي أبيض وأسود بعناوين قياسية.", badge: "أكاديمي ورسمي" }
-      ]
-    : [
-        { id: "reference", name: "Blue Professional", description: "Matches the supplied Word sample's centered header, spacing and section hierarchy.", badge: "Reference template" },
-        { id: "executive", name: "Executive Minimal", description: "Formal black-and-white, single-column layout with readable typography.", badge: "Formal minimal" },
-        { id: "classic", name: "Classic Academic", description: "Black-and-white academic layout with standard section headings.", badge: "Academic formal" }
-      ];
+  const templateOptions = CV_TEMPLATE_OPTIONS.map((option) => ({
+    id: option.id,
+    name: option.title,
+    description: isAr ? option.descriptionAr : option.descriptionEn,
+    badge: isAr ? option.badgeAr : option.badgeEn
+  }));
   const currentStepLabel = wizardStep === "template" ? t.templates : wizardStep === "profile" ? t.stepProfile : wizardStep === "education" ? t.stepEducation : wizardStep === "sections" ? t.stepSections : wizardStep === "review" ? t.reviewTitle : sectionLabel(wizardStep);
   const progressPercent = currentVisibleStepIndex < 0
     ? 0
@@ -1603,69 +1295,11 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-28 sm:px-5 lg:px-6" dir={isAr ? "rtl" : "ltr"}>
+      <CVDocumentStyles />
       <style jsx global>{`
         .cv-select { width: 100%; border: 1px solid rgb(228 228 231); border-radius: .75rem; background: white; padding: .75rem .875rem; color: #18181b; font-size: .875rem; outline: none; }
         .dark .cv-select { background: #09090b; border-color: rgb(63 63 70); color: white; }
         .cv-select:focus { border-color: #C8A448; box-shadow: 0 0 0 2px rgb(200 164 72 / .15); }
-        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; font-size: 13.333px; line-height: 1.12; }
-        .cv-document .cv-document-header { border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
-        .cv-document .cv-name { margin: 0; color: #24466F; font-size: 24px; line-height: 1.12; font-weight: 800; letter-spacing: 0; }
-        .cv-document .cv-target-role { margin: 4px 0 0; color: #4D83C5; font-size: 14.667px; line-height: 1.12; font-weight: 500; }
-        .cv-document .cv-contact { margin: 9px 0 0; color: #596574; font-size: 12px; line-height: 1.12; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
-        .cv-document .cv-section { margin-top: 14px; break-inside: auto; }
-        .cv-document .cv-section h2 { margin: 0 0 7px; padding-bottom: 4px; border-bottom: 1px solid #AFC3DE; color: #24466F; font-size: 16px; line-height: 1.12; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
-        .cv-document .cv-section p { margin-top: 0; font-size: 13.333px; line-height: 1.12; }
-        .cv-document .cv-summary-text { margin: 0; }
-        .cv-document .cv-education-layout { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-        .cv-document .cv-entry-title { margin: 0; font-size: 13.333px; line-height: 1.12; font-weight: 800; color: #20252b; }
-        .cv-document .cv-muted-line { margin: 2px 0 0; color: #4b5563; font-size: 13.333px; }
-        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 13.333px; line-height: 1.12; }
-        .cv-document .cv-education-meta p { margin: 0; font-size: 13.333px; line-height: 1.12; }
-        .cv-document .cv-entry { margin: 0 0 11px; margin-inline-start: 16px; break-inside: avoid; page-break-inside: avoid; }
-        .cv-document .cv-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-        .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: #555; font-size: 13.333px !important; white-space: nowrap; }
-        .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: #20252b; font-size: 13.333px !important; font-weight: 700; }
-        .cv-document .cv-entry-detail { margin: 4px 0 0; font-size: 13.333px !important; line-height: 1.12; }
-        .cv-document .cv-entry-link { margin: 4px 0 0; color: #334155; font-size: 13.333px !important; line-height: 1.12; }
-        .cv-document .cv-bullets { margin: 3px 0 0; padding-inline-start: 20px; list-style: disc; }
-        .cv-document .cv-bullets li { margin: 1px 0; padding-inline-start: 2px; font-size: 13.333px; line-height: 1.12; }
-        .cv-document .cv-skill-group { margin-top: 4px !important; }
-        .cv-document .cv-skill-block { margin: 0 0 5px; }
-        .cv-document .cv-skill-label { margin: 0 0 1px !important; font-size: 13.333px !important; font-weight: 700; }
-        .cv-document a { color: inherit; text-decoration: underline; }
-        .cv-document[lang="ar"] { font-size: 14.667px; line-height: 1.15; }
-        .cv-document[lang="ar"] .cv-name { font-size: 25.333px; line-height: 1.15; }
-        .cv-document[lang="ar"] .cv-target-role { font-size: 16px; line-height: 1.15; }
-        .cv-document[lang="ar"] .cv-contact { font-size: 13.333px; line-height: 1.15; }
-        .cv-document[lang="ar"] .cv-section h2 { font-size: 17.333px; line-height: 1.15; }
-        .cv-document[lang="ar"] .cv-section p,
-        .cv-document[lang="ar"] .cv-entry-title,
-        .cv-document[lang="ar"] .cv-muted-line,
-        .cv-document[lang="ar"] .cv-education-meta,
-        .cv-document[lang="ar"] .cv-education-meta p,
-        .cv-document[lang="ar"] .cv-entry-date,
-        .cv-document[lang="ar"] .cv-entry-subtitle,
-        .cv-document[lang="ar"] .cv-entry-detail,
-        .cv-document[lang="ar"] .cv-entry-link,
-        .cv-document[lang="ar"] .cv-bullets li,
-        .cv-document[lang="ar"] .cv-skill-label { font-size: 14.667px !important; line-height: 1.15; }
-        .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
-        .cv-template-reference .cv-name { color: #24466F; font-size: 24px; }
-        .cv-template-reference .cv-target-role { color: #4D83C5; font-size: 14.667px; font-style: italic; font-weight: 500; }
-        .cv-template-reference .cv-contact { justify-content: center; color: #596574; }
-        .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid #AFC3DE; padding: 7px 0 0; color: #24466F; margin-bottom: 7px; }
-        .cv-template-executive .cv-document-header { border-bottom: 1px solid #333; }
-        .cv-template-executive .cv-name, .cv-template-classic .cv-name { color: #111; }
-        .cv-template-executive .cv-target-role, .cv-template-classic .cv-target-role { color: #333; }
-        .cv-template-executive .cv-section h2, .cv-template-classic .cv-section h2 { color: #111; border-color: #333; }
-        .cv-template-classic .cv-document-header { border-bottom: 2px solid #111; padding-bottom: 16px; }
-        .cv-template-classic .cv-name { text-transform: none; letter-spacing: .01em; }
-        .cv-template-classic .cv-target-role { font-weight: 600; }
-        .cv-template-classic .cv-section h2 { text-transform: uppercase; letter-spacing: .045em; border-bottom-width: 1px; }
-        @media (max-width: 640px) {
-          .cv-document .cv-entry-heading { gap: 8px; }
-          .cv-document .cv-entry-date { white-space: normal; text-align: end; }
-        }
       `}</style>
 
       <div className="mx-auto max-w-4xl pb-28 sm:pb-32">
@@ -1706,27 +1340,27 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             </div>
           ) : null}
           {notice ? <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
-          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-bold">{cv.cvLanguage === "en" ? (isAr ? "السيرة باللغة الإنجليزية، لكن توجد نصوص عربية." : "English CV selected, but Arabic letters were found in the fields listed below.") : (isAr ? "السيرة باللغة العربية، لكن توجد نصوص إنجليزية." : "Arabic CV selected, but Latin letters were found in the fields listed below.")}</p><p>{isAr ? "الحقول التي تحتاج مراجعة:" : "Fields to review:"}</p><ul className="list-disc ps-5">{languageMismatchFields.slice(0, 8).map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul>{languageMismatchFields.length > 8 ? <p>{isAr ? `و ${languageMismatchFields.length - 8} حقول أخرى.` : `And ${languageMismatchFields.length - 8} more field(s).`}</p> : null}</div> : null}
+          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="font-bold">{cv.cvLanguage === "en" ? (isAr ? "السيرة باللغة الإنجليزية، لكن توجد حروف عربية في الحقول الموضحة. يمكنك تحميل السيرة بعد المراجعة أو بدون تعديلها." : "English CV selected; Arabic letters were found in the fields listed below. You can still download your CV.") : (isAr ? "السيرة باللغة العربية، لكن توجد حروف إنجليزية في الحقول الموضحة. يمكنك تحميل السيرة بعد المراجعة أو بدون تعديلها." : "Arabic CV selected; Latin letters were found in the fields listed below. You can still download your CV.")}</p><p>{isAr ? "الحقول التي تحتاج مراجعة:" : "Fields to review:"}</p><ul className="list-disc ps-5">{languageMismatchFields.slice(0, 8).map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul>{languageMismatchFields.length > 8 ? <p>{isAr ? `و ${languageMismatchFields.length - 8} حقول أخرى.` : `And ${languageMismatchFields.length - 8} more field(s).`}</p> : null}</div> : null}
         </header>
 
         {wizardStep === "template" ? (
           <section className="space-y-5">
             <div className="text-center">
               <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{isAr ? "اختار الشكل اللي يناسب تقديمك" : "Choose the style that fits your application"}</p>
-              <p className="mt-1 text-xs text-zinc-500">{isAr ? "كل التصميمات رسمية وبعمود واحد ومهيأة لتكون سهلة القراءة بواسطة ATS." : "All three designs are formal, single-column and designed for ATS readability."}</p>
+              <p className="mt-1 text-xs text-zinc-500">{isAr ? "كل التصميمات رسمية وبعمود واحد ومهيأة لتكون سهلة القراءة بواسطة ATS." : "All four designs are formal, single-column and designed for ATS readability."}</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {templateOptions.map((option) => {
+            <div className="grid gap-4 sm:grid-cols-2">
+              {templateOptions.map((option, index) => {
                 const active = cv.template === option.id;
                 return (
-                  <button key={option.id} type="button" onClick={() => update("template", option.id)} aria-pressed={active} className={cx("group rounded-2xl border bg-white p-3 text-start shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:bg-zinc-900", active ? "border-[#C8A448] ring-2 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700")}>
+                  <motion.button key={option.id} type="button" onClick={() => update("template", option.id)} aria-pressed={active} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, delay: index * 0.045 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.99 }} className={cx("group rounded-2xl border bg-white p-3 text-start shadow-sm transition dark:bg-zinc-900", active ? "border-[#C8A448] ring-2 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700")}>
                     <TemplateThumbnail template={option.id} isAr={isAr} />
                     <div className="mt-3 flex items-center justify-between gap-2">
                       <div><span className="block text-sm font-extrabold text-zinc-900 dark:text-white">{option.name}</span><span className="mt-0.5 block text-[10px] font-semibold text-[#8A6D1F] dark:text-[#E2C46F]">{option.badge}</span></div>
                       {active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /> : <span className="h-5 w-5 shrink-0 rounded-full border border-zinc-300 dark:border-zinc-600" />}
                     </div>
                     <p className="mt-2 min-h-10 text-xs leading-5 text-zinc-500">{option.description}</p>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
@@ -1796,7 +1430,13 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         {isSectionStep(wizardStep) ? (
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 md:p-7">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-              <div><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{sectionLabel(visibleActiveSection)}</h2><p className="mt-1 text-sm text-zinc-500">{isAr ? "كل الحقول اختيارية. أضف ما ينطبق عليك فقط، ويمكنك تخطي الخطوة." : "All fields are optional. Add only what applies to you, or skip this step."}</p></div>
+              <div><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{sectionLabel(visibleActiveSection)}</h2><p className="mt-1 text-sm text-zinc-500">{isAr ? "كل الحقول اختيارية. أضف ما ينطبق عليك فقط، ويمكنك تخطي الخطوة." : "All fields are optional. Add only what applies to you, or skip this step."}</p>
+                {visibleActiveSection === "experience" && cv.experiences.length > 1 ? <div className="mt-3 inline-flex flex-wrap items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                  <button type="button" onClick={() => setExperienceSortMode("manual")} aria-pressed={cv.experienceSortMode === "manual"} className={cx("rounded-lg px-3 py-1.5 text-[11px] font-bold transition", cv.experienceSortMode === "manual" ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{isAr ? "ترتيب يدوي" : "Manual order"}</button>
+                  <button type="button" onClick={() => setExperienceSortMode("newest")} aria-pressed={cv.experienceSortMode === "newest"} className={cx("rounded-lg px-3 py-1.5 text-[11px] font-bold transition", cv.experienceSortMode === "newest" ? "bg-[#182B36] text-white dark:bg-[#C8A448] dark:text-[#182B36]" : "text-zinc-600 dark:text-zinc-300")}>{isAr ? "الأحدث أولًا" : "Newest first"}</button>
+                </div> : null}
+                {visibleActiveSection === "experience" && cv.experiences.length > 1 ? <p className="mt-1 text-[10px] text-zinc-500">{cv.experienceSortMode === "manual" ? (isAr ? "اسحب العناصر لإعادة ترتيبها، أو استخدم الأسهم." : "Drag entries to reorder them, or use the arrow controls.") : (isAr ? "يتم ترتيب الخبرات تلقائيًا من الأحدث إلى الأقدم حسب تاريخ البداية." : "Experience is sorted automatically by start date, newest first.")}</p> : null}
+              </div>
               {visibleActiveSection !== "skills" && !formOpen ? <button type="button" onClick={beginAdd} className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B36] px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]"><Plus className="h-4 w-4" />{t.addNew}</button> : null}
             </div>
             {visibleActiveSection === "skills" ? renderSectionForm() : formOpen ? <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-950"><div className="mb-4 flex items-center justify-between gap-3"><h4 className="text-sm font-bold">{editingId ? t.edit : t.addNew}</h4><button type="button" onClick={() => setFormOpen(false)} className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label={t.cancel}><X className="h-4 w-4" /></button></div>{renderSectionForm()}</div> : renderSectionItems()}
@@ -1810,9 +1450,9 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
             {qualityWarnings.length ? <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="mb-1 font-extrabold">{isAr ? "ملاحظات لمراجعتها قبل التقديم" : "Content checks to review before applying"}</p><ul className="list-disc space-y-1 ps-5">{qualityWarnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul><p className="mt-2 text-[11px]">{isAr ? "دي تنبيهات إرشادية فقط؛ لن يتم تعديل أو حذف أي معلومة تلقائيًا." : "These are guidance warnings only. No information is automatically changed or deleted."}</p></div> : null}
-            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-extrabold">{cv.cvLanguage === "en" ? (isAr ? "لا يمكن تصدير السيرة الإنجليزية قبل مراجعة الحروف العربية في الحقول الموضحة أدناه." : "English PDF export is blocked until Arabic letters in the listed fields are reviewed.") : (isAr ? "لا يمكن تصدير السيرة العربية قبل مراجعة الحروف الإنجليزية في الحقول الموضحة أدناه." : "Arabic PDF export is blocked until Latin letters in the listed fields are reviewed.")}</p><ul className="mt-1 list-disc space-y-1 ps-5">{languageMismatchFields.map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul><p className="mt-2">{isAr ? "الاختيارات الجاهزة مثل حالة الدراسة والسنة الدراسية لا تدخل في هذا الفحص؛ يتم عرضها حسب لغة السيرة." : "System choices such as study status and study year are excluded and displayed in the selected CV language."}</p></div> : null}
+            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="font-extrabold">{cv.cvLanguage === "en" ? (isAr ? "ملاحظة: توجد حروف عربية في بعض حقول السيرة الإنجليزية. يمكنك مراجعتها أو متابعة التحميل كما هي." : "Arabic letters were found in the fields listed below. You can still download your CV.") : (isAr ? "ملاحظة: توجد حروف إنجليزية في بعض حقول السيرة العربية. يمكنك مراجعتها أو متابعة التحميل كما هي." : "Latin letters were found in the fields listed below. You can still download your CV.")}</p><ul className="mt-1 list-disc space-y-1 ps-5">{languageMismatchFields.map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul><p className="mt-2">{isAr ? "الاختيارات الجاهزة مثل حالة الدراسة والسنة الدراسية لا تدخل في هذا الفحص؛ يتم عرضها حسب لغة السيرة." : "System choices such as study status and study year are excluded and displayed in the selected CV language."}</p></div> : null}
             <div className="mt-5 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading || languageMismatch} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
             <p className="mt-3 text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p>
           </section>
         ) : null}
@@ -1830,7 +1470,11 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         <div className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-4xl justify-end sm:inset-x-6"><button type="button" onClick={() => { setNotice(""); setWizardStep("profile"); }} className="inline-flex items-center gap-2 rounded-2xl bg-[#182B36] px-6 py-3.5 text-sm font-extrabold text-white shadow-xl hover:bg-[#294653] dark:bg-[#C8A448] dark:text-[#182B36]">{t.startBuilding}{isAr ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" /> }</button></div>
       )}
 
-      {showPreview ? <CVPreviewModal cv={cv} isAr={isAr} onClose={() => setShowPreview(false)} onDownload={downloadCV} downloading={downloading} onTemplateChange={(template) => update("template", template)} /> : null}
+      <AnimatePresence>
+        <AnimatePresence>
+        {showPreview ? <CVPreviewModal key="cv-preview-modal" cv={cv} isAr={isAr} onClose={() => setShowPreview(false)} onDownload={downloadCV} downloading={downloading} onTemplateChange={(template) => update("template", template)} /> : null}
+      </AnimatePresence>
+      </AnimatePresence>
     </div>
   );
 }
