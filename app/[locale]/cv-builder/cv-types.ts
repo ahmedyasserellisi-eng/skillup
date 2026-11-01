@@ -90,7 +90,7 @@ export const CV_PAGE = {
 export const CV_TYPOGRAPHY = {
   en: {
     bodyPt: 10,
-    sectionPt: 12,
+    sectionPt: 11,
     namePt: 18,
     targetPt: 11,
     contactPt: 9,
@@ -108,28 +108,59 @@ export const CV_TYPOGRAPHY = {
 
 export const CV_TEMPLATE_DESIGNS: Record<CVTemplate, {
   primary: string;
+  name: string;
   secondary: string;
   rule: string;
   body: string;
   muted: string;
   headerAlignment: "center" | "start";
+  headerStyle: "reference" | "academic" | "panel" | "timeline";
   headingStyle: "reference" | "academic" | "accent" | "chronological";
 }> = {
   reference: {
-    primary: "#24466F", secondary: "#4D83C5", rule: "#AFC3DE", body: "#111111", muted: "#4D4D4D",
-    headerAlignment: "center", headingStyle: "reference"
+    // Blue Professional follows the supplied Word/PDF reference.
+    primary: "#17365D",
+    name: "#202D40",
+    secondary: "#5982BF",
+    rule: "#AFC3DE",
+    body: "#111111",
+    muted: "#5A5A5A",
+    headerAlignment: "center",
+    headerStyle: "reference",
+    headingStyle: "reference"
   },
   classic: {
-    primary: "#171717", secondary: "#333333", rule: "#525252", body: "#171717", muted: "#525252",
-    headerAlignment: "start", headingStyle: "academic"
+    primary: "#202020",
+    name: "#171717",
+    secondary: "#555555",
+    rule: "#777777",
+    body: "#252525",
+    muted: "#666666",
+    headerAlignment: "start",
+    headerStyle: "academic",
+    headingStyle: "academic"
   },
   contemporary: {
-    primary: "#155B57", secondary: "#347C75", rule: "#B7D6D1", body: "#1F2937", muted: "#52636A",
-    headerAlignment: "start", headingStyle: "accent"
+    primary: "#145A55",
+    name: "#123B38",
+    secondary: "#31847B",
+    rule: "#B8D7D2",
+    body: "#23312F",
+    muted: "#667975",
+    headerAlignment: "start",
+    headerStyle: "panel",
+    headingStyle: "accent"
   },
   chronological: {
-    primary: "#202B3A", secondary: "#3F4B5B", rule: "#AAB4C0", body: "#20242A", muted: "#59616B",
-    headerAlignment: "center", headingStyle: "chronological"
+    primary: "#2B4058",
+    name: "#1F2D3D",
+    secondary: "#637A92",
+    rule: "#AAB8C7",
+    body: "#28323D",
+    muted: "#687583",
+    headerAlignment: "start",
+    headerStyle: "timeline",
+    headingStyle: "chronological"
   }
 };
 
@@ -137,32 +168,32 @@ export const CV_TEMPLATE_OPTIONS = [
   {
     id: "reference" as const,
     title: "Blue Professional",
-    descriptionAr: "قالب احترافي باللون الأزرق، بعناوين واضحة ومساحات منظمة وتسلسل سهل القراءة.",
-    descriptionEn: "A structured, blue-accented resume with a clear hierarchy and balanced spacing.",
+    descriptionAr: "قالب أزرق احترافي مطابق للتنسيق المرجعي، بهيدر مركزي وفواصل رفيعة قبل الأقسام.",
+    descriptionEn: "The supplied blue reference layout: centered profile header, fine section rules, and restrained emphasis.",
     badgeAr: "احترافي ومنظم",
     badgeEn: "Professional layout"
   },
   {
     id: "classic" as const,
     title: "Classic Academic",
-    descriptionAr: "تصميم أكاديمي رسمي بطابع تقليدي وعناوين واضحة مناسب للطلاب والخريجين.",
-    descriptionEn: "A formal academic layout with restrained typography and conventional section headings.",
+    descriptionAr: "تصميم أكاديمي رسمي بمحاذاة يسار وخط فاصل أسفل العناوين وتنسيق تقليدي هادئ.",
+    descriptionEn: "A formal, left-aligned academic layout with understated typography and underlined section labels.",
     badgeAr: "أكاديمي ورسمي",
     badgeEn: "Academic formal"
   },
   {
     id: "contemporary" as const,
     title: "Contemporary Professional",
-    descriptionAr: "تصميم حديث بلمسة خضراء هادئة وتسلسل بصري واضح، مع الحفاظ على عمود واحد مناسب لأنظمة ATS.",
-    descriptionEn: "A contemporary single-column design with a subtle teal accent and clear visual hierarchy.",
+    descriptionAr: "تصميم حديث بواجهة رأس فاتحة ولمسات خضراء وعناوين أقسام بارزة، مع محتوى بعمود واحد.",
+    descriptionEn: "A modern single-column layout with a soft teal profile panel and accent section labels.",
     badgeAr: "حديث ومتوازن",
     badgeEn: "Modern single-column"
   },
   {
     id: "chronological" as const,
     title: "Traditional Chronological",
-    descriptionAr: "تنسيق تقليدي واضح يركز على التسلسل الزمني والعناوين المباشرة وسهولة استعراض الخبرات.",
-    descriptionEn: "A traditional, scan-friendly format emphasizing clear headings and reverse-chronological experience.",
+    descriptionAr: "قالب يبرز التواريخ والتسلسل الزمني، مع عمود زمني واضح للعناصر المهنية والتعليمية.",
+    descriptionEn: "A timeline-led format that gives dates a dedicated rail and makes career progression easy to scan.",
     badgeAr: "تقليدي واضح",
     badgeEn: "Traditional format"
   }
