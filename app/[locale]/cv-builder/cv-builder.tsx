@@ -31,7 +31,7 @@ import type { Locale } from "@/i18n";
 import { downloadCvPdf } from "./pdf-export";
 
 type SectionId = "experience" | "projects" | "activities" | "courses" | "skills";
-type CVTemplate = "reference" | "signature" | "executive";
+type CVTemplate = "reference" | "executive" | "yale";
 type WizardStep = "template" | "profile" | "education" | "sections" | SectionId | "review";
 type EducationStatus = "studying" | "graduated";
 type Experience = {
@@ -65,6 +65,7 @@ type Course = {
   name: string;
   provider: string;
   date: string;
+  description: string;
   certificateUrl: string;
 };
 type CVData = {
@@ -102,7 +103,8 @@ type LocaleCopy = {
 };
 
 const STORAGE_KEY = "skillup_cv_student_v1";
-const PAGE_WIDTH = 794;
+const PAGE_WIDTH = 816; // US Letter width at 96 CSS px per inch
+const PAGE_HEIGHT = 1056; // US Letter height at 96 CSS px per inch
 
 const SECTION_META: Record<SectionId, { icon: typeof BriefcaseBusiness; titleAr: string; titleEn: string; subAr: string; subEn: string }> = {
   experience: { icon: BriefcaseBusiness, titleAr: "التدريبات والخبرات", titleEn: "Experience & Internships", subAr: "تدريب، عمل جزئي، عمل حر أو خبرة عملية", subEn: "Internships, part-time work, freelance or other experience" },
@@ -136,7 +138,7 @@ const EMPTY_CV: CVData = {
   skills: "",
   tools: "",
   languages: "",
-  sectionOrder: ["experience", "projects", "activities", "courses", "skills"],
+  sectionOrder: ["experience", "courses", "skills", "projects", "activities"],
   selectedSections: [],
   cvLanguage: "ar",
   template: "reference"
@@ -144,6 +146,14 @@ const EMPTY_CV: CVData = {
 
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const cx = (...classes: Array<string | false | undefined | null>) => classes.filter(Boolean).join(" ");
+
+function normalizeTemplate(value: unknown): CVTemplate {
+  if (value === "reference" || value === "executive" || value === "yale") return value;
+  // Legacy templates are mapped to the closest neutral formal design without losing CV data.
+  if (value === "signature" || value === "compact" || value === "classic") return "executive";
+  if (value === "modern") return "yale";
+  return "reference";
+}
 
 function listText(value: string): string[] {
   const result: string[] = [];
@@ -226,6 +236,98 @@ function TextArea({
   );
 }
 
+const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
+function collectCvText(cv: CVData): string[] {
+  return [
+    cv.fullName, cv.targetRole, cv.city, cv.summary, cv.university, cv.qualification,
+    cv.college, cv.major, cv.yearLevel, cv.gpa, cv.skills, cv.tools, cv.languages,
+    ...cv.experiences.flatMap((item) => [item.role, item.organization, item.period, item.location, item.description]),
+    ...cv.projects.flatMap((item) => [item.name, item.kind, item.role, item.date, item.tools, item.description]),
+    ...cv.activities.flatMap((item) => [item.organization, item.role, item.period, item.description]),
+    ...cv.courses.flatMap((item) => [item.name, item.provider, item.date, item.description])
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+}
+
+function normalizedWords(value: string): string[] {
+  const stopWords = new Set([
+    "the", "and", "for", "with", "from", "that", "this", "your", "you", "role", "job",
+    "intern", "internship", "junior", "senior", "entry", "level", "professional", "assistant",
+    "specialist", "officer", "coordinator", "manager", "executive", "trainee"
+  ]);
+  return (value.toLocaleLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter((word) => !stopWords.has(word));
+}
+
+function getCvQualityWarnings(cv: CVData, isAr: boolean): string[] {
+  const warnings: string[] = [];
+  const targetWords = normalizedWords(cv.targetRole);
+  const supportingText = [
+    cv.summary,
+    ...cv.experiences.map((item) => item.role),
+    ...cv.projects.map((item) => item.role || item.name)
+  ].join(" ");
+  const supportingWords = new Set(normalizedWords(supportingText));
+
+  if (targetWords.length && supportingWords.size && !targetWords.some((word) => supportingWords.has(word))) {
+    warnings.push(isAr
+      ? "راجع توافق المسمى المستهدف مع الملخص والمسميات الوظيفية؛ قد يكون هناك اختلاف في المجال أو الصياغة."
+      : "Check that the target role matches the summary and experience/project titles. They may describe different fields.");
+  }
+
+  const incompleteExperience = cv.experiences.some((item) => {
+    const hasAnyData = [item.role, item.organization, item.period, item.location, item.description].some((value) => value.trim());
+    if (!hasAnyData) return false;
+    return !item.role.trim() || !item.description.trim() || (!item.organization.trim() && item.kind !== "freelance");
+  });
+  if (incompleteExperience) {
+    warnings.push(isAr
+      ? "يوجد تدريب أو خبرة ينقصها المسمى أو الجهة أو وصف المسؤوليات. راجع العنصر قبل التقديم."
+      : "At least one experience item is missing a role, organization, or responsibility description. Review it before applying.");
+  }
+
+  const incompleteProjects = cv.projects.some((item) => {
+    const hasAnyData = [item.name, item.kind, item.role, item.date, item.description, item.tools, item.url].some((value) => value.trim());
+    return hasAnyData && (!item.name.trim() || !item.description.trim());
+  });
+  if (incompleteProjects) {
+    warnings.push(isAr
+      ? "يوجد مشروع ينقصه الاسم أو وصف مختصر لما قمت بتنفيذه."
+      : "At least one project is missing its name or a short description of what you built or contributed.");
+  }
+
+  const incompleteActivities = cv.activities.some((item) => {
+    const hasAnyData = [item.organization, item.role, item.period, item.description].some((value) => value.trim());
+    return hasAnyData && (!item.organization.trim() || !item.role.trim() || !item.description.trim());
+  });
+  if (incompleteActivities) {
+    warnings.push(isAr
+      ? "يوجد نشاط أو تطوع ينقصه اسم الجهة أو الدور أو وصف المشاركة."
+      : "At least one activity is missing its organization, role, or description of your contribution.");
+  }
+
+  const incompleteCourses = cv.courses.some((item) => (item.provider.trim() || item.date.trim() || item.description.trim() || item.certificateUrl.trim()) && !item.name.trim());
+  if (incompleteCourses) {
+    warnings.push(isAr
+      ? "يوجد كورس أو شهادة بدون اسم واضح."
+      : "At least one course or certificate is missing its name.");
+  }
+
+  const placeholders = new Set(["gg", "test", "xxx", "xxxx", "n/a", "na", "none", "tbd", "example", "lorem ipsum"]);
+  const validShortTerms = new Set(["hr", "it", "qa", "ai", "ux", "ui", "bi", "sql", "3d"]);
+  const unclearSkills = [...listText(cv.skills), ...listText(cv.tools), ...listText(cv.languages)]
+    .some((item) => {
+      const normalized = item.trim().toLocaleLowerCase();
+      return placeholders.has(normalized) || (normalized.length <= 2 && !validShortTerms.has(normalized));
+    });
+  if (unclearSkills) {
+    warnings.push(isAr
+      ? "توجد قيمة في المهارات أو الأدوات أو اللغات تبدو كقيمة تجريبية أو غير مكتملة. راجعها."
+      : "A skill, tool, or language entry looks like a placeholder or test value. Review it.");
+  }
+
+  return warnings;
+}
+
 function uniqueText(values: Array<string | undefined>): string[] {
   const seen = new Set<string>();
   return values.map((value) => (value ?? "").trim()).filter((value) => {
@@ -273,25 +375,24 @@ function CVDocument({ cv }: { cv: CVData }) {
     studyYear: ar ? "السنة الدراسية" : "Study year",
     gpa: ar ? "التقدير" : "Grade",
   };
-  const contact = [cv.email, cv.phone, cv.city, cv.linkedin].filter(Boolean);
+  const contact = [cv.city, cv.phone, cv.email, cv.linkedin].filter(Boolean);
   const experience = cv.experiences.filter((item) => item.role || item.organization || item.description);
   const projects = cv.projects.filter((item) => item.name || item.description);
   const activities = cv.activities.filter((item) => item.organization || item.role || item.description);
-  const courses = cv.courses.filter((item) => item.name || item.provider);
+  const courses = cv.courses.filter((item) => item.name || item.provider || item.description);
   const skills = listText(cv.skills);
   const tools = listText(cv.tools);
   const languages = listText(cv.languages);
   const degreeLine = cv.qualification.trim() || cv.major.trim();
   const majorIsAlreadyInDegree = Boolean(cv.qualification.trim() && cv.major.trim() && cv.qualification.toLocaleLowerCase().includes(cv.major.toLocaleLowerCase()));
-  const educationLines = uniqueText([
-    degreeLine,
+  const educationPlace = uniqueText([cv.university, cv.college]).join(" · ");
+  const educationLines = uniqueText([degreeLine, educationPlace]);
+  const educationDetails = uniqueText([
     cv.qualification.trim() && cv.major.trim() && !majorIsAlreadyInDegree ? `${ar ? "التخصص" : "Major"}: ${cv.major}` : "",
-    cv.college,
-    cv.university
+    cv.educationStatus === "studying" && cv.yearLevel && !["أخرى", "Other"].includes(cv.yearLevel) ? `${t.studyYear}: ${cv.yearLevel}` : "",
+    cv.gpa ? `${t.gpa}: ${cv.gpa}` : ""
   ]);
-  const hasEducation = educationLines.length > 0 || Boolean(cv.startYear || cv.graduationYear || cv.gpa);
-  const compact = template === "executive";
-
+  const hasEducation = educationLines.length > 0 || educationDetails.length > 0 || Boolean(cv.startYear || cv.graduationYear);
   return (
     <article
       className={`cv-document cv-template-${template} mx-auto bg-white text-[#20252b]`}
@@ -299,9 +400,10 @@ function CVDocument({ cv }: { cv: CVData }) {
       lang={cv.cvLanguage}
       style={{
         width: PAGE_WIDTH,
-        minHeight: 1123,
+        minHeight: PAGE_HEIGHT,
         boxSizing: "border-box",
-        padding: compact ? "38px 46px" : "48px 56px",
+        // Match the supplied Word template: 0.65in top, 0.55in bottom, 0.70in side margins.
+        padding: "62px 67px 53px",
         fontFamily: "var(--font-sans-app), Arial, 'Segoe UI', Tahoma, sans-serif"
       }}
     >
@@ -310,7 +412,16 @@ function CVDocument({ cv }: { cv: CVData }) {
         {cv.targetRole ? <p className="cv-target-role">{cv.targetRole}</p> : null}
         {contact.length ? (
           <p className="cv-contact" dir="ltr">
-            {contact.map((value, index) => <span key={`${value}-${index}`}>{value}{index < contact.length - 1 ? "  |  " : ""}</span>)}
+            {contact.map((value, index) => {
+              const href = value === cv.email
+                ? `mailto:${cv.email.trim()}`
+                : value === cv.phone
+                  ? `tel:${cv.phone.trim().replace(/[^\d+]/g, "")}`
+                  : value === cv.linkedin
+                    ? (/^https?:\/\//i.test(cv.linkedin.trim()) ? cv.linkedin.trim() : `https://${cv.linkedin.trim().replace(/^\/+/, "")}`)
+                    : "";
+              return <span key={`${value}-${index}`}>{href ? <a href={href} target={value === cv.linkedin ? "_blank" : undefined} rel={value === cv.linkedin ? "noreferrer" : undefined}>{value}</a> : value}{index < contact.length - 1 ? "  |  " : ""}</span>;
+            })}
           </p>
         ) : null}
       </header>
@@ -328,12 +439,11 @@ function CVDocument({ cv }: { cv: CVData }) {
           <div className="cv-education-layout">
             <div className="cv-education-details">
               {educationLines.map((line, index) => <p key={`${line}-${index}`} className={index === 0 ? "cv-entry-title" : "cv-muted-line"}>{line}</p>)}
-              {cv.yearLevel && !["أخرى", "Other"].includes(cv.yearLevel) && cv.educationStatus !== "graduated" ? <p className="cv-muted-line">{t.studyYear}: {cv.yearLevel}</p> : null}
+              {educationDetails.length ? <ul className="cv-bullets">{educationDetails.map((line, index) => <li key={`education-${index}`}>{line}</li>)}</ul> : null}
             </div>
             <div className="cv-education-meta">
               {cv.startYear ? <p>{cv.startYear}{cv.graduationYear ? ` – ${cv.graduationYear}` : cv.educationStatus === "studying" ? ` – ${t.present}` : ""}</p> : null}
               {!cv.startYear && cv.graduationYear ? <p>{cv.educationStatus === "graduated" ? t.graduated : t.expected}: {cv.graduationYear}</p> : null}
-              {cv.gpa ? <p>{t.gpa}: {cv.gpa}</p> : null}
             </div>
           </div>
         </section>
@@ -404,6 +514,7 @@ function CVDocument({ cv }: { cv: CVData }) {
                     {item.date ? <p className="cv-entry-date">{item.date}</p> : null}
                   </div>
                   {item.provider ? <p className="cv-entry-subtitle">{item.provider}</p> : null}
+                  <CVDescription value={item.description} />
                   {item.certificateUrl ? <p className="cv-entry-link" dir="ltr">{item.certificateUrl}</p> : null}
                 </div>
               ))}
@@ -414,9 +525,9 @@ function CVDocument({ cv }: { cv: CVData }) {
           return (
             <section className="cv-section" key={sectionId}>
               <h2>{t.skills}</h2>
-              {skills.length ? <p>{skills.join(" · ")}</p> : null}
-              {tools.length ? <p className="cv-skill-group"><strong>{t.tools}: </strong>{tools.join(" · ")}</p> : null}
-              {languages.length ? <p className="cv-skill-group"><strong>{t.languages}: </strong>{languages.join(" · ")}</p> : null}
+              {skills.length ? <div className="cv-skill-block"><p className="cv-skill-label">{ar ? "المهارات الأساسية" : "Core Skills"}</p><ul className="cv-bullets">{skills.map((item, index) => <li key={`skill-${index}`}>{item}</li>)}</ul></div> : null}
+              {tools.length ? <div className="cv-skill-block"><p className="cv-skill-label">{t.tools}</p><ul className="cv-bullets">{tools.map((item, index) => <li key={`tool-${index}`}>{item}</li>)}</ul></div> : null}
+              {languages.length ? <div className="cv-skill-block"><p className="cv-skill-label">{t.languages}</p><ul className="cv-bullets">{languages.map((item, index) => <li key={`language-${index}`}>{item}</li>)}</ul></div> : null}
             </section>
           );
         }
@@ -429,10 +540,10 @@ function CVDocument({ cv }: { cv: CVData }) {
 
 function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boolean }) {
   const isReference = template === "reference";
-  const isSignature = template === "signature";
-  const accent = isReference ? "#24466F" : isSignature ? "#182B36" : "#20252B";
-  const secondary = isReference ? "#4D83C5" : isSignature ? "#8A6D1F" : "#515B66";
-  const rule = isReference ? "#AFC3DE" : isSignature ? "#C8A448" : "#AAB1B8";
+  const isYale = template === "yale";
+  const accent = isReference ? "#24466F" : "#171717";
+  const secondary = isReference ? "#4D83C5" : "#444444";
+  const rule = isReference ? "#AFC3DE" : "#333333";
   const headings = isAr
     ? ["الملخص المهني", "التعليم", "الخبرات العملية", "المهارات"]
     : ["PROFESSIONAL SUMMARY", "EDUCATION", "EXPERIENCE", "SKILLS"];
@@ -441,22 +552,22 @@ function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boo
     <div className="h-56 overflow-hidden rounded-xl border border-zinc-200 bg-[#eef1f4] p-3 dark:border-zinc-700">
       <div className="mx-auto h-full max-w-[190px] overflow-hidden bg-white px-3 py-3.5 shadow-sm" style={{ color: "#20252b" }}>
         <header className={isReference ? "text-center" : isAr ? "text-right" : "text-left"}>
-          <div className="truncate font-extrabold" style={{ color: accent, fontSize: isSignature ? 9 : 8.5, lineHeight: 1.25 }}>
+          <div className="truncate font-extrabold" style={{ color: accent, fontSize: 8.5, lineHeight: 1.25 }}>
             {isAr ? "اسمك بالكامل" : "YOUR NAME"}
           </div>
-          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isExecutiveTemplate(template) ? ".5px" : "0" }}>
+          <div className="mt-1 truncate font-semibold" style={{ color: secondary, fontSize: 5.5, fontStyle: isReference ? "italic" : "normal", letterSpacing: isYale ? ".4px" : "0" }}>
             {isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}
           </div>
           <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}>
             <span>email@example.com</span><span>•</span><span>+20 000</span><span>•</span><span>Cairo</span>
           </div>
         </header>
-        <div className="mt-2.5 h-[2px] w-full" style={{ background: rule, height: isSignature ? 2.5 : 1 }} />
+        <div className="mt-2.5 h-px w-full" style={{ background: rule }} />
         {headings.map((heading, index) => (
           <section key={heading} className="mt-2">
             {isReference ? <div className="mb-1 h-px w-full" style={{ background: rule }} /> : null}
-            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isExecutiveTemplate(template) ? ".35px" : "0" }}>{heading}</div>
-            {!isReference ? <div className="mb-1 h-px w-full" style={{ background: rule, opacity: isSignature ? 1 : .8 }} /> : null}
+            <div className="mb-1 truncate font-extrabold" style={{ color: accent, fontSize: 5.2, letterSpacing: isYale ? ".35px" : "0" }}>{heading}</div>
+            {!isReference ? <div className="mb-1 h-px w-full" style={{ background: rule, opacity: .8 }} /> : null}
             <div className="space-y-[3px]">
               <div className="flex items-center justify-between gap-1">
                 <div className="h-[3px] w-2/5 rounded-sm" style={{ background: "#64748b", opacity: .65 }} />
@@ -474,7 +585,7 @@ function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boo
 }
 
 function isExecutiveTemplate(template: CVTemplate): boolean {
-  return template === "executive";
+  return template !== "reference";
 }
 
 function CVPreviewModal({
@@ -496,20 +607,20 @@ function CVPreviewModal({
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(900);
-  const [sheetHeight, setSheetHeight] = useState(1123);
+  const [sheetHeight, setSheetHeight] = useState(PAGE_HEIGHT);
   const [zoom, setZoom] = useState(1);
   const fitScale = Math.min(1, Math.max(0.2, viewportWidth / PAGE_WIDTH));
   const scale = fitScale * zoom;
   const templateOptions: Array<{ id: CVTemplate; title: string; description: string }> = isAr
     ? [
-        { id: "reference", title: "Blue Professional", description: "نمط نموذج Word المرفق" },
-        { id: "signature", title: "SkillUp Signature", description: "الكحلي والذهبي" },
-        { id: "executive", title: "Executive Minimal", description: "رسمي أبيض وأسود" }
+        { id: "reference", title: "Blue Professional", description: "نفس نموذج Word المرفق" },
+        { id: "executive", title: "Executive Minimal", description: "أبيض وأسود رسمي وبسيط" },
+        { id: "yale", title: "Yale OCS–Inspired", description: "مستوحى من إرشادات Yale الرسمية للسيرة الذاتية" }
       ]
     : [
-        { id: "reference", title: "Blue Professional", description: "Your reference template" },
-        { id: "signature", title: "SkillUp Signature", description: "Navy and gold identity" },
-        { id: "executive", title: "Executive Minimal", description: "Formal monochrome layout" }
+        { id: "reference", title: "Blue Professional", description: "Matches the supplied Word reference" },
+        { id: "executive", title: "Executive Minimal", description: "Formal black-and-white layout" },
+        { id: "yale", title: "Yale OCS–Inspired", description: "Inspired by Yale's official resume guidance" }
       ];
 
   useEffect(() => {
@@ -519,7 +630,7 @@ function CVPreviewModal({
     const measureViewport = () => {
       const horizontalPadding = window.matchMedia("(min-width: 640px)").matches ? 48 : 24;
       setViewportWidth(Math.max(240, (viewport.clientWidth || 900) - horizontalPadding));
-      setSheetHeight(sheet.offsetHeight || 1123);
+      setSheetHeight(sheet.offsetHeight || PAGE_HEIGHT);
     };
     const observer = new ResizeObserver(measureViewport);
     observer.observe(viewport);
@@ -743,7 +854,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     templates: "اختر تصميم سيرتك",
     templatesHint: "تقدر تغير التصميم في أي وقت دون التأثير على بياناتك.",
     templateBlue: "Blue Professional — القالب المستوحى من ملف Word المرفق",
-    templateSignature: "SkillUp Signature — هوية SkillUp",
+    templateYale: "Yale OCS–Inspired — تصميم رسمي أبيض وأسود",
     templateExecutive: "Executive Minimal — أبيض وأسود",
     stepSections: "الأقسام المتاحة لديك",
     openPreview: "معاينة السيرة",
@@ -872,7 +983,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     templates: "Choose your CV design",
     templatesHint: "Change the design any time without affecting your information.",
     templateBlue: "Blue Professional — inspired by your Word sample",
-    templateSignature: "SkillUp Signature — SkillUp identity",
+    templateYale: "Yale OCS–Inspired — formal black-and-white layout",
     templateExecutive: "Executive Minimal — monochrome",
     stepSections: "Your available sections",
     openPreview: "Preview CV",
@@ -903,7 +1014,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const [experienceDraft, setExperienceDraft] = useState<Experience>({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
   const [projectDraft, setProjectDraft] = useState<Project>({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
   const [activityDraft, setActivityDraft] = useState<Activity>({ id: "", organization: "", role: "", period: "", description: "" });
-  const [courseDraft, setCourseDraft] = useState<Course>({ id: "", name: "", provider: "", date: "", certificateUrl: "" });
+  const [courseDraft, setCourseDraft] = useState<Course>({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
 
   useEffect(() => {
     try {
@@ -914,7 +1025,11 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         const savedOrder = Array.isArray(parsed.sectionOrder)
           ? parsed.sectionOrder.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
           : [];
-        const normalizedOrder = [...new Set(savedOrder)];
+        const previousDefaultOrder: SectionId[] = ["experience", "projects", "activities", "courses", "skills"];
+        const isPreviousDefaultOrder = savedOrder.length === previousDefaultOrder.length
+          && previousDefaultOrder.every((id, index) => savedOrder[index] === id);
+        // Update only the old untouched default order; preserve any order the user customized.
+        const normalizedOrder = isPreviousDefaultOrder ? [...EMPTY_CV.sectionOrder] : [...new Set(savedOrder)];
         const mergedOrder = [
           ...normalizedOrder,
           ...EMPTY_CV.sectionOrder.filter((id) => !normalizedOrder.includes(id))
@@ -935,11 +1050,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           ...parsed,
           qualification: parsed.qualification ?? "",
           educationStatus: parsed.educationStatus ?? "studying",
-          template: parsed.template === "reference" || parsed.template === "signature" || parsed.template === "executive" ? parsed.template : parsed.template === "compact" ? "executive" : "signature",
+          template: normalizeTemplate(parsed.template),
           sectionOrder: mergedOrder,
           // selectedSections represents the user's intentional visibility choices.
           // Keep hidden sections hidden; every section remains available in the section manager.
           selectedSections: Array.isArray(parsed.selectedSections) ? normalizedSelected : inferredSelected,
+          courses: Array.isArray(parsed.courses) ? parsed.courses.map((item) => ({ ...item, description: typeof item.description === "string" ? item.description : "" })) : [],
           cvLanguage: parsed.cvLanguage ?? locale
         });
         // Remove the one-time migration backup only after the current CV JSON was parsed successfully.
@@ -990,6 +1106,8 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     { done: Boolean(cv.experiences.some((item) => item.description.trim()) || cv.projects.some((item) => item.description.trim()) || cv.activities.some((item) => item.description.trim())), text: t.checkContent }
   ];
   const readinessScore = Math.round((readiness.filter((item) => item.done).length / readiness.length) * 100);
+  const languageMismatch = cv.cvLanguage === "en" && collectCvText(cv).some((value) => ARABIC_SCRIPT.test(value));
+  const qualityWarnings = getCvQualityWarnings(cv, isAr);
 
   const countFor = (id: SectionId) => {
     if (id === "experience") return cv.experiences.length;
@@ -1006,7 +1124,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     if (section === "experience") setExperienceDraft({ id: "", kind: "internship", role: "", organization: "", period: "", location: "", description: "" });
     if (section === "projects") setProjectDraft({ id: "", name: "", kind: "academic", role: "", date: "", tools: "", url: "", description: "" });
     if (section === "activities") setActivityDraft({ id: "", organization: "", role: "", period: "", description: "" });
-    if (section === "courses") setCourseDraft({ id: "", name: "", provider: "", date: "", certificateUrl: "" });
+    if (section === "courses") setCourseDraft({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
     setFormOpen(true);
   };
 
@@ -1098,6 +1216,13 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const downloadCV = async () => {
+    if (languageMismatch) {
+      setNotice(isAr
+        ? "لغة السيرة المختارة English، لكن يوجد نص عربي داخل البيانات. صحح النصوص العربية أو غيّر لغة السيرة قبل التحميل."
+        : "The selected CV language is English, but Arabic text was detected. Replace the Arabic text or switch the CV language before downloading.");
+      setShowPreview(false);
+      return;
+    }
     if (!cv.fullName.trim() || (!cv.email.trim() && !cv.phone.trim())) {
       setNotice(t.profileRequired);
       setShowPreview(false);
@@ -1213,6 +1338,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <Field label={t.provider}><TextInput value={courseDraft.provider} onChange={(value) => setCourseDraft((draft) => ({ ...draft, provider: value }))} /></Field>
             <Field label={t.date}><TextInput value={courseDraft.date} onChange={(value) => setCourseDraft((draft) => ({ ...draft, date: value }))} placeholder="2026" /></Field>
           </div>
+          <Field label={t.description} hint={t.descriptionHint}><TextArea value={courseDraft.description} onChange={(value) => setCourseDraft((draft) => ({ ...draft, description: value }))} rows={2} placeholder={isAr ? "• أهم الموضوعات أو المهارات التي تعلمتها" : "• Key topics or skills covered"} /></Field>
           <Field label={t.certificateUrl}><TextInput value={courseDraft.certificateUrl} onChange={(value) => setCourseDraft((draft) => ({ ...draft, certificateUrl: value }))} dir="ltr" placeholder="https://" /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
@@ -1272,14 +1398,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
   const templateOptions: Array<{ id: CVTemplate; name: string; description: string; badge: string }> = isAr
     ? [
-        { id: "reference", name: "Blue Professional", description: "نفس أسلوب نموذج Word المرفق: عنوان مركزي وأقسام زرقاء واضحة.", badge: "القالب المرجعي" },
-        { id: "signature", name: "SkillUp Signature", description: "هوية SkillUp بالكحلي والذهبي مع ترتيب مهني واضح.", badge: "هوية SkillUp" },
-        { id: "executive", name: "Executive Minimal", description: "أبيض وأسود، بسيط ورسمي، مناسب للمحتوى المكثف.", badge: "رسمي وبسيط" }
+        { id: "reference", name: "Blue Professional", description: "نفس ملف Word المرفق في ترتيب الاسم والعناوين والمسافات.", badge: "القالب المرجعي" },
+        { id: "executive", name: "Executive Minimal", description: "تصميم رسمي أبيض وأسود، بعمود واحد وخط واضح.", badge: "رسمي وبسيط" },
+        { id: "yale", name: "Yale OCS–Inspired", description: "تصميم أبيض وأسود مستوحى من إرشادات Yale المهنية للسير الذاتية.", badge: "مستوحى من إرشادات موثقة" }
       ]
     : [
-        { id: "reference", name: "Blue Professional", description: "Inspired by your Word sample: centered header and clear blue section headings.", badge: "Reference style" },
-        { id: "signature", name: "SkillUp Signature", description: "SkillUp navy and gold identity with a clear professional hierarchy.", badge: "SkillUp identity" },
-        { id: "executive", name: "Executive Minimal", description: "Monochrome, minimal and formal, designed for content-rich CVs.", badge: "Formal minimal" }
+        { id: "reference", name: "Blue Professional", description: "Matches the supplied Word sample's centered header, spacing and section hierarchy.", badge: "Reference template" },
+        { id: "executive", name: "Executive Minimal", description: "Formal black-and-white, single-column layout with readable typography.", badge: "Formal minimal" },
+        { id: "yale", name: "Yale OCS–Inspired", description: "Black-and-white layout inspired by Yale's official resume guidance.", badge: "Guidance-inspired" }
       ];
   const currentStepLabel = wizardStep === "template" ? t.templates : wizardStep === "profile" ? t.stepProfile : wizardStep === "education" ? t.stepEducation : wizardStep === "sections" ? t.stepSections : wizardStep === "review" ? t.reviewTitle : sectionLabel(wizardStep);
   const progressPercent = currentVisibleStepIndex < 0
@@ -1292,47 +1418,45 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         .cv-select { width: 100%; border: 1px solid rgb(228 228 231); border-radius: .75rem; background: white; padding: .75rem .875rem; color: #18181b; font-size: .875rem; outline: none; }
         .dark .cv-select { background: #09090b; border-color: rgb(63 63 70); color: white; }
         .cv-select:focus { border-color: #C8A448; box-shadow: 0 0 0 2px rgb(200 164 72 / .15); }
-        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; }
-        .cv-document .cv-document-header { border-bottom: 2px solid #182B36; padding-bottom: 17px; margin-bottom: 20px; }
-        .cv-document .cv-name { margin: 0; color: #182B36; font-size: 31px; line-height: 1.16; font-weight: 800; letter-spacing: -.025em; }
-        .cv-document .cv-target-role { margin: 5px 0 0; color: #475569; font-size: 14px; line-height: 1.45; font-weight: 700; }
-        .cv-document .cv-contact { margin: 12px 0 0; color: #475569; font-size: 10.5px; line-height: 1.7; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
-        .cv-document .cv-section { margin-top: 17px; }
-        .cv-document .cv-section h2 { margin: 0 0 8px; padding-bottom: 5px; border-bottom: 1px solid #cbd5e1; color: #182B36; font-size: 12.5px; line-height: 1.4; font-weight: 800; letter-spacing: .025em; text-transform: uppercase; }
-        .cv-document .cv-section p { margin-top: 0; font-size: 11.5px; line-height: 1.55; }
+        .cv-document { color: #20252b; background: #fff; overflow-wrap: anywhere; font-size: 13.333px; }
+        .cv-document .cv-document-header { border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
+        .cv-document .cv-name { margin: 0; color: #24466F; font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: 0; }
+        .cv-document .cv-target-role { margin: 4px 0 0; color: #4D83C5; font-size: 14.667px; line-height: 1.35; font-weight: 500; }
+        .cv-document .cv-contact { margin: 9px 0 0; color: #596574; font-size: 12px; line-height: 1.45; display: flex; flex-wrap: wrap; column-gap: 3px; row-gap: 2px; }
+        .cv-document .cv-section { margin-top: 14px; break-inside: auto; }
+        .cv-document .cv-section h2 { margin: 0 0 7px; padding-bottom: 4px; border-bottom: 1px solid #AFC3DE; color: #24466F; font-size: 14.667px; line-height: 1.3; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+        .cv-document .cv-section p { margin-top: 0; font-size: 13.333px; line-height: 1.2; }
         .cv-document .cv-summary-text { margin: 0; }
         .cv-document .cv-education-layout { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-        .cv-document .cv-entry-title { margin: 0; font-size: 12px; line-height: 1.45; font-weight: 800; color: #20252b; }
-        .cv-document .cv-muted-line { margin: 2px 0 0; color: #4b5563; }
-        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 10.5px; line-height: 1.55; }
-        .cv-document .cv-education-meta p { margin: 0; }
-        .cv-document .cv-entry { margin: 0 0 10px; break-inside: avoid; }
+        .cv-document .cv-entry-title { margin: 0; font-size: 13.333px; line-height: 1.2; font-weight: 800; color: #20252b; }
+        .cv-document .cv-muted-line { margin: 2px 0 0; color: #4b5563; font-size: 13.333px; }
+        .cv-document .cv-education-meta { flex: 0 0 auto; text-align: end; color: #64748b; font-size: 13.333px; line-height: 1.2; }
+        .cv-document .cv-education-meta p { margin: 0; font-size: 13.333px; }
+        .cv-document .cv-entry { margin: 0 0 11px; margin-inline-start: 16px; break-inside: avoid; page-break-inside: avoid; }
         .cv-document .cv-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-        .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: #64748b; font-size: 10.5px !important; white-space: nowrap; }
-        .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: #475569; font-size: 11px !important; font-weight: 600; }
-        .cv-document .cv-entry-detail { margin: 4px 0 0; }
-        .cv-document .cv-entry-link { margin: 4px 0 0; color: #475569; font-size: 10.5px !important; }
-        .cv-document .cv-bullets { margin: 4px 0 0; padding-inline-start: 17px; list-style: disc; }
-        .cv-document .cv-bullets li { margin: 2px 0; padding-inline-start: 2px; font-size: 11.25px; line-height: 1.5; }
+        .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: #555; font-size: 13.333px !important; white-space: nowrap; }
+        .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: #20252b; font-size: 13.333px !important; font-weight: 700; }
+        .cv-document .cv-entry-detail { margin: 4px 0 0; font-size: 13.333px !important; line-height: 1.2; }
+        .cv-document .cv-entry-link { margin: 4px 0 0; color: #334155; font-size: 13.333px !important; line-height: 1.2; }
+        .cv-document .cv-bullets { margin: 3px 0 0; padding-inline-start: 20px; list-style: disc; }
+        .cv-document .cv-bullets li { margin: 1px 0; padding-inline-start: 2px; font-size: 13.333px; line-height: 1.2; }
         .cv-document .cv-skill-group { margin-top: 4px !important; }
-        .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1.25px solid #AFC3DE; padding-bottom: 18px; margin-bottom: 18px; }
-        .cv-template-reference .cv-name { color: #24466F; font-size: 30px; letter-spacing: 0; }
-        .cv-template-reference .cv-target-role { color: #4D83C5; font-size: 14px; font-style: italic; font-weight: 500; }
+        .cv-document .cv-skill-block { margin: 0 0 5px; }
+        .cv-document .cv-skill-label { margin: 0 0 1px !important; font-size: 13.333px !important; font-weight: 700; }
+        .cv-document a { color: inherit; text-decoration: underline; }
+        .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1px solid #AFC3DE; padding-bottom: 14px; margin-bottom: 15px; }
+        .cv-template-reference .cv-name { color: #24466F; font-size: 24px; }
+        .cv-template-reference .cv-target-role { color: #4D83C5; font-size: 14.667px; font-style: italic; font-weight: 500; }
         .cv-template-reference .cv-contact { justify-content: center; color: #596574; }
-        .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid #AFC3DE; padding: 7px 0 0; color: #24466F; letter-spacing: 0; margin-bottom: 8px; }
-        .cv-template-signature .cv-document-header { border-bottom: 3px solid #182B36; padding-bottom: 17px; margin-bottom: 20px; }
-        .cv-template-signature .cv-name { color: #182B36; font-size: 32px; }
-        .cv-template-signature .cv-target-role { color: #8A6D1F; font-size: 14px; }
-        .cv-template-signature .cv-section h2 { color: #182B36; border-bottom-color: #C8A448; }
-        .cv-template-executive .cv-document-header { border-bottom: 1px solid #606A75; padding-bottom: 15px; margin-bottom: 17px; }
-        .cv-template-executive .cv-name { color: #15191E; font-size: 29px; letter-spacing: -.01em; }
-        .cv-template-executive .cv-target-role { color: #4B5563; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-        .cv-template-executive .cv-section h2 { color: #20252B; border-bottom: 1.25px solid #717B85; letter-spacing: .08em; font-size: 11.5px; }
-        .cv-template-executive .cv-section { margin-top: 15px; }
-        .cv-template-executive .cv-section p { font-size: 11px; line-height: 1.48; }
-        .cv-template-executive .cv-entry { margin-bottom: 8px; }
-        .cv-template-executive .cv-entry-title { font-size: 11.75px; }
-        .cv-template-executive .cv-bullets li { font-size: 10.75px; line-height: 1.42; }
+        .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid #AFC3DE; padding: 7px 0 0; color: #24466F; margin-bottom: 7px; }
+        .cv-template-executive .cv-document-header { border-bottom: 1px solid #333; }
+        .cv-template-executive .cv-name, .cv-template-yale .cv-name { color: #111; }
+        .cv-template-executive .cv-target-role, .cv-template-yale .cv-target-role { color: #333; }
+        .cv-template-executive .cv-section h2, .cv-template-yale .cv-section h2 { color: #111; border-color: #333; }
+        .cv-template-yale .cv-document-header { border-bottom: 2px solid #111; padding-bottom: 16px; }
+        .cv-template-yale .cv-name { text-transform: none; letter-spacing: .01em; }
+        .cv-template-yale .cv-target-role { font-weight: 600; }
+        .cv-template-yale .cv-section h2 { text-transform: uppercase; letter-spacing: .045em; border-bottom-width: 1px; }
         @media (max-width: 640px) {
           .cv-document .cv-entry-heading { gap: 8px; }
           .cv-document .cv-entry-date { white-space: normal; text-align: end; }
@@ -1377,6 +1501,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             </div>
           ) : null}
           {notice ? <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
+          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{isAr ? "اخترت English للسيرة، لكن النظام اكتشف حروفًا عربية في البيانات. لازم تكون كل النصوص المكتوبة بالإنجليزية قبل التحميل." : "English CV selected, but Arabic-script text was detected. All CV text fields must be in English before PDF export."}</div> : null}
         </header>
 
         {wizardStep === "template" ? (
@@ -1479,8 +1604,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="mb-5 flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold text-zinc-900 dark:text-white">{t.checklist}</h2><p className="mt-1 text-xs text-zinc-500">{isAr ? "راجع النقاط دي قبل ما تحمل ملفك." : "Review these points before downloading."}</p></div><span className="text-xl font-black text-[#8A6D1F] dark:text-[#E2C46F]">{readinessScore}%</span></div>
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
+            {qualityWarnings.length ? <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="mb-1 font-extrabold">{isAr ? "ملاحظات لمراجعتها قبل التقديم" : "Content checks to review before applying"}</p><ul className="list-disc space-y-1 ps-5">{qualityWarnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul><p className="mt-2 text-[11px]">{isAr ? "دي تنبيهات إرشادية فقط؛ لن يتم تعديل أو حذف أي معلومة تلقائيًا." : "These are guidance warnings only. No information is automatically changed or deleted."}</p></div> : null}
+            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{isAr ? "لا يمكن تحميل CV باللغة الإنجليزية قبل استبدال النصوص العربية أو تغيير لغة السيرة إلى العربية." : "PDF export is blocked until the Arabic text is replaced or the CV language is changed to Arabic."}</div> : null}
             <div className="mt-5 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading || languageMismatch} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
             <p className="mt-3 text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p>
           </section>
         ) : null}
