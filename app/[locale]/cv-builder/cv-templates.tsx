@@ -72,8 +72,8 @@ export function CVDocumentStyles() {
   return (
     <style jsx global>{`
       .cv-document { color: var(--cv-body); background: #fff; overflow-wrap: anywhere; font-size: var(--cv-body-size); line-height: var(--cv-line-height); }
-      .cv-document .cv-document-header { border-bottom: 1px solid var(--cv-rule); padding-bottom: 14px; margin-bottom: 15px; text-align: start; }
-      .cv-document .cv-name { margin: 0; color: var(--cv-primary); font-size: var(--cv-name-size); line-height: 1.12; font-weight: 800; letter-spacing: 0; }
+      .cv-document .cv-document-header { border-bottom: 0; padding-bottom: 10px; margin-bottom: 0; text-align: start; }
+      .cv-document .cv-name { margin: 0; color: var(--cv-name); font-size: var(--cv-name-size); line-height: 1.12; font-weight: 800; letter-spacing: 0; }
       .cv-document .cv-target-role { margin: 4px 0 0; color: var(--cv-secondary); font-size: var(--cv-target-size); line-height: 1.12; font-weight: 600; }
       .cv-document .cv-contact { margin: 9px 0 0; color: var(--cv-muted); font-size: var(--cv-contact-size); line-height: 1.2; display: flex; flex-wrap: wrap; column-gap: 4px; row-gap: 2px; }
       .cv-document .cv-section { margin-top: 14px; break-inside: auto; }
@@ -97,20 +97,19 @@ export function CVDocumentStyles() {
       .cv-document .cv-skill-label { margin: 0 0 1px !important; font-size: var(--cv-body-size) !important; font-weight: 700; }
       .cv-document a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
       .cv-document a:hover { color: var(--cv-secondary); }
-      .cv-template-reference .cv-document-header { text-align: center; padding-bottom: 14px; }
+      .cv-template-reference .cv-document-header { text-align: center; padding-bottom: 10px; }
       .cv-template-reference .cv-contact { justify-content: center; }
       .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid var(--cv-rule); padding: 7px 0 0; margin-bottom: 7px; }
-      .cv-template-classic .cv-document-header { border-bottom: 2px solid var(--cv-primary); padding-bottom: 16px; }
-      .cv-template-classic .cv-section h2 { border-bottom: 1px solid var(--cv-primary); letter-spacing: .04em; }
+      .cv-template-classic .cv-document-header { border-bottom: 2px solid var(--cv-primary); padding-bottom: 14px; margin-bottom: 5px; }
+      .cv-template-classic .cv-section h2 { border-top: 0; border-bottom: 1px solid var(--cv-primary); padding: 0 0 4px; letter-spacing: .055em; }
       .cv-template-classic .cv-name { letter-spacing: .01em; }
-      .cv-template-contemporary .cv-document-header { border-bottom: 2px solid var(--cv-secondary); border-inline-start: 4px solid var(--cv-secondary); padding: 3px 14px 9px; margin-bottom: 16px; }
+      .cv-template-contemporary .cv-document-header { border-inline-start: 4px solid var(--cv-secondary); background: #F0F7F5; padding: 12px 14px; margin-bottom: 12px; }
       .cv-template-contemporary .cv-name { font-weight: 850; }
-      .cv-template-contemporary .cv-section h2 { border-bottom: 0; border-inline-start: 3px solid var(--cv-secondary); padding: 2px 10px 3px; background: #F1F7F6; }
+      .cv-template-contemporary .cv-section h2 { border: 0; border-inline-start: 3px solid var(--cv-secondary); padding: 5px 10px; background: #EDF6F4; }
       .cv-template-contemporary .cv-entry { margin-inline-start: 12px; }
-      .cv-template-chronological .cv-document-header { text-align: center; border-bottom: 1px solid var(--cv-primary); padding-bottom: 13px; }
-      .cv-template-chronological .cv-contact { justify-content: center; }
+      .cv-template-chronological .cv-document-header { text-align: start; border-top: 2px solid var(--cv-primary); border-bottom: 1px solid var(--cv-primary); padding: 9px 0 12px; margin-bottom: 6px; }
       .cv-template-chronological .cv-name { font-weight: 800; letter-spacing: .035em; }
-      .cv-template-chronological .cv-section h2 { border-bottom: 1px solid var(--cv-primary); padding-bottom: 3px; letter-spacing: .075em; }
+      .cv-template-chronological .cv-section h2 { border-top: 0; border-bottom: 1px solid var(--cv-primary); padding: 0 0 4px; letter-spacing: .075em; }
       .cv-document[lang="ar"] .cv-section h2 { line-height: 1.2; }
       @media (max-width: 640px) {
         .cv-document .cv-entry-heading { gap: 8px; }
@@ -134,6 +133,7 @@ export function CVDocument({ cv }: { cv: CVData }) {
     // Match pdfMake's embedded font families: Cairo for Arabic and Roboto for English.
     fontFamily: ar ? "Cairo, Arial, 'Segoe UI', Tahoma, sans-serif" : "Roboto, Arial, 'Segoe UI', Tahoma, sans-serif",
     "--cv-primary": design.primary,
+    "--cv-name": design.name,
     "--cv-secondary": design.secondary,
     "--cv-rule": design.rule,
     "--cv-body": design.body,
@@ -276,20 +276,57 @@ export function CVDocument({ cv }: { cv: CVData }) {
 
 export function TemplateThumbnail({ template, isAr }: { template: CVTemplate; isAr: boolean }) {
   const design = CV_TEMPLATE_DESIGNS[template];
-  const align = design.headerAlignment === "center" ? "text-center" : isAr ? "text-right" : "text-left";
   const headings = isAr ? ["الملخص المهني", "التعليم", "الخبرات العملية", "المهارات"] : ["PROFESSIONAL SUMMARY", "EDUCATION", "EXPERIENCE", "SKILLS"];
+  const isReference = template === "reference";
+  const isClassic = template === "classic";
+  const isContemporary = template === "contemporary";
+  const isChronological = template === "chronological";
+
+  const headerStyle: CSSProperties = isReference
+    ? { textAlign: "center", borderBottom: `1px solid ${design.rule}`, paddingBottom: 7 }
+    : isClassic
+      ? { textAlign: "left", borderBottom: `2px solid ${design.primary}`, paddingBottom: 8 }
+      : isContemporary
+        ? { textAlign: "left", background: "#F0F7F5", borderInlineStart: `3px solid ${design.secondary}`, padding: "8px 7px" }
+        : { textAlign: "left", borderTop: `2px solid ${design.primary}`, borderBottom: `1px solid ${design.primary}`, padding: "7px 0" };
+
+  const headingStyle = (): CSSProperties => {
+    if (isReference) return { borderTop: `1px solid ${design.rule}`, paddingTop: 3 };
+    if (isClassic) return { borderBottom: `1px solid ${design.rule}`, paddingBottom: 2, letterSpacing: ".25px" };
+    if (isContemporary) return { background: "#EDF6F4", borderInlineStart: `2px solid ${design.secondary}`, padding: "2px 4px" };
+    return { borderBottom: `1px solid ${design.rule}`, paddingBottom: 2, letterSpacing: ".35px" };
+  };
+
   return (
     <div className="h-56 overflow-hidden rounded-xl border border-zinc-200 bg-[#eef1f4] p-3 dark:border-zinc-700">
       <div className="mx-auto h-full max-w-[190px] overflow-hidden bg-white px-3 py-3.5 shadow-sm" style={{ color: design.body, fontFamily: isAr ? "Cairo, Arial, sans-serif" : "Roboto, Arial, sans-serif" }}>
-        <header className={align} style={{ borderBottom: `1px solid ${design.rule}`, borderInlineStart: template === "contemporary" ? `3px solid ${design.secondary}` : undefined, paddingBottom: 7, paddingInlineStart: template === "contemporary" ? 6 : 0 }}>
-          <div className="truncate font-extrabold" style={{ color: design.primary, fontSize: 8.5, lineHeight: 1.25 }}>{isAr ? "اسمك بالكامل" : "YOUR NAME"}</div>
-          <div className="mt-1 truncate font-semibold" style={{ color: design.secondary, fontSize: 5.5 }}>{isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}</div>
-          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${design.headerAlignment === "center" ? "justify-center" : ""}`}><span>email@example.com</span><span>•</span><span>+20 000</span><span>•</span><span>Cairo</span></div>
+        <header style={headerStyle}>
+          {isChronological ? <div className="mb-1 h-[2px] w-8" style={{ background: design.secondary }} /> : null}
+          <div className="truncate font-extrabold" style={{ color: design.name, fontSize: isContemporary ? 9 : 8.5, lineHeight: 1.25 }}>{isAr ? "اسمك بالكامل" : "YOUR NAME"}</div>
+          <div className={`mt-1 truncate ${isReference || isChronological ? "italic" : "font-semibold"}`} style={{ color: design.secondary, fontSize: 5.5 }}>{isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}</div>
+          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}><span>email@example.com</span><span>{isReference ? "|" : "•"}</span><span>+20 000</span><span>{isReference ? "|" : "•"}</span><span>Cairo</span></div>
         </header>
-        {headings.map((heading, index) => <section key={heading} className="mt-2">
-          <div className="mb-1 truncate font-extrabold" style={{ color: design.primary, fontSize: 5.2, letterSpacing: template === "chronological" ? ".4px" : 0, borderBottom: template === "reference" ? "none" : `1px solid ${design.rule}`, borderTop: template === "reference" ? `1px solid ${design.rule}` : "none", borderInlineStart: template === "contemporary" ? `2px solid ${design.secondary}` : "none", padding: template === "reference" ? "3px 0 0" : template === "contemporary" ? "0 0 1px 4px" : "0 0 2px" }}>{heading}</div>
-          <div className="space-y-[3px]"><div className="flex items-center justify-between gap-1"><div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary, opacity: .75 }} />{index > 0 ? <div className="h-[2px] w-1/5 rounded-sm bg-slate-300" /> : null}</div><div className="h-[2.5px] w-full rounded-sm bg-slate-200" /><div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" />{index === 2 ? <div className="ml-2 h-[2px] w-9/12 rounded-sm bg-slate-200" /> : null}</div>
-        </section>)}
+        {headings.map((heading, index) => (
+          <section key={heading} className={isContemporary ? "mt-2" : "mt-2.5"}>
+            <div className="mb-1 truncate font-extrabold" style={{ color: design.primary, fontSize: 5.1, ...headingStyle() }}>{heading}</div>
+            {isChronological ? (
+              <div className="flex gap-1.5">
+                <div className="w-5 shrink-0 border-r" style={{ borderColor: design.rule }}>
+                  <div className="h-[3px] w-4 rounded-sm" style={{ background: design.secondary }} />
+                  <div className="ml-1 mt-1 h-5 w-px" style={{ background: design.rule }} />
+                </div>
+                <div className="flex-1 space-y-[3px]"><div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary, opacity: .8 }} /><div className="h-[2.5px] w-full rounded-sm bg-slate-200" /><div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" /></div>
+              </div>
+            ) : (
+              <div className="space-y-[3px]">
+                <div className="flex items-center justify-between gap-1"><div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary, opacity: .75 }} />{index > 0 ? <div className="h-[2px] w-1/5 rounded-sm bg-slate-300" /> : null}</div>
+                <div className="h-[2.5px] w-full rounded-sm bg-slate-200" />
+                <div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" />
+                {index === 2 ? <div className="ml-2 h-[2px] w-9/12 rounded-sm bg-slate-200" /> : null}
+              </div>
+            )}
+          </section>
+        ))}
       </div>
     </div>
   );
