@@ -304,10 +304,23 @@ function TextArea({
   );
 }
 
-const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
-const LATIN_SCRIPT = /\p{Script=Latin}/u;
+type CvLanguageField = { labelAr: string; labelEn: string; value: string; detectedLetters?: string };
 
-type CvLanguageField = { labelAr: string; labelEn: string; value: string };
+type LetterScript = "Arabic" | "Latin";
+
+/**
+ * Detect actual alphabetic letters only.
+ * Arabic Unicode blocks also contain punctuation, numeric symbols and direction marks;
+ * those must never block a CV export on their own.
+ */
+function containsLettersFromScript(value: string, script: LetterScript): boolean {
+  for (const character of value) {
+    if (!/\p{L}/u.test(character)) continue;
+    if (script === "Arabic" && /\p{Script=Arabic}/u.test(character)) return true;
+    if (script === "Latin" && /\p{Script=Latin}/u.test(character)) return true;
+  }
+  return false;
+}
 
 function collectCvLanguageFields(cv: CVData): CvLanguageField[] {
   const fields: CvLanguageField[] = [
@@ -364,20 +377,23 @@ function collectCvLanguageFields(cv: CVData): CvLanguageField[] {
     );
   });
 
-  const knownYearValues = new Set([
-    ...Object.keys(YEAR_LEVELS),
-    ...Object.values(YEAR_LEVELS).flatMap((labels) => [labels.ar, labels.en])
-  ]);
-  if (cv.yearLevel.trim() && !knownYearValues.has(cv.yearLevel.trim())) {
-    fields.push({ labelAr: "السنة الدراسية", labelEn: "Study year", value: cv.yearLevel });
-  }
-
+  // yearLevel is a system-controlled option. Exclude it entirely, including unknown
+  // legacy values, because it is translated by yearLevelLabel before display/export.
   return fields.filter((field) => typeof field.value === "string" && field.value.trim().length > 0);
 }
 
 function findLanguageMismatches(cv: CVData): CvLanguageField[] {
-  const wrongScript = cv.cvLanguage === "en" ? ARABIC_SCRIPT : LATIN_SCRIPT;
-  return collectCvLanguageFields(cv).filter((field) => wrongScript.test(field.value));
+  const wrongScript: LetterScript = cv.cvLanguage === "en" ? "Arabic" : "Latin";
+  return collectCvLanguageFields(cv).flatMap((field) => {
+    const detectedLetters = [...new Set(
+      Array.from(field.value).filter((character) =>
+        /\p{L}/u.test(character) && (wrongScript === "Arabic"
+          ? /\p{Script=Arabic}/u.test(character)
+          : /\p{Script=Latin}/u.test(character))
+      )
+    )].slice(0, 8).join(" ");
+    return detectedLetters ? [{ ...field, detectedLetters }] : [];
+  });
 }
 
 function normalizedWords(value: string): string[] {
@@ -1690,7 +1706,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             </div>
           ) : null}
           {notice ? <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><span>{notice}</span><button type="button" onClick={() => setNotice("")} aria-label="Close"><X className="h-4 w-4" /></button></div> : null}
-          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-bold">{cv.cvLanguage === "en" ? (isAr ? "السيرة باللغة الإنجليزية، لكن توجد نصوص عربية." : "English CV selected, but Arabic text was found.") : (isAr ? "السيرة باللغة العربية، لكن توجد نصوص إنجليزية." : "Arabic CV selected, but English text was found.")}</p><p>{isAr ? "الحقول التي تحتاج مراجعة:" : "Fields to review:"}</p><ul className="list-disc ps-5">{languageMismatchFields.slice(0, 8).map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}</li>)}</ul>{languageMismatchFields.length > 8 ? <p>{isAr ? `و ${languageMismatchFields.length - 8} حقول أخرى.` : `And ${languageMismatchFields.length - 8} more field(s).`}</p> : null}</div> : null}
+          {languageMismatch ? <div role="alert" className="mt-3 rounded-xl border border-red-300 bg-red-50 px-3.5 py-3 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-bold">{cv.cvLanguage === "en" ? (isAr ? "السيرة باللغة الإنجليزية، لكن توجد نصوص عربية." : "English CV selected, but Arabic letters were found in the fields listed below.") : (isAr ? "السيرة باللغة العربية، لكن توجد نصوص إنجليزية." : "Arabic CV selected, but Latin letters were found in the fields listed below.")}</p><p>{isAr ? "الحقول التي تحتاج مراجعة:" : "Fields to review:"}</p><ul className="list-disc ps-5">{languageMismatchFields.slice(0, 8).map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul>{languageMismatchFields.length > 8 ? <p>{isAr ? `و ${languageMismatchFields.length - 8} حقول أخرى.` : `And ${languageMismatchFields.length - 8} more field(s).`}</p> : null}</div> : null}
         </header>
 
         {wizardStep === "template" ? (
@@ -1794,7 +1810,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-[#C8A448] transition-all" style={{ width: `${readinessScore}%` }} /></div>
             <div className="grid gap-2">{readiness.map((item) => <div key={item.text} className="flex items-start gap-2 text-xs leading-5"><CheckCircle2 className={cx("mt-0.5 h-4 w-4 shrink-0", item.done ? "text-emerald-600" : "text-zinc-300 dark:text-zinc-600")} /><span className={item.done ? "text-zinc-700 dark:text-zinc-200" : "text-zinc-500"}>{item.text}</span></div>)}</div>
             {qualityWarnings.length ? <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"><p className="mb-1 font-extrabold">{isAr ? "ملاحظات لمراجعتها قبل التقديم" : "Content checks to review before applying"}</p><ul className="list-disc space-y-1 ps-5">{qualityWarnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul><p className="mt-2 text-[11px]">{isAr ? "دي تنبيهات إرشادية فقط؛ لن يتم تعديل أو حذف أي معلومة تلقائيًا." : "These are guidance warnings only. No information is automatically changed or deleted."}</p></div> : null}
-            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-extrabold">{cv.cvLanguage === "en" ? (isAr ? "لا يمكن تصدير السيرة الإنجليزية قبل مراجعة النصوص العربية." : "English PDF export is blocked until Arabic text is reviewed.") : (isAr ? "لا يمكن تصدير السيرة العربية قبل مراجعة النصوص الإنجليزية." : "Arabic PDF export is blocked until English text is reviewed.")}</p><ul className="mt-1 list-disc space-y-1 ps-5">{languageMismatchFields.map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}</li>)}</ul><p className="mt-2">{isAr ? "الاختيارات الجاهزة مثل حالة الدراسة والسنة الدراسية لا تدخل في هذا الفحص؛ يتم عرضها حسب لغة السيرة." : "System choices such as study status and study year are excluded and displayed in the selected CV language."}</p></div> : null}
+            {languageMismatch ? <div role="alert" className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3.5 text-xs leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200"><p className="font-extrabold">{cv.cvLanguage === "en" ? (isAr ? "لا يمكن تصدير السيرة الإنجليزية قبل مراجعة الحروف العربية في الحقول الموضحة أدناه." : "English PDF export is blocked until Arabic letters in the listed fields are reviewed.") : (isAr ? "لا يمكن تصدير السيرة العربية قبل مراجعة الحروف الإنجليزية في الحقول الموضحة أدناه." : "Arabic PDF export is blocked until Latin letters in the listed fields are reviewed.")}</p><ul className="mt-1 list-disc space-y-1 ps-5">{languageMismatchFields.map((field, index) => <li key={`${field.labelEn}-${index}`}>{isAr ? field.labelAr : field.labelEn}<span className="ms-1 font-mono opacity-80">({field.detectedLetters})</span></li>)}</ul><p className="mt-2">{isAr ? "الاختيارات الجاهزة مثل حالة الدراسة والسنة الدراسية لا تدخل في هذا الفحص؛ يتم عرضها حسب لغة السيرة." : "System choices such as study status and study year are excluded and displayed in the selected CV language."}</p></div> : null}
             <div className="mt-5 rounded-xl border border-[#C8A448]/30 bg-[#C8A448]/[0.07] p-3 text-xs leading-6 text-zinc-600 dark:text-zinc-300"><div className="mb-1 flex items-center gap-1.5 font-bold text-[#80621c] dark:text-[#E2C46F]"><Lightbulb className="h-3.5 w-3.5" /> ATS</div>{t.atsNote}</div>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={() => setShowPreview(true)} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-[#182B36] px-4 py-3 text-sm font-bold text-[#182B36] hover:bg-[#182B36]/5 dark:border-[#C8A448] dark:text-[#E2C46F]"><Eye className="h-4 w-4" />{t.openPreview}</button><button type="button" onClick={downloadCV} disabled={downloading || languageMismatch} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#182B36] px-4 py-3 text-sm font-bold text-white disabled:opacity-60 dark:bg-[#C8A448] dark:text-[#182B36]"><Download className="h-4 w-4" />{downloading ? t.loadingPdf : t.downloadNow}</button></div>
             <p className="mt-3 text-[11px] leading-5 text-zinc-500">{t.savedInfo}</p>
