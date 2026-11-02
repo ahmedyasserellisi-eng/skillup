@@ -88,7 +88,7 @@ export function CVDocumentStyles() {
       .cv-document .cv-entry { margin: 0 0 11px; margin-inline-start: 16px; break-inside: avoid; page-break-inside: avoid; }
       .cv-document .cv-entry-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
       .cv-document .cv-entry-date { margin: 0; flex: 0 0 auto; color: var(--cv-muted); font-size: var(--cv-body-size) !important; white-space: nowrap; }
-      .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: var(--cv-body); font-size: var(--cv-body-size) !important; font-weight: 700; }
+      .cv-document .cv-entry-subtitle { margin: 2px 0 0; color: var(--cv-body); font-size: var(--cv-body-size) !important; font-weight: 400; }
       .cv-document .cv-entry-detail { margin: 4px 0 0; font-size: var(--cv-body-size) !important; line-height: var(--cv-line-height); }
       .cv-document .cv-entry-link { margin: 4px 0 0; color: var(--cv-secondary); font-size: var(--cv-body-size) !important; line-height: var(--cv-line-height); }
       .cv-document .cv-bullets { margin: 3px 0 0; padding-inline-start: 20px; list-style: disc; }
@@ -97,17 +97,22 @@ export function CVDocumentStyles() {
       .cv-document .cv-skill-label { margin: 0 0 1px !important; font-size: var(--cv-body-size) !important; font-weight: 700; }
       .cv-document a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
       .cv-document a:hover { color: var(--cv-secondary); }
-      .cv-template-reference .cv-document-header { text-align: center; padding-bottom: 10px; }
+      .cv-template-reference .cv-document-header { text-align: center; border-bottom: 1px solid var(--cv-rule); padding-bottom: 10px; }
       .cv-template-reference .cv-contact { justify-content: center; }
-      .cv-template-reference .cv-section h2 { border: 0; border-top: 1px solid var(--cv-rule); padding: 7px 0 0; margin-bottom: 7px; }
+      .cv-template-reference .cv-linkedin { margin-top: 2px; }
+      .cv-template-reference .cv-entry-subtitle { font-weight: 700; }
+      .cv-template-reference .cv-section h2 { border: 0; padding: 0; margin-bottom: 7px; }
+      .cv-template-reference .cv-section + .cv-section h2 { border-top: 1px solid var(--cv-rule); padding-top: 7px; }
       .cv-template-classic .cv-document-header { border-bottom: 2px solid var(--cv-primary); padding-bottom: 14px; margin-bottom: 5px; }
       .cv-template-classic .cv-section h2 { border-top: 0; border-bottom: 1px solid var(--cv-primary); padding: 0 0 4px; letter-spacing: .055em; }
       .cv-template-classic .cv-name { letter-spacing: .01em; }
-      .cv-template-contemporary .cv-document-header { border-inline-start: 4px solid var(--cv-secondary); background: #F0F7F5; padding: 12px 14px; margin-bottom: 12px; }
+      .cv-template-contemporary .cv-document-header { border-inline-start: 4px solid var(--cv-secondary); background: var(--cv-primary); color: #fff; padding: 12px 14px; margin-bottom: 8px; }
+      .cv-template-contemporary .cv-name { color: #fff; }
+      .cv-template-contemporary .cv-target-role, .cv-template-contemporary .cv-contact { color: #D7F0EC; }
       .cv-template-contemporary .cv-name { font-weight: 850; }
       .cv-template-contemporary .cv-section h2 { border: 0; border-inline-start: 3px solid var(--cv-secondary); padding: 5px 10px; background: #EDF6F4; }
       .cv-template-contemporary .cv-entry { margin-inline-start: 12px; }
-      .cv-template-chronological .cv-document-header { text-align: start; border-top: 2px solid var(--cv-primary); border-bottom: 1px solid var(--cv-primary); padding: 9px 0 12px; margin-bottom: 6px; }
+      .cv-template-chronological .cv-document-header { text-align: start; border-top: 3px solid var(--cv-primary); border-bottom: 1px solid var(--cv-rule); padding: 9px 0 12px; margin-bottom: 6px; }
       .cv-template-chronological .cv-name { font-weight: 800; letter-spacing: .035em; }
       .cv-template-chronological .cv-section h2 { border-top: 0; border-bottom: 1px solid var(--cv-primary); padding: 0 0 4px; letter-spacing: .075em; }
       .cv-document[lang="ar"] .cv-section h2 { line-height: 1.2; }
@@ -162,7 +167,7 @@ export function CVDocument({ cv }: { cv: CVData }) {
     studyYear: ar ? "السنة الدراسية" : "Study year",
     gpa: ar ? "التقدير" : "Grade"
   };
-  const contact = [cv.city, cv.phone, cv.email, cv.linkedin].filter(Boolean);
+  const contact = [cv.city, cv.phone, cv.email, ...(template === "reference" ? [] : [cv.linkedin])].filter(Boolean);
   const experiences = cv.experienceSortMode === "newest"
     ? sortExperiencesByDate(cv.experiences)
     : cv.experiences;
@@ -198,6 +203,11 @@ export function CVDocument({ cv }: { cv: CVData }) {
                   : value === cv.linkedin ? normalizeWebUrl(cv.linkedin) : "";
               return <span key={`${value}-${index}`}>{href ? <a href={href} target={value === cv.linkedin ? "_blank" : undefined} rel={value === cv.linkedin ? "noreferrer" : undefined}>{value}</a> : value}{index < contact.length - 1 ? "  |  " : ""}</span>;
             })}
+          </p>
+        ) : null}
+        {template === "reference" && cv.linkedin ? (
+          <p className="cv-contact cv-linkedin" dir="ltr">
+            LinkedIn: <a href={normalizeWebUrl(cv.linkedin)} target="_blank" rel="noreferrer">{cv.linkedin}</a>
           </p>
         ) : null}
       </header>
@@ -285,37 +295,46 @@ export function TemplateThumbnail({ template, isAr }: { template: CVTemplate; is
   const headerStyle: CSSProperties = isReference
     ? { textAlign: "center", borderBottom: `1px solid ${design.rule}`, paddingBottom: 7 }
     : isClassic
-      ? { textAlign: "left", borderBottom: `2px solid ${design.primary}`, paddingBottom: 8 }
+      ? { textAlign: isAr ? "right" : "left", borderBottom: `2px solid ${design.primary}`, paddingBottom: 8 }
       : isContemporary
-        ? { textAlign: "left", background: "#F0F7F5", borderInlineStart: `3px solid ${design.secondary}`, padding: "8px 7px" }
-        : { textAlign: "left", borderTop: `2px solid ${design.primary}`, borderBottom: `1px solid ${design.primary}`, padding: "7px 0" };
+        ? { textAlign: isAr ? "right" : "left", background: design.primary, color: "#fff", padding: "9px 8px", borderRadius: 3 }
+        : { textAlign: isAr ? "right" : "left", borderTop: `3px solid ${design.primary}`, borderBottom: `1px solid ${design.rule}`, padding: "7px 0" };
 
-  const headingStyle = (): CSSProperties => {
-    if (isReference) return { borderTop: `1px solid ${design.rule}`, paddingTop: 3 };
-    if (isClassic) return { borderBottom: `1px solid ${design.rule}`, paddingBottom: 2, letterSpacing: ".25px" };
-    if (isContemporary) return { background: "#EDF6F4", borderInlineStart: `2px solid ${design.secondary}`, padding: "2px 4px" };
-    return { borderBottom: `1px solid ${design.rule}`, paddingBottom: 2, letterSpacing: ".35px" };
+  const headingStyle = (index: number): CSSProperties => {
+    if (isReference) return { borderTop: index === 0 ? 0 : `1px solid ${design.rule}`, paddingTop: index === 0 ? 0 : 3 };
+    if (isClassic) return { borderBottom: `1px solid ${design.rule}`, paddingBottom: 3, letterSpacing: ".35px" };
+    if (isContemporary) return { background: "#EAF4F2", borderInlineStart: `3px solid ${design.secondary}`, padding: "3px 5px", borderRadius: 2 };
+    return { borderBottom: `1px solid ${design.rule}`, borderInlineStart: `2px solid ${design.secondary}`, padding: "2px 4px", letterSpacing: ".25px" };
   };
 
   return (
     <div className="h-56 overflow-hidden rounded-xl border border-zinc-200 bg-[#eef1f4] p-3 dark:border-zinc-700">
       <div className="mx-auto h-full max-w-[190px] overflow-hidden bg-white px-3 py-3.5 shadow-sm" style={{ color: design.body, fontFamily: isAr ? "Cairo, Arial, sans-serif" : "Roboto, Arial, sans-serif" }}>
         <header style={headerStyle}>
-          {isChronological ? <div className="mb-1 h-[2px] w-8" style={{ background: design.secondary }} /> : null}
-          <div className="truncate font-extrabold" style={{ color: design.name, fontSize: isContemporary ? 9 : 8.5, lineHeight: 1.25 }}>{isAr ? "اسمك بالكامل" : "YOUR NAME"}</div>
-          <div className={`mt-1 truncate ${isReference || isChronological ? "italic" : "font-semibold"}`} style={{ color: design.secondary, fontSize: 5.5 }}>{isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}</div>
-          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] text-slate-500 ${isReference ? "justify-center" : ""}`}><span>email@example.com</span><span>{isReference ? "|" : "•"}</span><span>+20 000</span><span>{isReference ? "|" : "•"}</span><span>Cairo</span></div>
+          {isChronological ? <div className="mb-1 h-[2px] w-9" style={{ background: design.secondary }} /> : null}
+          <div className="truncate font-extrabold" style={{ color: isContemporary ? "#FFFFFF" : design.name, fontSize: isContemporary ? 9.2 : 8.5, lineHeight: 1.25 }}> {isAr ? "اسمك بالكامل" : "YOUR NAME"}</div>
+          <div className={`mt-1 truncate ${isReference ? "italic" : "font-semibold"}`} style={{ color: isContemporary ? "#D7F0EC" : design.secondary, fontSize: 5.5 }}>{isAr ? "المسمى الوظيفي المستهدف" : "TARGET JOB TITLE"}</div>
+          <div className={`mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[4px] ${isReference ? "justify-center" : ""}`} style={{ color: isContemporary ? "#F3FAF8" : design.muted }}>
+            <span>email@example.com</span><span>{isContemporary ? "•" : "|"}</span><span>+20 000</span><span>{isContemporary ? "•" : "|"}</span><span>Cairo</span>
+          </div>
+          {isReference ? <div className="mt-1 text-center text-[4px] underline" style={{ color: design.secondary }}>LinkedIn: linkedin.com/in/yourname</div> : null}
         </header>
         {headings.map((heading, index) => (
           <section key={heading} className={isContemporary ? "mt-2" : "mt-2.5"}>
-            <div className="mb-1 truncate font-extrabold" style={{ color: design.primary, fontSize: 5.1, ...headingStyle() }}>{heading}</div>
+            <div className="mb-1 truncate font-extrabold" style={{ color: design.primary, fontSize: 5.1, ...headingStyle(index) }}>{heading}</div>
             {isChronological ? (
               <div className="flex gap-1.5">
-                <div className="w-5 shrink-0 border-r" style={{ borderColor: design.rule }}>
-                  <div className="h-[3px] w-4 rounded-sm" style={{ background: design.secondary }} />
+                <div className="w-6 shrink-0 border-r pr-1" style={{ borderColor: design.rule }}>
+                  <div className="rounded-sm px-0.5 text-[3.4px] font-semibold" style={{ background: "#EEF2F7", color: design.secondary }}>2024</div>
                   <div className="ml-1 mt-1 h-5 w-px" style={{ background: design.rule }} />
                 </div>
-                <div className="flex-1 space-y-[3px]"><div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary, opacity: .8 }} /><div className="h-[2.5px] w-full rounded-sm bg-slate-200" /><div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" /></div>
+                <div className="flex-1 space-y-[3px]"><div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary, opacity: .85 }} /><div className="h-[2.5px] w-full rounded-sm bg-slate-200" /><div className="h-[2.5px] w-10/12 rounded-sm bg-slate-200" /></div>
+              </div>
+            ) : isContemporary ? (
+              <div className="space-y-[4px] rounded-sm border border-[#E5EFED] p-1.5">
+                <div className="h-[3px] w-2/5 rounded-sm" style={{ background: design.secondary }} />
+                <div className="h-[2.5px] w-full rounded-sm bg-slate-200" />
+                <div className="flex gap-1"><div className="h-[3px] w-7 rounded-full" style={{ background: "#D5E9E5" }} /><div className="h-[3px] w-8 rounded-full" style={{ background: "#D5E9E5" }} /></div>
               </div>
             ) : (
               <div className="space-y-[3px]">
