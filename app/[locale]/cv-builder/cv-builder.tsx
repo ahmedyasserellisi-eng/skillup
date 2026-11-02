@@ -805,6 +805,9 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   const [courseDraft, setCourseDraft] = useState<Course>({ id: "", name: "", provider: "", date: "", description: "", certificateUrl: "" });
   const [draggingExperienceId, setDraggingExperienceId] = useState<string | null>(null);
   const [dragOverExperienceId, setDragOverExperienceId] = useState<string | null>(null);
+  const [previewTemplateIndex, setPreviewTemplateIndex] = useState(0);
+  const templateCarouselRef = useRef<HTMLDivElement | null>(null);
+  const templateDragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -882,6 +885,20 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
       setNotice(isAr ? "مساحة التخزين في المتصفح غير كافية. احذف صورة أو بيانات قديمة." : "Browser storage is full. Remove older or large data.");
     }
   }, [cv, loaded, isAr]);
+
+  // Keep the carousel centered on the applied template when the picker opens,
+  // when saved CV data finishes loading, or when the template changes elsewhere.
+  useEffect(() => {
+    if (!loaded || wizardStep !== "template") return;
+    const foundIndex = CV_TEMPLATE_OPTIONS.findIndex((option) => option.id === cv.template);
+    const selectedIndex = foundIndex >= 0 ? foundIndex : 0;
+    setPreviewTemplateIndex(selectedIndex);
+    const frame = window.requestAnimationFrame(() => {
+      const viewport = templateCarouselRef.current;
+      if (viewport) viewport.scrollLeft = selectedIndex * viewport.clientWidth;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [loaded, cv.template, wizardStep]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1319,6 +1336,23 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     description: isAr ? option.descriptionAr : option.descriptionEn,
     badge: isAr ? option.badgeAr : option.badgeEn
   }));
+  const moveTemplateSlide = (requestedIndex: number) => {
+    const nextIndex = Math.max(0, Math.min(requestedIndex, templateOptions.length - 1));
+    setPreviewTemplateIndex(nextIndex);
+    const viewport = templateCarouselRef.current;
+    if (viewport) {
+      viewport.scrollTo({ left: nextIndex * viewport.clientWidth, behavior: "smooth" });
+    }
+  };
+  const handleTemplateCarouselScroll = () => {
+    const viewport = templateCarouselRef.current;
+    if (!viewport || !viewport.clientWidth) return;
+    const nextIndex = Math.max(0, Math.min(
+      Math.round(viewport.scrollLeft / viewport.clientWidth),
+      templateOptions.length - 1
+    ));
+    setPreviewTemplateIndex((previous) => previous === nextIndex ? previous : nextIndex);
+  };
   const currentStepLabel = wizardStep === "template" ? t.templates : wizardStep === "profile" ? t.stepProfile : wizardStep === "education" ? t.stepEducation : wizardStep === "sections" ? t.stepSections : wizardStep === "review" ? t.reviewTitle : sectionLabel(wizardStep);
   const progressPercent = currentVisibleStepIndex < 0
     ? 0
@@ -1378,22 +1412,143 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
             <div className="text-center">
               <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{isAr ? "اختار الشكل اللي يناسب تقديمك" : "Choose the style that fits your application"}</p>
               <p className="mt-1 text-xs text-zinc-500">{isAr ? "كل التصميمات رسمية وبعمود واحد ومهيأة لتكون سهلة القراءة بواسطة ATS." : "All four designs are formal, single-column and designed for ATS readability."}</p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-bold text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300" aria-live="polite">
+                <span>{isAr ? "التصميم" : "Template"}</span>
+                <span className="tabular-nums text-[#8A6D1F] dark:text-[#E2C46F]">{previewTemplateIndex + 1} / {templateOptions.length}</span>
+              </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {templateOptions.map((option, index) => {
-                const active = cv.template === option.id;
-                return (
-                  <motion.button key={option.id} type="button" onClick={() => update("template", option.id)} aria-pressed={active} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, delay: index * 0.045 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.99 }} className={cx("group rounded-2xl border bg-white p-3 text-start shadow-sm transition dark:bg-zinc-900", active ? "border-[#C8A448] ring-2 ring-[#C8A448]/25" : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700")}>
-                    <TemplateThumbnail template={option.id} isAr={isAr} />
-                    <div className="mt-3 flex items-center justify-between gap-2">
-                      <div><span className="block text-sm font-extrabold text-zinc-900 dark:text-white">{option.name}</span><span className="mt-0.5 block text-[10px] font-semibold text-[#8A6D1F] dark:text-[#E2C46F]">{option.badge}</span></div>
-                      {active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" /> : <span className="h-5 w-5 shrink-0 rounded-full border border-zinc-300 dark:border-zinc-600" />}
-                    </div>
-                    <p className="mt-2 min-h-10 text-xs leading-5 text-zinc-500">{option.description}</p>
-                  </motion.button>
-                );
-              })}
+
+            <div className="mx-auto flex max-w-4xl items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => moveTemplateSlide(previewTemplateIndex - 1)}
+                disabled={previewTemplateIndex === 0}
+                aria-label={isAr ? "التصميم السابق" : "Previous template"}
+                title={isAr ? "التصميم السابق" : "Previous template"}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-[#C8A448] hover:text-[#8A6D1F] disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 sm:h-11 sm:w-11"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              <div
+                ref={templateCarouselRef}
+                role="region"
+                aria-label={isAr ? "معرض تصميمات السيرة الذاتية" : "CV template carousel"}
+                aria-roledescription="carousel"
+                tabIndex={0}
+                onScroll={handleTemplateCarouselScroll}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowRight") {
+                    event.preventDefault();
+                    moveTemplateSlide(previewTemplateIndex + 1);
+                  } else if (event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    moveTemplateSlide(previewTemplateIndex - 1);
+                  }
+                }}
+                onPointerDown={(event) => {
+                  if (event.pointerType !== "mouse" || event.button !== 0) return;
+                  if ((event.target as HTMLElement).closest("button, a, input, select, textarea")) return;
+                  templateDragRef.current = {
+                    pointerId: event.pointerId,
+                    startX: event.clientX,
+                    startScrollLeft: event.currentTarget.scrollLeft
+                  };
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={(event) => {
+                  const drag = templateDragRef.current;
+                  if (!drag || drag.pointerId !== event.pointerId) return;
+                  event.currentTarget.scrollLeft = drag.startScrollLeft - (event.clientX - drag.startX);
+                }}
+                onPointerUp={(event) => {
+                  if (templateDragRef.current?.pointerId !== event.pointerId) return;
+                  templateDragRef.current = null;
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+                }}
+                onPointerCancel={() => { templateDragRef.current = null; }}
+                className="min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x select-none outline-none focus-visible:ring-2 focus-visible:ring-[#C8A448]/50"
+                style={{ cursor: "grab" }}
+                dir="ltr"
+              >
+                <div className="flex items-stretch">
+                  {templateOptions.map((option, index) => {
+                    const applied = cv.template === option.id;
+                    return (
+                      <div key={option.id} className="w-full shrink-0 snap-center px-0.5" dir={isAr ? "rtl" : "ltr"}>
+                        <motion.div
+                          initial={{ opacity: 0.65, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className={cx(
+                            "mx-auto max-w-2xl rounded-3xl border bg-white p-3 shadow-sm transition dark:bg-zinc-900 sm:p-5",
+                            applied ? "border-[#C8A448] ring-2 ring-[#C8A448]/25" : "border-zinc-200 dark:border-zinc-700"
+                          )}
+                        >
+                          <TemplateThumbnail template={option.id} isAr={isAr} />
+                          <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <h3 className="text-base font-extrabold text-zinc-900 dark:text-white">{option.name}</h3>
+                              <p className="mt-1 text-[11px] font-semibold text-[#8A6D1F] dark:text-[#E2C46F]">{option.badge}</p>
+                              <p className="mt-2 text-xs leading-6 text-zinc-500 dark:text-zinc-400">{option.description}</p>
+                            </div>
+                            <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 text-[10px] font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                              {isAr ? `رقم ${index + 1} من ${templateOptions.length}` : `${index + 1} of ${templateOptions.length}`}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => update("template", option.id)}
+                            disabled={applied}
+                            aria-pressed={applied}
+                            className={cx(
+                              "mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-extrabold transition",
+                              applied
+                                ? "cursor-default bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                                : "bg-[#182B36] text-white shadow-sm hover:bg-[#294653] active:scale-[0.99] dark:bg-[#C8A448] dark:text-[#182B36]"
+                            )}
+                          >
+                            {applied ? <><CheckCircle2 className="h-4 w-4" />{isAr ? "القالب الحالي" : "Current template"}</> : <>{isAr ? "اختيار هذا القالب" : "Use this template"}<Check className="h-4 w-4" /></>}
+                          </button>
+                        </motion.div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => moveTemplateSlide(previewTemplateIndex + 1)}
+                disabled={previewTemplateIndex === templateOptions.length - 1}
+                aria-label={isAr ? "التصميم التالي" : "Next template"}
+                title={isAr ? "التصميم التالي" : "Next template"}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:border-[#C8A448] hover:text-[#8A6D1F] disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 sm:h-11 sm:w-11"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
+
+            <div className="flex items-center justify-center gap-2" aria-label={isAr ? "اختيار رقم التصميم" : "Choose a template slide"}>
+              {templateOptions.map((option, index) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => moveTemplateSlide(index)}
+                  aria-label={isAr ? `عرض التصميم ${index + 1}` : `Show template ${index + 1}`}
+                  aria-current={previewTemplateIndex === index ? "true" : undefined}
+                  className={cx(
+                    "h-2.5 rounded-full transition-all duration-200",
+                    previewTemplateIndex === index ? "w-7 bg-[#182B36] dark:bg-[#C8A448]" : "w-2.5 bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700"
+                  )}
+                />
+              ))}
+            </div>
+            <p className="text-center text-[11px] leading-5 text-zinc-500 dark:text-zinc-400">
+              {isAr
+                ? "اسحب يمينًا أو يسارًا لاستعراض التصميمات. مجرد المعاينة لا يغيّر القالب الحالي؛ اضغط «اختيار هذا القالب» لتطبيق التصميم."
+                : "Swipe or drag to browse. Previewing a design does not change your current template; press “Use this template” to apply it."}
+            </p>
           </section>
         ) : null}
 
