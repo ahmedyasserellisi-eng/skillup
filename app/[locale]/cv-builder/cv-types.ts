@@ -118,46 +118,49 @@ export const CV_TEMPLATE_DESIGNS: Record<CVTemplate, {
   headingStyle: "reference" | "academic" | "accent" | "chronological";
 }> = {
   reference: {
-    // Blue Professional follows the supplied Word/PDF reference.
-    primary: "#17365D",
-    name: "#202D40",
-    secondary: "#5982BF",
-    rule: "#AFC3DE",
-    body: "#111111",
-    muted: "#5A5A5A",
+    // Blue Professional: follows the supplied Word/PDF reference closely.
+    primary: "#1D3B63",
+    name: "#1D2D45",
+    secondary: "#4F83CC",
+    rule: "#B7C9E0",
+    body: "#15191F",
+    muted: "#606A78",
     headerAlignment: "center",
     headerStyle: "reference",
     headingStyle: "reference"
   },
   classic: {
-    primary: "#202020",
-    name: "#171717",
-    secondary: "#555555",
-    rule: "#777777",
-    body: "#252525",
-    muted: "#666666",
+    // A restrained, monochrome academic layout with strong typographic hierarchy.
+    primary: "#202326",
+    name: "#111315",
+    secondary: "#4B535B",
+    rule: "#9AA0A6",
+    body: "#25292D",
+    muted: "#687078",
     headerAlignment: "start",
     headerStyle: "academic",
     headingStyle: "academic"
   },
   contemporary: {
-    primary: "#145A55",
-    name: "#123B38",
-    secondary: "#31847B",
-    rule: "#B8D7D2",
-    body: "#23312F",
-    muted: "#667975",
+    // A noticeably different teal banner and filled section-label treatment.
+    primary: "#145B55",
+    name: "#FFFFFF",
+    secondary: "#287B73",
+    rule: "#A7D1CB",
+    body: "#20302E",
+    muted: "#637471",
     headerAlignment: "start",
     headerStyle: "panel",
     headingStyle: "accent"
   },
   chronological: {
-    primary: "#2B4058",
-    name: "#1F2D3D",
-    secondary: "#637A92",
-    rule: "#AAB8C7",
-    body: "#28323D",
-    muted: "#687583",
+    // A date-led format with a separate date rail and vertical markers.
+    primary: "#344A68",
+    name: "#24344B",
+    secondary: "#607FA8",
+    rule: "#B8C6D8",
+    body: "#263343",
+    muted: "#677587",
     headerAlignment: "start",
     headerStyle: "timeline",
     headingStyle: "chronological"
@@ -168,34 +171,34 @@ export const CV_TEMPLATE_OPTIONS = [
   {
     id: "reference" as const,
     title: "Blue Professional",
-    descriptionAr: "قالب أزرق احترافي مطابق للتنسيق المرجعي، بهيدر مركزي وفواصل رفيعة قبل الأقسام.",
-    descriptionEn: "The supplied blue reference layout: centered profile header, fine section rules, and restrained emphasis.",
-    badgeAr: "احترافي ومنظم",
-    badgeEn: "Professional layout"
+    descriptionAr: "قالب أزرق مطابق للمرجع: هيدر مركزي، بيانات التواصل في سطر وLinkedIn في سطر مستقل، وفواصل زرقاء رفيعة.",
+    descriptionEn: "Reference-led blue CV with a centered header, separate LinkedIn line, and fine blue section dividers.",
+    badgeAr: "مطابق للمرجع",
+    badgeEn: "Reference style"
   },
   {
     id: "classic" as const,
     title: "Classic Academic",
-    descriptionAr: "تصميم أكاديمي رسمي بمحاذاة يسار وخط فاصل أسفل العناوين وتنسيق تقليدي هادئ.",
-    descriptionEn: "A formal, left-aligned academic layout with understated typography and underlined section labels.",
-    badgeAr: "أكاديمي ورسمي",
-    badgeEn: "Academic formal"
+    descriptionAr: "قالب أكاديمي أبيض وأسود بمحاذاة يسار، عناوين واضحة وخط سفلي تقليدي؛ مناسب للسير الرسمية وATS.",
+    descriptionEn: "A monochrome, left-aligned academic layout with restrained typography and classic underlined headings.",
+    badgeAr: "رسمي وبسيط",
+    badgeEn: "Classic ATS"
   },
   {
     id: "contemporary" as const,
     title: "Contemporary Professional",
-    descriptionAr: "تصميم حديث بواجهة رأس فاتحة ولمسات خضراء وعناوين أقسام بارزة، مع محتوى بعمود واحد.",
-    descriptionEn: "A modern single-column layout with a soft teal profile panel and accent section labels.",
-    badgeAr: "حديث ومتوازن",
-    badgeEn: "Modern single-column"
+    descriptionAr: "قالب حديث بهيدر أخضر داكن ممتد وعناوين أقسام داخل شرائط فاتحة ولمسات لونية واضحة.",
+    descriptionEn: "A modern teal profile banner with filled section labels and a more expressive visual hierarchy.",
+    badgeAr: "حديث وملفت",
+    badgeEn: "Modern design"
   },
   {
     id: "chronological" as const,
     title: "Traditional Chronological",
-    descriptionAr: "قالب يبرز التواريخ والتسلسل الزمني، مع عمود زمني واضح للعناصر المهنية والتعليمية.",
-    descriptionEn: "A timeline-led format that gives dates a dedicated rail and makes career progression easy to scan.",
-    badgeAr: "تقليدي واضح",
-    badgeEn: "Traditional format"
+    descriptionAr: "قالب زمني بعمود مستقل للتواريخ وخط رأسي يربط تفاصيل الدراسة والخبرات والكورسات.",
+    descriptionEn: "A date-led layout with a dedicated date rail and vertical markers for education and experience entries.",
+    badgeAr: "تسلسل زمني",
+    badgeEn: "Timeline layout"
   }
 ] as const;
 
