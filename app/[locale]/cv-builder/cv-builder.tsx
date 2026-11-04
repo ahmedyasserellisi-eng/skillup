@@ -60,6 +60,10 @@ const SECTION_META: Record<SectionId, { icon: typeof BriefcaseBusiness; titleAr:
   skills: { icon: Wrench, titleAr: "المهارات واللغات", titleEn: "Skills & Languages", subAr: "المهارات التقنية والشخصية واللغات", subEn: "Technical skills, soft skills and languages" }
 };
 
+// Recommended default for the student / recent-graduate path.
+// Education is rendered separately before these selectable sections.
+const RECOMMENDED_SECTION_ORDER: SectionId[] = ["experience", "projects", "activities", "skills", "courses"];
+
 const EMPTY_CV: CVData = {
   fullName: "",
   targetRole: "",
@@ -84,7 +88,7 @@ const EMPTY_CV: CVData = {
   skills: "",
   tools: "",
   languages: "",
-  sectionOrder: ["experience", "courses", "skills", "projects", "activities"],
+  sectionOrder: [...RECOMMENDED_SECTION_ORDER],
   selectedSections: [],
   cvLanguage: "ar",
   template: "reference",
@@ -626,6 +630,18 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     mobilePreview: "عرض المعاينة",
     mobileForm: "استكمال البيانات",
     sectionOrder: "ترتيب الأقسام في السيرة",
+    recommendedOrderTitle: "الترتيب المقترح للطلاب وحديثي التخرج",
+    recommendedOrderBadge: "موصى به كبداية",
+    recommendedOrderIntro: "مفيش ترتيب واحد يناسب كل الوظائف. إرشادات مراكز التوظيف الجامعية بتنصح إن التعليم يظهر مبكرًا، وبعده ترتّب الأقسام حسب مدى ارتباطها بالوظيفة. ده ترتيب بداية عملي، وتقدر تعدّله حسب إعلان الوظيفة وأقوى خبراتك.",
+    educationFixedNote: "قسم التعليم بيظهر تلقائيًا بعد الملخص المهني وقبل الأقسام دي؛ لذلك مش محتاج ترتّبه هنا.",
+    reasonExperience: "يعرض التطبيق العملي والمسؤوليات والنتائج المرتبطة بالوظيفة.",
+    reasonProjects: "يثبت قدرتك على تنفيذ عمل فعلي، حتى لو خبرتك الوظيفية محدودة.",
+    reasonActivities: "يبرز القيادة والمبادرة والمسؤوليات في الأنشطة والتطوع.",
+    reasonSkills: "يسهّل على القارئ العثور على المهارات الفنية واللغات المطلوبة، والأفضل دعمها بأمثلة.",
+    reasonCourses: "يضيف التدريب والشهادات ذات الصلة كدليل تكميلي على التعلم.",
+    restoreRecommendedOrder: "اعتماد الترتيب المقترح",
+    orderUpdated: "تم تطبيق الترتيب المقترح.",
+    orderSources: "المراجع: UC San Diego Career Center وMIT Career Advising & Professional Development",
     up: "لأعلى",
     down: "لأسفل",
     noSummary: "يمكنك إضافة نبذة مختصرة لاحقًا.",
@@ -759,6 +775,18 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     mobilePreview: "Preview CV",
     mobileForm: "Edit details",
     sectionOrder: "Section order in your CV",
+    recommendedOrderTitle: "Suggested order for students and recent graduates",
+    recommendedOrderBadge: "Recommended starting point",
+    recommendedOrderIntro: "There is no single order that fits every job. University career centers advise students to show education early, then arrange the remaining sections by relevance to the role. This is a practical starting order; adjust it to the job description and your strongest evidence.",
+    educationFixedNote: "Education appears automatically after your summary and before these sections, so you do not need to reorder it here.",
+    reasonExperience: "Shows practical work, responsibilities, and outcomes related to the role.",
+    reasonProjects: "Demonstrates that you can apply your knowledge, even with limited employment history.",
+    reasonActivities: "Highlights leadership, initiative, and responsibility beyond coursework or paid work.",
+    reasonSkills: "Makes relevant technical and language skills easy to find; support them with examples where possible.",
+    reasonCourses: "Adds relevant training and certifications as supporting evidence of learning.",
+    restoreRecommendedOrder: "Apply suggested order",
+    orderUpdated: "The suggested order has been applied.",
+    orderSources: "Sources: UC San Diego Career Center and MIT Career Advising & Professional Development",
     up: "Move up",
     down: "Move down",
     noSummary: "You can add a short summary later.",
@@ -818,11 +846,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         const savedOrder = Array.isArray(parsed.sectionOrder)
           ? parsed.sectionOrder.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
           : [];
-        const previousDefaultOrder: SectionId[] = ["experience", "projects", "activities", "courses", "skills"];
-        const isPreviousDefaultOrder = savedOrder.length === previousDefaultOrder.length
-          && previousDefaultOrder.every((id, index) => savedOrder[index] === id);
-        // Update only the old untouched default order; preserve any order the user customized.
-        const normalizedOrder = isPreviousDefaultOrder ? [...EMPTY_CV.sectionOrder] : [...new Set(savedOrder)];
+        const legacyDefaultOrders: SectionId[][] = [
+          ["experience", "projects", "activities", "courses", "skills"],
+          ["experience", "courses", "skills", "projects", "activities"]
+        ];
+        const isLegacyDefaultOrder = legacyDefaultOrders.some((legacyOrder) =>
+          savedOrder.length === legacyOrder.length && legacyOrder.every((id, index) => savedOrder[index] === id)
+        );
+        // Migrate only known untouched defaults; preserve a user's custom section order.
+        const normalizedOrder = isLegacyDefaultOrder ? [...RECOMMENDED_SECTION_ORDER] : [...new Set(savedOrder)];
         const mergedOrder = [
           ...normalizedOrder,
           ...EMPTY_CV.sectionOrder.filter((id) => !normalizedOrder.includes(id))
@@ -1330,6 +1362,21 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   };
 
   const sectionLabel = (id: SectionId) => isAr ? SECTION_META[id].titleAr : SECTION_META[id].titleEn;
+  const sectionOrderReason = (id: SectionId) => {
+    if (id === "experience") return t.reasonExperience;
+    if (id === "projects") return t.reasonProjects;
+    if (id === "activities") return t.reasonActivities;
+    if (id === "skills") return t.reasonSkills;
+    return t.reasonCourses;
+  };
+  const recommendedActiveOrder = RECOMMENDED_SECTION_ORDER.filter((id) => cv.selectedSections.includes(id));
+  const isRecommendedSectionOrder = orderedSections.length === recommendedActiveOrder.length
+    && orderedSections.every((id, index) => id === recommendedActiveOrder[index]);
+  const applyRecommendedSectionOrder = () => {
+    const hiddenOrder = cv.sectionOrder.filter((id) => !cv.selectedSections.includes(id));
+    update("sectionOrder", [...recommendedActiveOrder, ...hiddenOrder]);
+    setNotice(t.orderUpdated);
+  };
   const templateOptions = CV_TEMPLATE_OPTIONS.map((option) => ({
     id: option.id,
     name: option.title,
@@ -1608,7 +1655,59 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
                 );
               })}
             </div>
-            {orderedSections.length ? <div className="mt-5 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-950"><p className="mb-2 text-xs font-bold text-zinc-700 dark:text-zinc-200">{t.sectionOrder}</p><div className="flex flex-wrap gap-2">{orderedSections.map((id, index) => <span key={id} className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-white px-2 py-1 text-[10px] text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">{sectionLabel(id)}<button type="button" onClick={() => moveSection(id,-1)} disabled={index===0} aria-label={t.up} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-30"><ChevronLeft className="h-3 w-3"/></button><button type="button" onClick={() => moveSection(id,1)} disabled={index===orderedSections.length-1} aria-label={t.down} className="rounded p-0.5 hover:bg-zinc-100 disabled:opacity-30"><ChevronRight className="h-3 w-3"/></button></span>)}</div></div> : <p className="mt-5 rounded-xl border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">{isAr ? "مش لازم تضيف أي أقسام دلوقتي؛ تقدر تكمل وتضيفها لاحقًا." : "You can continue without extra sections and add them later."}</p>}
+            {orderedSections.length ? (
+              <div className="mt-6 rounded-2xl border border-[#C8A448]/35 bg-[#C8A448]/[0.055] p-4 dark:border-[#C8A448]/25 dark:bg-[#C8A448]/[0.06]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#C8A448]/15 text-[#8A6D1F] dark:text-[#E2C46F]"><Lightbulb className="h-5 w-5" /></span>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white">{t.recommendedOrderTitle}</h3>
+                        <span className="rounded-full bg-[#C8A448]/15 px-2 py-0.5 text-[10px] font-bold text-[#80621c] dark:text-[#E2C46F]">{t.recommendedOrderBadge}</span>
+                      </div>
+                      <p className="mt-1 text-xs leading-6 text-zinc-600 dark:text-zinc-300">{t.recommendedOrderIntro}</p>
+                    </div>
+                  </div>
+                  {!isRecommendedSectionOrder ? (
+                    <button type="button" onClick={applyRecommendedSectionOrder} className="shrink-0 rounded-xl border border-[#C8A448]/50 bg-white px-3 py-2 text-[11px] font-bold text-[#80621c] transition hover:bg-[#C8A448]/10 dark:border-[#C8A448]/30 dark:bg-zinc-900 dark:text-[#E2C46F]">{t.restoreRecommendedOrder}</button>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 rounded-xl border border-zinc-200/80 bg-white/80 px-3 py-2.5 text-[11px] leading-5 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900/70 dark:text-zinc-300">
+                  <strong className="text-zinc-800 dark:text-zinc-100">{isAr ? "ملحوظة:" : "Note:"}</strong> {t.educationFixedNote}
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-xs font-extrabold text-zinc-800 dark:text-zinc-100">{t.sectionOrder}</p>
+                    <span className="text-[10px] text-zinc-500">{isAr ? "الأعلى يظهر أولًا" : "Top items appear first"}</span>
+                  </div>
+                  <ol className="grid gap-2">
+                    {orderedSections.map((id, index) => (
+                      <li key={id} className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#182B36] text-xs font-black tabular-nums text-white dark:bg-[#C8A448] dark:text-[#182B36]">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-extrabold text-zinc-900 dark:text-white">{sectionLabel(id)}</p>
+                          <p className="mt-0.5 text-[10px] leading-5 text-zinc-500 dark:text-zinc-400">{sectionOrderReason(id)}</p>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1">
+                          <button type="button" onClick={() => moveSection(id, -1)} disabled={index === 0} aria-label={t.up} title={t.up} className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-25 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"><ChevronLeft className={`h-3.5 w-3.5 ${isAr ? "rotate-90" : "-rotate-90"}`} /></button>
+                          <button type="button" onClick={() => moveSection(id, 1)} disabled={index === orderedSections.length - 1} aria-label={t.down} title={t.down} className="rounded-lg border border-zinc-200 p-1.5 text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-25 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"><ChevronRight className={`h-3.5 w-3.5 ${isAr ? "rotate-90" : "-rotate-90"}`} /></button>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                <div className="mt-4 border-t border-[#C8A448]/20 pt-3">
+                  <p className="text-[10px] leading-5 text-zinc-500 dark:text-zinc-400">
+                    {t.orderSources}: <a className="font-semibold underline underline-offset-2 hover:text-[#80621c]" href="https://career.ucsd.edu/resources/guides/resume.html" target="_blank" rel="noreferrer">UC San Diego Career Center</a> · <a className="font-semibold underline underline-offset-2 hover:text-[#80621c]" href="https://capd.mit.edu/blog/2023/09/01/enhance-your-resume-a-guide-for-first-year-undergraduates/" target="_blank" rel="noreferrer">MIT Career Advising</a>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-5 rounded-xl border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-700">{isAr ? "مش لازم تضيف أي أقسام دلوقتي؛ تقدر تكمل وتضيفها لاحقًا." : "You can continue without extra sections and add them later."}</p>
+            )}
           </section>
         ) : null}
 
