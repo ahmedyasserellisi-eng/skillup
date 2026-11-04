@@ -132,6 +132,7 @@ function normalizeWebUrl(value: string): string {
 }
 
 function normalizePhoneUrl(value: string): string {
+  // Keep the user-entered phone formatting in the visible PDF; strip separators only in the tel: target.
   const phone = value.trim().replace(/[^\d+]/g, "");
   return phone ? `tel:${phone}` : "";
 }
@@ -152,34 +153,75 @@ function parseInlineEmphasis(value: string): PdfNode[] {
   return nodes.length ? nodes : [{ text: value }];
 }
 
-function buildContactItems(cv: CVExportData): Array<{ value: string; href?: string; kind: "plain" | "phone" | "email" | "linkedin" }> {
-  const items: Array<{ value: string; href?: string; kind: "plain" | "phone" | "email" | "linkedin" }> = [];
-  if (cv.city.trim()) items.push({ value: cv.city.trim(), kind: "plain" });
+function formatContactLocation(city: string, postalCode?: string): string {
+  const location = city.trim();
+  const code = (postalCode ?? "").trim();
+  if (!location) return code;
+  if (!code || location.replace(/\s/g, "").includes(code.replace(/\s/g, ""))) return location;
+
+  const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const country = parts.pop() as string;
+    const region = parts.pop() as string;
+    parts.push(`${region} ${code}`, country);
+    return parts.join(", ");
+  }
+  return `${location} ${code}`;
+}
+
+type ContactItem = {
+  value: string;
+  href?: string;
+  kind: "plain" | "phone" | "email" | "profile";
+  label?: string;
+};
+
+function buildContactItems(cv: CVExportData): ContactItem[] {
+  const items: ContactItem[] = [];
+  const location = formatContactLocation(cv.city, cv.postalCode);
+  if (location) items.push({ value: location, kind: "plain" });
   if (cv.phone.trim()) items.push({ value: cv.phone.trim(), href: normalizePhoneUrl(cv.phone), kind: "phone" });
   if (cv.email.trim()) items.push({ value: cv.email.trim(), href: `mailto:${cv.email.trim()}`, kind: "email" });
-  if (cv.linkedin.trim()) {
-    const linkedinValue = cv.linkedin.trim().replace(/^linkedin\s*:\s*/i, "");
-    items.push({ value: linkedinValue, href: normalizeWebUrl(linkedinValue), kind: "linkedin" });
-  }
+
+  const profileLinks = (cv.profileLinks ?? []).filter((item) => item && item.url?.trim());
+  const linksToRender = profileLinks.length
+    ? profileLinks
+    : (cv.linkedin.trim() ? [{ id: "legacy-linkedin", label: "LinkedIn", url: cv.linkedin.trim() }] : []);
+  linksToRender.forEach((item) => {
+    const url = item.url.trim();
+    items.push({ value: url, href: normalizeWebUrl(url), kind: "profile", label: item.label.trim() || (cv.cvLanguage === "ar" ? "رابط" : "Website") });
+  });
   return items;
 }
 
 function contactInlineNodes(
-  items: ReturnType<typeof buildContactItems>,
+  items: ContactItem[],
   colors: typeof CV_TEMPLATE_DESIGNS[CVTemplate],
   separator = "  |  "
 ): PdfNode[] {
   const nodes: PdfNode[] = [];
   items.forEach((item, index) => {
     if (index) nodes.push({ text: separator, color: colors.muted });
-    const display = item.kind === "linkedin"
-      ? item.value.replace(/^linkedin\s*:\s*/i, "")
-      : item.value;
     nodes.push({
-      text: display,
+      text: item.value,
       ...(item.href ? { link: item.href } : {}),
-      color: item.kind === "linkedin" ? colors.secondary : colors.muted,
-      ...(item.kind === "linkedin" ? { decoration: "underline" } : {})
+      color: item.kind === "profile" ? colors.secondary : colors.muted,
+      ...(item.kind === "profile" ? { decoration: "underline" } : {})
+    });
+  });
+  return nodes;
+}
+
+function profileLinkInlineNodes(items: ContactItem[], colors: typeof CV_TEMPLATE_DESIGNS[CVTemplate]): PdfNode[] {
+  const nodes: PdfNode[] = [];
+  items.forEach((item, index) => {
+    if (index) nodes.push({ text: "  |  ", color: colors.muted });
+    if (item.label) nodes.push({ text: `${item.label}: `, color: colors.muted });
+    nodes.push({
+      text: item.value,
+      ...(item.href ? { link: item.href } : {}),
+      color: colors.secondary,
+      decoration: "underline"
     });
   });
   return nodes;
@@ -406,35 +448,24 @@ function buildPdfDefinition(cv: CVExportData): Record<string, unknown> {
     ? { ...colors, muted: "#F3FAF8", secondary: "#D7F0EC" }
     : colors;
 
-  if (isReference) {
-    const firstContactLine = contactItems.filter((item) => item.kind !== "linkedin");
-    if (firstContactLine.length) {
-      header.push({
-        text: contactInlineNodes(firstContactLine, colors, "  |  "),
-        fontSize: contactFontSize,
-        alignment: "center",
-        margin: [0, 3, 0, 1]
-      });
-    }
-    const linkedIn = contactItems.find((item) => item.kind === "linkedin");
-    if (linkedIn) {
-      const linkedInLabel = linkedIn.value.replace(/^linkedin\s*:\s*/i, "");
-      header.push({
-        text: [
-          { text: "LinkedIn: ", color: colors.muted },
-          { text: linkedInLabel, link: linkedIn.href, color: colors.secondary, decoration: "underline" }
-        ],
-        fontSize: contactFontSize,
-        alignment: "center",
-        margin: [0, 1, 0, 5]
-      });
-    }
-  } else if (contactItems.length) {
+  const primaryContactItems = contactItems.filter((item) => item.kind !== "profile");
+  const profileContactItems = contactItems.filter((item) => item.kind === "profile");
+  const headerAlignment = isReference ? "center" : nameAlignment;
+
+  if (primaryContactItems.length) {
     header.push({
-      text: contactInlineNodes(contactItems, panelContactColors, isContemporary ? "   •   " : "  |  "),
+      text: contactInlineNodes(primaryContactItems, panelContactColors, isContemporary ? "   •   " : "  |  "),
       fontSize: contactFontSize,
-      alignment: nameAlignment,
-      margin: [0, 4, 0, 2]
+      alignment: headerAlignment,
+      margin: [0, 4, 0, profileContactItems.length ? 1 : 5]
+    });
+  }
+  if (profileContactItems.length) {
+    header.push({
+      text: profileLinkInlineNodes(profileContactItems, panelContactColors),
+      fontSize: contactFontSize,
+      alignment: headerAlignment,
+      margin: [0, 1, 0, 5]
     });
   }
 
