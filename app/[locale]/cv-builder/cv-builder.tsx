@@ -42,6 +42,7 @@ import {
   type Course,
   type Experience,
   type Project,
+  type ProfileLink,
   type SectionId,
   type WizardStep
 } from "./cv-types";
@@ -70,6 +71,8 @@ const EMPTY_CV: CVData = {
   email: "",
   phone: "",
   city: "",
+  postalCode: "",
+  profileLinks: [],
   linkedin: "",
   summary: "",
   university: "",
@@ -126,6 +129,91 @@ function listText(value: string): string[] {
   return result;
 }
 
+type TextFormatMode = "title" | "sentence" | "list";
+
+function cleanTextSpacing(value: string): string {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[\t ]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function capitalizeFirstLetter(value: string): string {
+  const match = value.match(/^(\s*(?:(?:[-*•▪◦‣]|\d+[.)])\s*)?)(\p{L})/u);
+  if (!match) return value;
+  return `${match[1]}${match[2].toLocaleUpperCase()}${value.slice(match[0].length)}`;
+}
+
+function toSentenceCase(value: string): string {
+  return value
+    .split(/(\r?\n)/)
+    .map((line) => {
+      if (/^\r?\n$/.test(line)) return line;
+      const withInitial = capitalizeFirstLetter(line);
+      return withInitial.replace(/([.!?]\s+)(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase()}`);
+    })
+    .join("");
+}
+
+function toListItemCase(value: string): string {
+  return value
+    .split(/((?:\r?\n)|[,،;؛]\s*)/)
+    .map((part) => /^(?:\r?\n|[,،;؛]\s*)$/.test(part) ? part : capitalizeFirstLetter(part))
+    .join("");
+}
+
+function toTitleCase(value: string): string {
+  const smallWords = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "in", "of", "on", "or", "the", "to", "via"]);
+  const knownAcronyms = new Set(["ai", "api", "ceo", "cfo", "cto", "css", "erp", "hr", "hrm", "html", "it", "qa", "seo", "sql", "ui", "ux"]);
+  let wordIndex = 0;
+  return value.replace(/\p{L}[\p{L}\p{M}'’]*/gu, (word) => {
+    const index = wordIndex++;
+    const lower = word.toLocaleLowerCase();
+    // Preserve or normalize common acronyms, product names and deliberate mixed-case branding.
+    if (knownAcronyms.has(lower)) return lower.toLocaleUpperCase();
+    if (word === word.toLocaleUpperCase()) return word;
+    if (/[a-z].*[A-Z]|[A-Z].*[a-z]/.test(word)) return word;
+    if (index > 0 && smallWords.has(lower)) return lower;
+    return lower.charAt(0).toLocaleUpperCase() + lower.slice(1);
+  });
+}
+
+function TextFormatTools({
+  value,
+  onChange,
+  mode,
+  isAr
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  mode: TextFormatMode;
+  isAr: boolean;
+}) {
+  const applyFormat = () => {
+    const next = mode === "title" ? toTitleCase(value) : mode === "list" ? toListItemCase(value) : toSentenceCase(value);
+    onChange(next);
+  };
+  const formatLabel = mode === "title"
+    ? (isAr ? "تنسيق العنوان" : "Title Case")
+    : mode === "list"
+      ? (isAr ? "تكبير أول حرف لكل عنصر" : "Capitalize each item")
+      : (isAr ? "تنسيق بداية الجمل" : "Sentence case");
+
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <button type="button" onClick={applyFormat} disabled={!value.trim()} className="inline-flex items-center gap-1 rounded-lg border border-[#C8A448]/40 bg-[#C8A448]/[0.07] px-2.5 py-1.5 text-[10px] font-bold text-[#80621c] transition hover:bg-[#C8A448]/15 disabled:cursor-not-allowed disabled:opacity-40 dark:text-[#E2C46F]">
+        <span className="font-black">Aa</span>{formatLabel}
+      </button>
+      <button type="button" onClick={() => onChange(cleanTextSpacing(value))} disabled={!value.trim()} className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-[10px] font-semibold text-zinc-500 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800">
+        {isAr ? "تنظيف المسافات" : "Clean spacing"}
+      </button>
+      <span className="text-[10px] text-zinc-400">{isAr ? "اختياري — راجع الأسماء والاختصارات بعد التنسيق." : "Optional — review names and acronyms after formatting."}</span>
+    </div>
+  );
+}
+
 function Field({ label, children, hint, required }: { label: string; children: ReactNode; hint?: string; required?: boolean }) {
   return (
     <label className="grid gap-1.5">
@@ -144,23 +232,33 @@ function TextInput({
   onChange,
   placeholder,
   type = "text",
-  dir
+  dir,
+  formatMode,
+  isAr = false,
+  ariaLabel
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
   dir?: "ltr" | "rtl" | "auto";
+  formatMode?: TextFormatMode;
+  ariaLabel?: string;
+  isAr?: boolean;
 }) {
   return (
-    <input
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      type={type}
-      dir={dir}
-      placeholder={placeholder}
-      className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#C8A448] focus:ring-2 focus:ring-[#C8A448]/15 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
-    />
+    <div>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        dir={dir}
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#C8A448] focus:ring-2 focus:ring-[#C8A448]/15 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+      />
+      {formatMode ? <TextFormatTools value={value} onChange={onChange} mode={formatMode} isAr={isAr} /> : null}
+    </div>
   );
 }
 
@@ -168,21 +266,28 @@ function TextArea({
   value,
   onChange,
   placeholder,
-  rows = 4
+  rows = 4,
+  formatMode,
+  isAr = false
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  formatMode?: TextFormatMode;
+  isAr?: boolean;
 }) {
   return (
-    <textarea
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      rows={rows}
-      className="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm leading-6 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#C8A448] focus:ring-2 focus:ring-[#C8A448]/15 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
-    />
+    <div>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm leading-6 text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#C8A448] focus:ring-2 focus:ring-[#C8A448]/15 dark:border-zinc-700 dark:bg-zinc-950 dark:text-white"
+      />
+      {formatMode ? <TextFormatTools value={value} onChange={onChange} mode={formatMode} isAr={isAr} /> : null}
+    </div>
   );
 }
 
@@ -550,8 +655,18 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     targetRole: "المسمى أو المجال المستهدف",
     email: "البريد الإلكتروني",
     phone: "رقم الهاتف",
-    city: "المدينة والدولة",
-    linkedin: "رابط LinkedIn أو Portfolio",
+    city: "المدينة والمنطقة والدولة",
+    postalCode: "الرمز البريدي (اختياري)",
+    linkedin: "روابطك المهنية",
+    profileLinkLabel: "اسم المنصة أو نوع الرابط",
+    profileLinkUrl: "الرابط",
+    addProfileLink: "إضافة رابط آخر",
+    addFirstProfileLink: "إضافة أول رابط",
+    removeProfileLink: "حذف الرابط",
+    locationHint: "اكتب المدينة والمنطقة والدولة. لا تحتاج إلى كتابة عنوان الشارع بالكامل.",
+    postalCodeHint: "اختياري؛ أضفه إذا كان مستخدمًا في بلدك أو مطلوبًا في نموذج التقييم.",
+    phoneHint: "اكتب كود الدولة مع الرقم واترك المسافات لسهولة القراءة، مثل +20 100 123 4567.",
+    profileLinksHint: "أضف أكثر من رابط، مثل LinkedIn وBehance وPortfolio وGitHub. اكتب اسم كل منصة والرابط المقابل لها.",
     summary: "نبذة مهنية قصيرة",
     summaryHint: "اكتب 2–3 جمل عن تخصصك واهتماماتك والفرصة التي تستهدفها. تجنب العبارات العامة غير المدعومة بأمثلة.",
     university: "الجامعة أو المعهد",
@@ -695,8 +810,18 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     targetRole: "Target role or field",
     email: "Email address",
     phone: "Phone number",
-    city: "City and country",
-    linkedin: "LinkedIn or portfolio URL",
+    city: "City, region and country",
+    postalCode: "Postal / ZIP code (optional)",
+    linkedin: "Professional links",
+    profileLinkLabel: "Platform or link label",
+    profileLinkUrl: "URL",
+    addProfileLink: "Add another link",
+    addFirstProfileLink: "Add your first link",
+    removeProfileLink: "Remove link",
+    locationHint: "Enter city, region and country. A full street address is not needed.",
+    postalCodeHint: "Optional; add it when commonly used in your country or requested by an application checker.",
+    phoneHint: "Keep your country code and readable spacing, e.g. +20 100 123 4567.",
+    profileLinksHint: "Add multiple links such as LinkedIn, Behance, Portfolio and GitHub. Give each link a label and URL.",
     summary: "Short professional summary",
     summaryHint: "Write 2–3 sentences about your major, interests and target opportunity. Avoid generic claims without examples.",
     university: "University or institute",
@@ -820,6 +945,7 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   }, [isAr]);
 
   const [cv, setCv] = useState<CVData>({ ...EMPTY_CV, cvLanguage: locale });
+  const isCvArabic = cv.cvLanguage === "ar";
   const [loaded, setLoaded] = useState(false);
   const [wizardStep, setWizardStep] = useState<WizardStep>("template");
   const [showPreview, setShowPreview] = useState(false);
@@ -863,6 +989,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           ? parsed.selectedSections.filter((id): id is SectionId => validSectionIds.includes(id as SectionId))
           : [...EMPTY_CV.selectedSections];
         const normalizedSelected = [...new Set(savedSelected)];
+        const storedProfileLinks = Array.isArray(parsed.profileLinks)
+          ? parsed.profileLinks.filter((item): item is ProfileLink => Boolean(item && typeof item.id === "string" && typeof item.label === "string" && typeof item.url === "string"))
+          : [];
+        const migratedProfileLinks: ProfileLink[] = storedProfileLinks.length
+          ? storedProfileLinks
+          : (typeof parsed.linkedin === "string" && parsed.linkedin.trim()
+            ? [{ id: uid(), label: "LinkedIn", url: parsed.linkedin.trim() }]
+            : []);
         const inferredSelected: SectionId[] = [];
         if (Array.isArray(parsed.experiences) && parsed.experiences.length) inferredSelected.push("experience");
         if (Array.isArray(parsed.projects) && parsed.projects.length) inferredSelected.push("projects");
@@ -874,6 +1008,10 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
           ...EMPTY_CV,
           ...parsed,
           qualification: parsed.qualification ?? "",
+          postalCode: typeof parsed.postalCode === "string" ? parsed.postalCode : "",
+          profileLinks: migratedProfileLinks,
+          // Clear the legacy single-link field after migration to avoid duplicate export.
+          linkedin: "",
           educationStatus: parsed.educationStatus ?? "studying",
           yearLevel: normalizeYearLevel(parsed.yearLevel),
           template: normalizeTemplate(parsed.template),
@@ -939,6 +1077,14 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
   }, [notice]);
 
   const update = <K extends keyof CVData>(key: K, value: CVData[K]) => setCv((previous) => ({ ...previous, [key]: value }));
+  const updateProfileLinks = (nextLinks: ProfileLink[]) => setCv((previous) => ({ ...previous, profileLinks: nextLinks, linkedin: "" }));
+  const addProfileLink = () => setCv((previous) => ({
+    ...previous,
+    linkedin: "",
+    profileLinks: [...(previous.profileLinks ?? []), { id: uid(), label: (previous.profileLinks?.length ?? 0) === 0 ? "LinkedIn" : "Portfolio", url: "" }]
+  }));
+  const editProfileLink = (id: string, patch: Partial<ProfileLink>) => updateProfileLinks((cv.profileLinks ?? []).map((item) => item.id === id ? { ...item, ...patch } : item));
+  const removeProfileLink = (id: string) => updateProfileLinks((cv.profileLinks ?? []).filter((item) => item.id !== id));
   const isActive = (id: SectionId) => cv.selectedSections.includes(id);
   const orderedSections = cv.sectionOrder.filter((id) => isActive(id));
   const isSectionStep = (step: WizardStep): step is SectionId => Object.prototype.hasOwnProperty.call(SECTION_META, step);
@@ -1192,20 +1338,20 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
         <form onSubmit={saveExperience} className="grid gap-4">
           <Field label={t.kind}><select aria-label={t.kind} value={experienceDraft.kind} onChange={(event) => setExperienceDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="internship">{t.internship}</option><option value="summer">{t.summer}</option><option value="part-time">{t.partTime}</option><option value="freelance">{t.freelance}</option><option value="work">{t.work}</option></select></Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.role}><TextInput value={experienceDraft.role} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, role: value }))} placeholder={isAr ? "مثال: HR Intern" : "e.g. HR Intern"} /></Field>
-            <Field label={t.organization}><TextInput value={experienceDraft.organization} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, organization: value }))} /></Field>
+            <Field label={t.role}><TextInput value={experienceDraft.role} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, role: value }))} formatMode="title" isAr={isAr} placeholder={isCvArabic ? "مثال: متدرب موارد بشرية" : "e.g. HR Intern"} /></Field>
+            <Field label={t.organization}><TextInput value={experienceDraft.organization} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, organization: value }))} formatMode="title" isAr={isAr} /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.startDate}><TextInput type="date" value={experienceDraft.startDate ?? ""} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, startDate: value }))} dir="ltr" /></Field>
             {!experienceDraft.isCurrent ? <Field label={t.endDate}><TextInput type="date" value={experienceDraft.endDate ?? ""} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, endDate: value }))} dir="ltr" /></Field> : null}
-            <Field label={t.location}><TextInput value={experienceDraft.location} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, location: value }))} /></Field>
+            <Field label={t.location}><TextInput value={experienceDraft.location} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, location: value }))} formatMode="title" isAr={isAr} /></Field>
           </div>
           <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200">
             <input type="checkbox" checked={Boolean(experienceDraft.isCurrent)} onChange={(event) => setExperienceDraft((draft) => ({ ...draft, isCurrent: event.target.checked, endDate: event.target.checked ? "" : draft.endDate }))} className="h-4 w-4 accent-[#182B36]" />
             <span>{t.currentlyWorking}</span>
           </label>
           {experienceDraft.period && !experienceDraft.startDate && !experienceDraft.endDate ? <p className="text-xs text-zinc-500">{isAr ? `الفترة المحفوظة من نسخة سابقة: ${experienceDraft.period}. يمكنك إدخال تاريخين جديدين لاستبدالها.` : `Saved legacy period: ${experienceDraft.period}. Enter structured dates above to replace it.`}</p> : null}
-          <Field label={t.description} hint={t.descriptionHint}><TextArea value={experienceDraft.description} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, description: value }))} placeholder={isAr ? "• ساعدت في ...\n• شاركت في ..." : "• Supported ...\n• Contributed to ..."} /></Field>
+          <Field label={t.description} hint={t.descriptionHint}><TextArea value={experienceDraft.description} onChange={(value) => setExperienceDraft((draft) => ({ ...draft, description: value }))} formatMode="sentence" isAr={isAr} placeholder={isCvArabic ? "• ساعدت في ...\n• شاركت في ..." : "• Supported ...\n• Contributed to ..."} /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
       );
@@ -1214,16 +1360,16 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
       return (
         <form onSubmit={saveProject} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.projectName}><TextInput value={projectDraft.name} onChange={(value) => setProjectDraft((draft) => ({ ...draft, name: value }))} /></Field>
+            <Field label={t.projectName}><TextInput value={projectDraft.name} onChange={(value) => setProjectDraft((draft) => ({ ...draft, name: value }))} formatMode="title" isAr={isAr} /></Field>
             <Field label={t.projectKind}><select aria-label={t.projectKind} value={projectDraft.kind} onChange={(event) => setProjectDraft((draft) => ({ ...draft, kind: event.target.value }))} className="cv-select"><option value="academic">{t.academic}</option><option value="personal">{t.personal}</option><option value="graduation">{t.graduation}</option></select></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.projectRole}><TextInput value={projectDraft.role} onChange={(value) => setProjectDraft((draft) => ({ ...draft, role: value }))} /></Field>
+            <Field label={t.projectRole}><TextInput value={projectDraft.role} onChange={(value) => setProjectDraft((draft) => ({ ...draft, role: value }))} formatMode="title" isAr={isAr} /></Field>
             <Field label={t.date}><TextInput value={projectDraft.date} onChange={(value) => setProjectDraft((draft) => ({ ...draft, date: value }))} /></Field>
           </div>
-          <Field label={t.tools}><TextInput value={projectDraft.tools} onChange={(value) => setProjectDraft((draft) => ({ ...draft, tools: value }))} placeholder={isAr ? "مثال: Excel، Power BI، Python" : "e.g. Excel, Power BI, Python"} /></Field>
+          <Field label={t.tools}><TextInput value={projectDraft.tools} onChange={(value) => setProjectDraft((draft) => ({ ...draft, tools: value }))} formatMode="list" isAr={isAr} placeholder={isCvArabic ? "مثال: Excel، Power BI، Python" : "e.g. Excel, Power BI, Python"} /></Field>
           <Field label={t.url}><TextInput value={projectDraft.url} onChange={(value) => setProjectDraft((draft) => ({ ...draft, url: value }))} dir="ltr" placeholder="https://" /></Field>
-          <Field label={t.description} hint={t.descriptionHint}><TextArea value={projectDraft.description} onChange={(value) => setProjectDraft((draft) => ({ ...draft, description: value }))} /></Field>
+          <Field label={t.description} hint={t.descriptionHint}><TextArea value={projectDraft.description} onChange={(value) => setProjectDraft((draft) => ({ ...draft, description: value }))} formatMode="sentence" isAr={isAr} /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
       );
@@ -1231,12 +1377,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     if (visibleActiveSection === "activities") {
       return (
         <form onSubmit={saveActivity} className="grid gap-4">
-          <Field label={t.activityName}><TextInput value={activityDraft.organization} onChange={(value) => setActivityDraft((draft) => ({ ...draft, organization: value }))} /></Field>
+          <Field label={t.activityName}><TextInput value={activityDraft.organization} onChange={(value) => setActivityDraft((draft) => ({ ...draft, organization: value }))} formatMode="title" isAr={isAr} /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.role}><TextInput value={activityDraft.role} onChange={(value) => setActivityDraft((draft) => ({ ...draft, role: value }))} placeholder={isAr ? "مثال: عضو فريق التنظيم" : "e.g. Event Team Member"} /></Field>
+            <Field label={t.role}><TextInput value={activityDraft.role} onChange={(value) => setActivityDraft((draft) => ({ ...draft, role: value }))} formatMode="title" isAr={isAr} placeholder={isCvArabic ? "مثال: عضو فريق التنظيم" : "e.g. Event Team Member"} /></Field>
             <Field label={t.period}><TextInput value={activityDraft.period} onChange={(value) => setActivityDraft((draft) => ({ ...draft, period: value }))} /></Field>
           </div>
-          <Field label={t.description} hint={t.descriptionHint}><TextArea value={activityDraft.description} onChange={(value) => setActivityDraft((draft) => ({ ...draft, description: value }))} /></Field>
+          <Field label={t.description} hint={t.descriptionHint}><TextArea value={activityDraft.description} onChange={(value) => setActivityDraft((draft) => ({ ...draft, description: value }))} formatMode="sentence" isAr={isAr} /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
       );
@@ -1244,12 +1390,12 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     if (visibleActiveSection === "courses") {
       return (
         <form onSubmit={saveCourse} className="grid gap-4">
-          <Field label={t.courseName}><TextInput value={courseDraft.name} onChange={(value) => setCourseDraft((draft) => ({ ...draft, name: value }))} /></Field>
+          <Field label={t.courseName}><TextInput value={courseDraft.name} onChange={(value) => setCourseDraft((draft) => ({ ...draft, name: value }))} formatMode="title" isAr={isAr} /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={t.provider}><TextInput value={courseDraft.provider} onChange={(value) => setCourseDraft((draft) => ({ ...draft, provider: value }))} /></Field>
+            <Field label={t.provider}><TextInput value={courseDraft.provider} onChange={(value) => setCourseDraft((draft) => ({ ...draft, provider: value }))} formatMode="title" isAr={isAr} /></Field>
             <Field label={t.date}><TextInput value={courseDraft.date} onChange={(value) => setCourseDraft((draft) => ({ ...draft, date: value }))} placeholder="2026" /></Field>
           </div>
-          <Field label={t.description} hint={t.descriptionHint}><TextArea value={courseDraft.description} onChange={(value) => setCourseDraft((draft) => ({ ...draft, description: value }))} rows={2} placeholder={isAr ? "• أهم الموضوعات أو المهارات التي تعلمتها" : "• Key topics or skills covered"} /></Field>
+          <Field label={t.description} hint={t.descriptionHint}><TextArea value={courseDraft.description} onChange={(value) => setCourseDraft((draft) => ({ ...draft, description: value }))} formatMode="sentence" isAr={isAr} rows={2} placeholder={isCvArabic ? "• أهم الموضوعات أو المهارات التي تعلمتها" : "• Key topics or skills covered"} /></Field>
           <Field label={t.certificateUrl}><TextInput value={courseDraft.certificateUrl} onChange={(value) => setCourseDraft((draft) => ({ ...draft, certificateUrl: value }))} dir="ltr" placeholder="https://" /></Field>
           <FormActions cancel={() => setFormOpen(false)} saveLabel={editingId ? t.update : t.save} cancelLabel={t.cancel} />
         </form>
@@ -1257,9 +1403,9 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
     }
     return (
       <div className="grid gap-4">
-        <Field label={t.skills} hint={t.skillsHint}><TextArea value={cv.skills} onChange={(value) => update("skills", value)} rows={4} placeholder={isAr ? "التواصل الفعال\nالعمل الجماعي\nحل المشكلات" : "Communication\nTeamwork\nProblem solving"} /></Field>
-        <Field label={t.technical} hint={t.skillsHint}><TextArea value={cv.tools} onChange={(value) => update("tools", value)} rows={3} placeholder={isAr ? "Microsoft Excel\nPowerPoint" : "Microsoft Excel\nPowerPoint"} /></Field>
-        <Field label={t.languages} hint={t.languageHint}><TextArea value={cv.languages} onChange={(value) => update("languages", value)} rows={3} placeholder={isAr ? "العربية — اللغة الأم\nالإنجليزية — متوسط" : "Arabic — Native\nEnglish — Intermediate"} /></Field>
+        <Field label={t.skills} hint={t.skillsHint}><TextArea value={cv.skills} onChange={(value) => update("skills", value)} formatMode="list" isAr={isAr} rows={4} placeholder={isCvArabic ? "التواصل الفعال\nالعمل الجماعي\nحل المشكلات" : "Communication\nTeamwork\nProblem solving"} /></Field>
+        <Field label={t.technical} hint={t.skillsHint}><TextArea value={cv.tools} onChange={(value) => update("tools", value)} formatMode="list" isAr={isAr} rows={3} placeholder={isCvArabic ? "Microsoft Excel\nPowerPoint" : "Microsoft Excel\nPowerPoint"} /></Field>
+        <Field label={t.languages} hint={t.languageHint}><TextArea value={cv.languages} onChange={(value) => update("languages", value)} formatMode="list" isAr={isAr} rows={3} placeholder={isCvArabic ? "العربية — اللغة الأم\nالإنجليزية — متوسط" : "Arabic — Native\nEnglish — Intermediate"} /></Field>
         <p className="text-xs leading-5 text-zinc-500">{isAr ? "اكتب مستويات اللغات بصدق، ولا تضف مهارة لمجرد أنها مطلوبة في إعلان الوظيفة." : "Describe language proficiency honestly, and only include skills you actually have."}</p>
       </div>
     );
@@ -1606,15 +1752,29 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.stepProfile}</h2><p className="text-xs text-zinc-500">{isAr ? "معلومات تساعد جهة التوظيف على التواصل معك." : "Details employers need to identify and contact you."}</p></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t.fullName} required><TextInput value={cv.fullName} onChange={(value) => update("fullName", value)} placeholder={isAr ? "الاسم كما تريد ظهوره في السيرة" : "Your name as it should appear on the CV"} /></Field>
-              <Field label={t.targetRole}><TextInput value={cv.targetRole} onChange={(value) => update("targetRole", value)} placeholder={isAr ? "مثال: Marketing Intern" : "e.g. Marketing Intern"} /></Field>
+              <Field label={t.fullName} required><TextInput value={cv.fullName} onChange={(value) => update("fullName", value)} formatMode="title" isAr={isAr} placeholder={isCvArabic ? "اكتب اسمك كما تريد ظهوره في السيرة" : "Your name as it should appear on the CV"} /></Field>
+              <Field label={t.targetRole}><TextInput value={cv.targetRole} onChange={(value) => update("targetRole", value)} formatMode="title" isAr={isAr} placeholder={isCvArabic ? "مثال: متدرب موارد بشرية" : "e.g. Marketing Intern"} /></Field>
               <Field label={t.email}><TextInput type="email" value={cv.email} onChange={(value) => update("email", value)} dir="ltr" placeholder="name@email.com" /></Field>
-              <Field label={t.phone}><TextInput value={cv.phone} onChange={(value) => update("phone", value)} dir="ltr" placeholder="+20 ..." /></Field>
-              <Field label={t.city}><TextInput value={cv.city} onChange={(value) => update("city", value)} /></Field>
-              <Field label={t.linkedin}><TextInput value={cv.linkedin} onChange={(value) => update("linkedin", value)} dir="ltr" placeholder="https://linkedin.com/in/..." /></Field>
+              <Field label={t.phone} hint={t.phoneHint}><TextInput value={cv.phone} onChange={(value) => update("phone", value)} dir="ltr" placeholder="+20 100 123 4567" /></Field>
+              <Field label={t.city} hint={t.locationHint}><TextInput value={cv.city} onChange={(value) => update("city", value)} placeholder={isCvArabic ? "المنصورة، الدقهلية، مصر" : "Mansoura, Dakahlia, Egypt"} /></Field>
+              <Field label={t.postalCode} hint={t.postalCodeHint}><TextInput value={cv.postalCode ?? ""} onChange={(value) => update("postalCode", value)} dir="ltr" placeholder="35511" /></Field>
+            </div>
+            <div className="grid gap-1.5">
+              <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{t.linkedin}</div>
+              <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">{t.profileLinksHint}</p>
+              <div className="grid gap-2.5">
+                {(cv.profileLinks ?? []).map((link) => (
+                  <div key={link.id} className="grid gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950 sm:grid-cols-[minmax(110px,0.7fr)_minmax(0,1.5fr)_auto]">
+                    <TextInput value={link.label} onChange={(value) => editProfileLink(link.id, { label: value })} aria-label={t.profileLinkLabel} placeholder={t.profileLinkLabel} />
+                    <TextInput value={link.url} onChange={(value) => editProfileLink(link.id, { url: value })} aria-label={t.profileLinkUrl} dir="ltr" placeholder="https://" />
+                    <button type="button" onClick={() => removeProfileLink(link.id)} className="inline-flex items-center justify-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950/30" aria-label={t.removeProfileLink}><Trash2 className="h-4 w-4" /><span className="sm:hidden">{t.removeProfileLink}</span></button>
+                  </div>
+                ))}
+                <button type="button" onClick={addProfileLink} className="inline-flex w-fit items-center gap-1.5 rounded-xl border border-dashed border-[#C8A448]/60 px-3.5 py-2.5 text-xs font-bold text-[#80621c] transition hover:bg-[#C8A448]/10 dark:text-[#E2C46F]"><Plus className="h-4 w-4" />{(cv.profileLinks ?? []).length ? t.addProfileLink : t.addFirstProfileLink}</button>
+              </div>
             </div>
             <p className="mt-2 text-[11px] text-zinc-500">{isAr ? "أدخل البريد الإلكتروني أو رقم الهاتف على الأقل." : "Enter at least an email address or a phone number."}</p>
-            <div className="mt-4"><Field label={t.summary} hint={t.summaryHint}><TextArea value={cv.summary} onChange={(value) => update("summary", value)} rows={3} placeholder={isAr ? "طالب في كلية ... مهتم بمجال ... وأسعى لاكتساب خبرة في ..." : "University student majoring in ... interested in ... and seeking an opportunity to ..."} /></Field></div>
+            <div className="mt-4"><Field label={t.summary} hint={t.summaryHint}><TextArea value={cv.summary} onChange={(value) => update("summary", value)} formatMode="sentence" isAr={isAr} rows={3} placeholder={isCvArabic ? "طالب في كلية ... مهتم بمجال ... وأسعى لاكتساب خبرة في ..." : "University student majoring in ... interested in ... and seeking an opportunity to ..."} /></Field></div>
           </section>
         ) : null}
 
@@ -1625,15 +1785,15 @@ export default function CvBuilder({ locale }: { locale: Locale }) {
               <div><h2 className="font-extrabold text-zinc-900 dark:text-white">{t.stepEducation}</h2><p className="text-xs text-zinc-500">{t.educationNote}</p></div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t.university}><TextInput value={cv.university} onChange={(value) => update("university", value)} /></Field>
-              <Field label={t.college}><TextInput value={cv.college} onChange={(value) => update("college", value)} /></Field>
-              <Field label={t.qualification}><TextInput value={cv.qualification} onChange={(value) => update("qualification", value)} placeholder={isAr ? "مثال: بكالوريوس تجارة" : "e.g. Bachelor of Commerce"} /></Field>
-              <Field label={t.major} required><TextInput value={cv.major} onChange={(value) => update("major", value)} /></Field>
+              <Field label={t.university}><TextInput value={cv.university} onChange={(value) => update("university", value)} formatMode="title" isAr={isAr} /></Field>
+              <Field label={t.college}><TextInput value={cv.college} onChange={(value) => update("college", value)} formatMode="title" isAr={isAr} /></Field>
+              <Field label={t.qualification}><TextInput value={cv.qualification} onChange={(value) => update("qualification", value)} formatMode="title" isAr={isAr} placeholder={isCvArabic ? "مثال: بكالوريوس تجارة" : "e.g. Bachelor of Commerce"} /></Field>
+              <Field label={t.major} required><TextInput value={cv.major} onChange={(value) => update("major", value)} formatMode="title" isAr={isAr} /></Field>
               <Field label={t.educationStatus}><select aria-label={t.educationStatus} value={cv.educationStatus} onChange={(event) => update("educationStatus", event.target.value as EducationStatus)} className="cv-select"><option value="studying">{t.studying}</option><option value="graduated">{t.graduated}</option></select></Field>
               {cv.educationStatus === "studying" ? <Field label={t.yearLevel}><select aria-label={t.yearLevel} value={cv.yearLevel} onChange={(event) => update("yearLevel", event.target.value)} className="cv-select"><option value="">—</option>{Object.entries(YEAR_LEVELS).map(([key, labels]) => <option key={key} value={key}>{labels[isAr ? "ar" : "en"]}</option>)}</select></Field> : null}
               <Field label={t.startYear}><TextInput value={cv.startYear} onChange={(value) => update("startYear", value)} placeholder="2023" /></Field>
               <Field label={t.graduationYear}><TextInput value={cv.graduationYear} onChange={(value) => update("graduationYear", value)} placeholder={cv.educationStatus === "studying" ? "2027" : "2025"} /></Field>
-              <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isAr ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
+              <Field label={t.gpa}><TextInput value={cv.gpa} onChange={(value) => update("gpa", value)} placeholder={isCvArabic ? "مثال: جيد جدًا أو 3.4/4" : "e.g. Very Good or 3.4/4"} /></Field>
             </div>
           </section>
         ) : null}
