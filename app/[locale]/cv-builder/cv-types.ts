@@ -37,6 +37,12 @@ export type Activity = {
   description: string;
 };
 
+export type ProfileLink = {
+  id: string;
+  label: string;
+  url: string;
+};
+
 export type Course = {
   id: string;
   name: string;
@@ -52,6 +58,10 @@ export type CVData = {
   email: string;
   phone: string;
   city: string;
+  /** Optional postal / ZIP code; retained separately for regional formats. */
+  postalCode?: string;
+  /** New multiple profile links; `linkedin` remains for legacy localStorage migration. */
+  profileLinks?: ProfileLink[];
   linkedin: string;
   summary: string;
   university: string;
